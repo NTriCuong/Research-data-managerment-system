@@ -1,0 +1,20 @@
+{
+    "name": "RDMS",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Monorepo project RDMS sử dụng Next.js, FastAPI, PostgreSQL và Elasticsearch",
+    "workspaces": [
+        "apps/frontend",
+        "packages/*"
+    ],
+    "scripts": {
+        "dev": "concurrently \"npm run dev -w apps/frontend\" \"cd apps/backend && .venv/bin/uvicorn app.main:app --reload --port 8000\"",
+        "dev:frontend": "npm run dev -w apps/frontend",
+        "dev:backend": "cd apps/backend && .venv/bin/uvicorn app.main:app --reload --port 8000",
+        "build:frontend": "npm run build -w apps/frontend",
+        "start:frontend": "npm run start -w apps/frontend"
+    },
+    "devDependencies": {
+        "concurrently": "^9.1.2"
+    }
+}
