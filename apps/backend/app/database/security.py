@@ -1,0 +1,1 @@
+# hash password (bcrypt), verify pass, decode token, check role
