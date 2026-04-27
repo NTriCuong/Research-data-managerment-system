@@ -31,3 +31,6 @@ coverage/
 
 # Misc
 *.log
+
+# db 
+database/
