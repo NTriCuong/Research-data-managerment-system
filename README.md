@@ -86,3 +86,8 @@ npm run dev
 frontend: port 3000
 backend: port 8000
 ```
+## lệnh chạy migration 
+```
+alembic revision --autogenerate -m "mo ta thay doi"  // sinh ra file migration
+alembic upgrade head                                 // upgrade lại db
+
