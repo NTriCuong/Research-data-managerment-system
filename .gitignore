@@ -34,3 +34,5 @@ coverage/
 
 # db 
 database/
+
+venv/
