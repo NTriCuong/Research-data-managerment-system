@@ -3,8 +3,6 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from app.core.config import settings
 
-# ── Password hashing ─────────────────────────────────────────────────────────
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def hash_password(passWord: str) -> str:
@@ -14,9 +12,6 @@ def hash_password(passWord: str) -> str:
 def verify_password(passWord: str, hashed: str) -> bool:
     """Extract salt từ hashed, hash lại passWord, so sánh constant-time."""
     return pwd_context.verify(passWord, hashed)
-
-
-# ── JWT ──────────────────────────────────────────────────────────────────────
 
 def create_access_token(user_id: str, role_name: str) -> str:
     """
@@ -51,7 +46,7 @@ def create_refresh_token(user_id: str) -> str:
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def decode_token(token: str) -> dict: # giải mã token và trả về payload
+def decode_token(token: str) -> dict: 
     """
     Raises JWTError nếu:
     - Sai chữ ký

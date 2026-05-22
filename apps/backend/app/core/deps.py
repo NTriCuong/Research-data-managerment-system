@@ -15,18 +15,18 @@ from app.models.user import User
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
-async def get_current_user( # get user từ access token, raise 401 nếu token invalid hoặc user không tồn tại
+async def get_current_user( 
     request: Request,
-    token: str = Depends(oauth2_scheme),   # access token từ header
-    db: AsyncSession = Depends(get_db), # inject (inject qua Depends) một database session tạo 1 repository để query user
+    token: str = Depends(oauth2_scheme),   
+    db: AsyncSession = Depends(get_db), 
 ) -> User:
 
     try:
-        payload = decode_token(token) # giải mã token 
+        payload = decode_token(token) 
         if payload.get("type") != "access":
             raise HTTPException( 
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="token invalid", #token invalid (sai chữ ký, hết hạn, malformed)
+                    detail="token invalid", 
                     headers={"WWW-Authenticate": "Bearer"},
                 )
         user_id: str | None = payload.get("sub")
@@ -37,14 +37,13 @@ async def get_current_user( # get user từ access token, raise 401 nếu token 
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-    except JWTError: # catch tất cả lỗi liên quan đến JWT (sai chữ ký, hết hạn, malformed) và raise  chung
+    except JWTError: 
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="token invalid",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # xác thưc token thành công thì query user từ DB để kiểm tra user có tồn tại không
     user = await crud_user.get_by_id(db, user_id)
     if user is None:
         raise HTTPException(
@@ -57,13 +56,13 @@ async def get_current_user( # get user từ access token, raise 401 nếu token 
     return user
 
 
-async def get_current_active_user( # kiểm tra user có bị khoá hoặc deactive không,
+async def get_current_active_user( 
     current_user: User = Depends(get_current_user),
 ) -> User:
-    if current_user.is_deleted: # user đã bị xoá
+    if current_user.is_deleted: 
         raise HTTPException(status_code=403, detail="Account has been deleted")
 
-    if not current_user.is_active: # 
+    if not current_user.is_active:  
         raise HTTPException(status_code=403, detail="Account is deactivated")
 
     if (
@@ -78,7 +77,7 @@ async def get_current_active_user( # kiểm tra user có bị khoá hoặc deact
     return current_user
 
 
-# ── RBAC ─────────────────────────────────────────────────────────────────────
+# RBAC 
 
 ROLE_PERMISSIONS: dict[str, set[str]] = {
     "admin":    {"*"},

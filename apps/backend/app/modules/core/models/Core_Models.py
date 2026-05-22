@@ -12,10 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.config import Base
 
-
-# ============================================================
 #  CoreFile
-# ============================================================
 
 class CoreFile(Base):
     """
@@ -64,10 +61,7 @@ class CoreFile(Base):
     project  = relationship("CoreProject", back_populates="files")
     uploader = relationship("User", foreign_keys=[uploaded_by])
 
-
-# ============================================================
 #  CoreResearchAuthor
-# ============================================================
 
 class CoreResearchAuthor(Base):
     """Junction table: CoreProject ←→ Author (mirror của StgResearchAuthor)."""
@@ -91,10 +85,7 @@ class CoreResearchAuthor(Base):
     project = relationship("CoreProject", back_populates="research_authors")
     author  = relationship("Author")
 
-
-# ============================================================
 #  CoreKeyword
-# ============================================================
 
 class CoreKeyword(Base):
     """Keyword của core project — mirror của StgKeyword."""
@@ -117,10 +108,7 @@ class CoreKeyword(Base):
 
     project = relationship("CoreProject", back_populates="keywords")
 
-
-# ============================================================
 #  CoreEditLog
-# ============================================================
 
 _VALID_EDITABLE_FIELDS = (
     'dc_title', 'dc_creator', 'dc_description', 'dc_date',
@@ -191,10 +179,7 @@ class CoreEditLog(Base):
     project = relationship("CoreProject", back_populates="edit_logs")
     admin   = relationship("User", foreign_keys=[admin_id])
 
-
-# ============================================================
 #  CoreCitation
-# ============================================================
 
 class CoreCitation(Base):
     """

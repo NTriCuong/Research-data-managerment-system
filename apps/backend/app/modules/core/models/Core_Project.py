@@ -13,15 +13,6 @@ from app.database.config import Base
 
 
 class CoreProject(Base):
-    """
-    Bảng trung tâm core schema — bản chính thức đã được approve.
-
-    Nguyên tắc bất biến:
-    - approved_snapshot KHÔNG BAO GIỜ bị UPDATE sau khi tạo
-      (bảo vệ bằng PostgreSQL trigger trong migration script)
-    - Chỉ Admin được sửa dc_* fields hiện tại
-    - Mọi thay đổi PHẢI ghi vào core_edit_logs kèm reason
-    """
     __tablename__ = "core_projects"
     __table_args__ = (
         Index("idx_core_stg_id",      "stg_project_id"),
