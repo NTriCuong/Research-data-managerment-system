@@ -44,7 +44,7 @@ Research-data-managerment-system/
 |   |   +-- app/
 |   |   |   +-- core/
 |   |   |   +-- database/
-|   |   |   +-- modules/
+|   |   |   +-- models/
 |   |   |   |   +-- core/
 |   |   |   |   +-- logs/
 |   |   |   |   +-- stagging/
