@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import decode_token
 from app.database.config import get_db
 from app.crud import crud_user
-from app.models.user import User
+from app.models.system.User import User
 
 # Đọc access token từ Authorization: Bearer header
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")

@@ -12,15 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.config import Base
 
-#  CoreFile
-
 class CoreFile(Base):
-    """
-    File đính kèm trong core.
-
-    is_snapshot_file=True  → copy từ staging lúc approve (bất biến)
-    is_snapshot_file=False → admin upload thêm sau khi publish
-    """
     __tablename__ = "core_files"
     __table_args__ = (
         Index("idx_core_files_project",  "project_id"),
@@ -30,12 +22,10 @@ class CoreFile(Base):
         {"schema": "core"},
     )
 
-    # PK | id               | VARCHAR(36)
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
 
-    # FK | project_id       | VARCHAR(36) → core.core_projects.id
     project_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("core.core_projects.id", ondelete="RESTRICT"),
         nullable=False
@@ -47,7 +37,6 @@ class CoreFile(Base):
     file_size:     Mapped[int] = mapped_column(BigInteger, nullable=False)
     mime_type:     Mapped[str] = mapped_column(String(127), nullable=False)
 
-    # True=snapshot từ staging (bất biến) | False=admin upload thêm
     is_snapshot_file: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     uploaded_by: Mapped[str] = mapped_column(
@@ -64,7 +53,6 @@ class CoreFile(Base):
 #  CoreResearchAuthor
 
 class CoreResearchAuthor(Base):
-    """Junction table: CoreProject ←→ Author (mirror của StgResearchAuthor)."""
     __tablename__ = "core_research_authors"
     __table_args__ = {"schema": "core"}
 
@@ -84,8 +72,6 @@ class CoreResearchAuthor(Base):
 
     project = relationship("CoreProject", back_populates="research_authors")
     author  = relationship("Author")
-
-#  CoreKeyword
 
 class CoreKeyword(Base):
     """Keyword của core project — mirror của StgKeyword."""
@@ -108,7 +94,6 @@ class CoreKeyword(Base):
 
     project = relationship("CoreProject", back_populates="keywords")
 
-#  CoreEditLog
 
 _VALID_EDITABLE_FIELDS = (
     'dc_title', 'dc_creator', 'dc_description', 'dc_date',
@@ -119,15 +104,6 @@ _VALID_EDITABLE_FIELDS = (
 
 
 class CoreEditLog(Base):
-    """
-    Ghi lại mỗi lần admin sửa field trong core_projects.
-
-    Quy tắc:
-    - Mỗi field sửa = 1 record riêng (không gộp nhiều field vào 1 record)
-    - reason KHÔNG được rỗng — bắt buộc giải thích lý do
-    - Append-only — không UPDATE, không DELETE record này
-    - ON DELETE RESTRICT — không xóa project nếu còn edit log
-    """
     __tablename__ = "core_edit_logs"
     __table_args__ = (
         Index("idx_core_edit_project",  "project_id"),
@@ -148,25 +124,20 @@ class CoreEditLog(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
 
-    # FK | project_id | VARCHAR(36) → core.core_projects.id
     project_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("core.core_projects.id", ondelete="RESTRICT"),
         nullable=False
     )
 
-    # FK | admin_id   | VARCHAR(36) → public.users.id
     admin_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("public.users.id"), nullable=False
     )
 
-    # Tên field DC bị sửa
     field_name: Mapped[str] = mapped_column(String(50), nullable=False)
 
-    # Giá trị trước và sau khi sửa (TEXT để lưu mọi kiểu dữ liệu)
     old_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     new_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    # Lý do sửa — BẮT BUỘC, không được rỗng
     reason: Mapped[str] = mapped_column(Text, nullable=False)
 
     ip_address: Mapped[Optional[str]] = mapped_column(INET, nullable=True)
@@ -183,8 +154,6 @@ class CoreEditLog(Base):
 
 class CoreCitation(Base):
     """
-    Quan hệ trích dẫn giữa các core project.
-
     relation_type (SMALLINT):
       1=cites            A trích dẫn B
       2=is_cited_by      A được B trích dẫn
@@ -222,7 +191,6 @@ class CoreCitation(Base):
         nullable=False
     )
 
-    # 1=cites 2=is_cited_by 3=is_part_of 4=has_part 5=references 6=is_referenced_by
     relation_type: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=1)
 
     created_at: Mapped[datetime] = mapped_column(

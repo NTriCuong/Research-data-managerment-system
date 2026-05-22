@@ -15,22 +15,17 @@ class StgKeyword(Base):
     __tablename__ = "stg_keywords"
     __table_args__ = {"schema": "staging"}
 
-    # PK | id         | VARCHAR(36)
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
 
-    # FK | project_id | VARCHAR(36) → staging.stg_projects.id
     project_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("staging.stg_projects.id", ondelete="CASCADE"),
         nullable=False
     )
 
-    # N  | keyword    | VARCHAR(100)
     keyword: Mapped[str] = mapped_column(String(100), nullable=False)
 
-    # N  | language   | SMALLINT — 1=vi 2=en
     language: Mapped[int] = mapped_column(nullable=False, default=1)
 
-    # relationship
     project = relationship("StgProject", back_populates="keywords")

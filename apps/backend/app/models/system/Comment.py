@@ -10,28 +10,22 @@ from app.database.config import Base
 class Comment(Base):
     __tablename__ = "comments"
 
-    # PK   | id          | INTEGER
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
-    # FK,N | send_id     | VARCHAR(36) → users.id
     send_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id"), nullable=False
     )
 
-    # FK,N | receiver_id | VARCHAR(36) → users.id
     receiver_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("users.id"), nullable=False
     )
 
-    # N    | context     | TEXT
     context: Mapped[str] = mapped_column(TEXT, nullable=False)
 
-    # N    | create_at   | TIMESTAMP
     create_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), nullable=False, default=datetime.utcnow
     )
 
-    # FK,N | research_id | INTEGER
     research_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("research.id"), nullable=True
     )

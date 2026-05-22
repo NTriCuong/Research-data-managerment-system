@@ -6,27 +6,26 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 load_dotenv()
 
-#  Base
 #  Tất cả model kế thừa class này.
 
 class Base(DeclarativeBase):
     pass
 
-from app.modules.system.models.Role import Role                                     
-from app.modules.system.models.Department import Department                         
-from app.modules.system.models.User import User                                     
-from app.modules.system.models.Refresh_token import RefreshToken                    
-from app.modules.system.models.Author import Author                                 
+from app.models.system.Role import Role                                     
+from app.models.system.Department import Department                         
+from app.models.system.User import User                                     
+from app.models.system.Refresh_token import RefreshToken                    
+from app.models.system.Author import Author                                 
 
-from app.modules.stagging.models.Stg_Project import StgProject                      
-from app.modules.stagging.models.Stg_File import StgFile                            
-from app.modules.stagging.models.Stg_Research_Author import StgResearchAuthor       
-from app.modules.stagging.models.Stg_keyword import StgKeyword                      
-from app.modules.stagging.models.Stg_review import StgReview                        
-from app.modules.stagging.models.Stg_Field_Comment import StgFieldComment           
+from app.models.stagging.Stg_Project import StgProject                      
+from app.models.stagging.Stg_File import StgFile                            
+from app.models.stagging.Stg_Research_Author import StgResearchAuthor       
+from app.models.stagging.Stg_keyword import StgKeyword                      
+from app.models.stagging.Stg_review import StgReview                        
+from app.models.stagging.Stg_Field_Comment import StgFieldComment           
 
-from app.modules.core.models.Core_Project import CoreProject                        
-from app.modules.core.models.Core_Models import (                                   
+from app.models.core.Core_Project import CoreProject                        
+from app.models.core.Core_Models import (                                   
     CoreFile,
     CoreResearchAuthor,
     CoreKeyword,
@@ -34,7 +33,7 @@ from app.modules.core.models.Core_Models import (
     CoreCitation,
 )
 
-from app.modules.logs.models.logs import AuditLog, LoginLog                         
+from app.models.logs.logs import AuditLog, LoginLog                         
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 

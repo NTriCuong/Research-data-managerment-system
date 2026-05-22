@@ -12,16 +12,13 @@ class StgResearchAuthor(Base):
     __tablename__ = "stg_research_authors"
     __table_args__ = {"schema": "staging"}
 
-    # PK   | id          | INTEGER
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
-    # FK   | project_id  | VARCHAR(36) → staging.stg_projects.id
     project_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("staging.stg_projects.id", ondelete="RESTRICT"),
         nullable=False
     )
 
-    # FK   | author_id   | INTEGER → public.authors.id
     author_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("public.authors.id"), nullable=False
     )
@@ -33,6 +30,5 @@ class StgResearchAuthor(Base):
     # 4=contributor (người đóng góp)
     role: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=2)
 
-    # relationships
     project = relationship("StgProject", back_populates="research_authors")
     author  = relationship("Author",     back_populates="research_authors")
