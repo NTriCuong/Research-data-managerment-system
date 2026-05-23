@@ -39,60 +39,58 @@ class AuthService:
         result = await db.execute(
             select(User)
             .options(selectinload(User.role))
-            .where(
-                (User.username == email) | (User.email == email)
-            )
+            .where(  User.email == email )
         )
-        user = result.scalar_one_or_none()
-
+        user = result.scalar_one_or_none() # Lấy user object nếu k tìm thấy là none
+        # Ghi log đăng nhập (thành công hoặc thất bại) để hỗ trợ brute-force lockout và authentication audit trail
         async def _log(login_result: str, reason: str | None = None) -> None:
             db.add(LoginLog(
                 user_id=user.user_id if user else None,
-                username_attempted=email,
+                username_attempted=user.username if user else None,
                 login_result=login_result,
                 failure_reason=reason,
                 ip_address=ip_address,
                 user_agent=user_agent,
             ))
 
-        if user is None:
+        if user is None: 
             await _log("failed", "user_not_found")
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
+                status_code=status.HTTP_401_UNAUTHORIZED, #user không tồn tại
                 detail="Invalid credentials",
             )
 
         if user.deleted_at is not None:
             await _log("failed", "account_deleted")
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_403_FORBIDDEN, # user đã bị xoá
                 detail="Account has been deleted",
             )
 
         if user.status != UserStatus.active:
             await _log("failed", "account_disabled")
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_403_FORBIDDEN, # account bị disabled
                 detail="Account is disabled",
             )
 
-        # Brute-force lockout: count recent failures within lock window
+        # Brute-force
         window_start = datetime.now(timezone.utc) - timedelta(minutes=settings.LOCK_DURATION)
-        fail_count_result = await db.execute(
+        fail_count_result = await db.execute( # login đúng và chưa fail lần nào thì ->none
             select(func.count())
             .select_from(LoginLog)
             .where(LoginLog.user_id == user.user_id)
             .where(LoginLog.login_result == "failed")
             .where(LoginLog.created_at >= window_start)
         )
-        if fail_count_result.scalar_one() >= settings.MAX_LOGIN_ATTEMPTS:
+        if fail_count_result.scalar_one() >= settings.MAX_LOGIN_ATTEMPTS: # số lần login fail liên tiếp thì lock tài khoản 
             await _log("failed", "account_locked")
             raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS, #login fail quá nhiều lần liên tiếp
                 detail=f"Too many failed attempts. Try again after {settings.LOCK_DURATION} minutes.",
             )
 
-        if not verify_password(password, user.password_hash):
+        if not verify_password(password, user.password_hash): // kiểm tra với password hash trong db
             await _log("failed", "wrong_password")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -100,13 +98,14 @@ class AuthService:
             )
 
         # Issue tokens
-        user.last_login_at = datetime.now(timezone.utc)
+        user.last_login_at = datetime.now(timezone.utc) # cập nhật thời gian đăng nhập cuối cùng
 
         raw_rt, hashed_rt = create_refresh_token()
-        db.add(RefreshToken(
+        db.add(RefreshToken( # lưu refresh token hash vào db, gửi raw token cho client
             user_id=user.user_id,
+            issued_at=datetime.now(timezone.utc), #token đươcj tạo lúc nào hay đăng nhập lúc nào 
             token_hash=hashed_rt,
-            expires_at=refresh_token_expires_at(),
+            expires_at=refresh_token_expires_at(), # thời gian hết hạng
             ip_address=ip_address,
             user_agent=user_agent,
         ))
@@ -128,19 +127,19 @@ class AuthService:
         role_id: UUID,
         department_id: UUID | None = None,
     ) -> User:
-        """Create a new user. Raises 409 if username or email is already taken."""
-        dup = await db.execute(
+        """tạo user mới dành cho super admin"""
+        dup = await db.execute( # tìm user name và email đã tồn tại chưa
             select(User).where(
                 (User.username == username) | (User.email == email)
             )
         )
-        if dup.scalar_one_or_none():
+        if dup.scalar_one_or_none(): # tồn tại rồi thì 409
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Username or email already exists",
             )
 
-        user = User(
+        user = User( # tạo user mới
             username=username,
             email=email,
             password_hash=hash_password(password),
@@ -149,7 +148,7 @@ class AuthService:
             department_id=department_id,
         )
         db.add(user)
-        await db.flush()  # populate user_id before returning
+        await db.flush()  # sau dòng này user có thể xử dụng
         return user
 
     # ── refresh_token ─────────────────────────────────────────────────────────
@@ -158,7 +157,7 @@ class AuthService:
         self,
         db: AsyncSession,
         *,
-        db_token: RefreshToken,
+        db_token: RefreshToken, #dependencies injection
         user: User,
         ip_address: str | None = None,
         user_agent: str | None = None,
@@ -199,7 +198,7 @@ class AuthService:
         *,
         user_id: UUID,
     ) -> int:
-        """Revoke all active refresh tokens for a user. Returns number of revoked tokens."""
+        """Revoke tất cả các session của user return về số lượng session đã bị revoke."""
         result = await db.execute(
             select(RefreshToken)
             .where(RefreshToken.user_id == user_id)
