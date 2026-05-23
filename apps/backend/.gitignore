@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Compiled files
+*.so
+*.pyd
+*.dll
+
+# Virtual Environment
+venv/
+.env/
+.venv/
+env/
+ENV/
+
+# Environment Variables
+.env
+.env.*
+!.env.example
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/
+*.log
+
+# Testing / Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Type Checking / Lint
+.mypy_cache/
+.ruff_cache/
+.pyre/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Build / Distribution
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Alembic
+alembic/versions/__pycache__/
+
+# Nếu KHÔNG muốn push migration
+# alembic/versions/
+
+# Database Files
+*.db
+*.sqlite3
+
+# PostgreSQL dump
+*.sql.gz
+*.dump
+*.backup
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+.cache/
