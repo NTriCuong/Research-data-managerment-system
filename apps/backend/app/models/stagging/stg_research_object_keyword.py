@@ -1,16 +1,3 @@
-"""
-Model: StgResearchObjectKeyword
-Schema: staging
-Table:  staging.research_object_keywords
-
-SQL gốc:
-    CREATE TABLE IF NOT EXISTS staging.research_object_keywords (
-        staging_id  UUID NOT NULL REFERENCES staging.research_objects ON DELETE CASCADE,
-        keyword_id  UUID NOT NULL REFERENCES reference.keywords,
-        PRIMARY KEY (staging_id, keyword_id)
-    );
-"""
-
 import uuid
 
 from sqlalchemy import ForeignKey
@@ -18,6 +5,8 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.config import Base
+from app.models.reference.keyword import Keyword  # noqa: F401
+from app.models.stagging.stg_research_object import StgResearchObject  # noqa: F401
 
 
 class StgResearchObjectKeyword(Base):

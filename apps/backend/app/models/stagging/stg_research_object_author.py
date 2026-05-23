@@ -7,6 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.config import Base
 from app.models.enum import AuthorRole, AuthorRoleType
+from app.models.reference.researcher import Researcher  # noqa: F401
+from app.models.stagging.stg_research_object import StgResearchObject  # noqa: F401
 
 
 class StgResearchObjectAuthor(Base):

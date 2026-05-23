@@ -8,6 +8,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.config import Base
 from app.models.enum import AccessLevel, AccessLevelType
+from app.models.reference.department import Department  # noqa: F401
+from app.models.reference.output_type import OutputType  # noqa: F401
+from app.models.core.core_file_attachment import CoreFileAttachment  # noqa: F401
+from app.models.core.core_metadata_version import CoreMetadataVersion  # noqa: F401
+from app.models.core.core_research_object_author import CoreResearchObjectAuthor  # noqa: F401
+from app.models.core.core_research_object_domain import CoreResearchObjectDomain  # noqa: F
+from app.models.core.core_research_object_keyword import CoreResearchObjectKeyword  # noqa: F401
 
 
 class CoreResearchObject(Base):

@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import INET, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.config import Base
+from app.models.auth.user import User  # noqa: F401
 
 
 class RefreshToken(Base):

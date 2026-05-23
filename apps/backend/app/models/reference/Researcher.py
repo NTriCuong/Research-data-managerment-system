@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.config import Base
+from app.models.reference.department import Department  # noqa: F401
 
 
 class Researcher(Base):
