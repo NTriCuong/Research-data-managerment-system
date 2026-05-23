@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database.config import get_db
 from app.models.auth.user import User
-from app.models.auth.RefreshToken import RefreshToken
+from app.models.auth.refresh_token import RefreshToken
 from app.models.enum import UserStatus
 from app.services.auth.security import decode_access_token, hash_refresh_token
 
