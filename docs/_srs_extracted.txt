@@ -1,0 +1,293 @@
+
+SOFTWARE REQUIREMENTS SPECIFICATIONResearch Data Management System (RDMS)
+Phiên bản 1.1 - Cập nhật sau rà soát database, NFR và workflowPhạm vi: 2 sinh viên thực hiện luận văn tốt nghiệp trong 12 tuần
+Thông tin
+Nội dung
+Tên đề tài tiếng Việt
+Xây dựng cổng quản lý dữ liệu nghiên cứu khoa học dựa trên chuẩn metadata và quy trình kiểm duyệt cho trường đại học
+Tên đề tài tiếng Anh
+A Metadata-Driven Research Data Management System with Workflow Validation for Higher Education Institutions
+Chuẩn tài liệu
+IEEE 830-style Software Requirements Specification
+Phiên bản
+v1.1
+Công nghệ đề xuất
+React/Next.js, FastAPI, PostgreSQL, JWT/RBAC, Docker, PostgreSQL Full-Text Search
+Trọng tâm cập nhật v1.1
+Sửa lỗi logic metadata quality, bổ sung constraint, unique index có điều kiện, use case diagram, workflow state machine, NFR định lượng, search vector trigger và luồng cập nhật bản ghi đã approved.
+0. Đánh giá các đề xuất chỉnh sửa và Change Log v1.1
+Các đề xuất chỉnh sửa được đánh giá là hợp lý. Nhóm Ưu tiên 1 thuộc loại lỗi kỹ thuật có thể làm sai dữ liệu hoặc gây xung đột khi triển khai database, vì vậy phải sửa trước khi cài đặt. Nhóm Ưu tiên 2 giúp tài liệu SRS đủ chặt khi bảo vệ luận văn, đặc biệt ở các phần diagram, NFR định lượng, tìm kiếm toàn văn và ràng buộc định danh. Nhóm Ưu tiên 3 phù hợp đưa vào phần nâng cao hoặc yêu cầu khuyến nghị, giúp hệ thống có nền tốt hơn cho nghiên cứu khoa học và triển khai thực tế.
+Nhóm
+Điểm chỉnh sửa
+Đánh giá
+Cập nhật trong SRS v1.1
+Ưu tiên 1
+compute_staging_metadata_quality() đang cho điểm dương khi year IS NULL
+Hợp lý, đây là lỗi logic vì thiếu năm không được cộng điểm.
+Cập nhật Data Requirements và SQL correction: chỉ cộng điểm khi year hợp lệ trong khoảng 1900-2100.
+Ưu tiên 1
+Thiếu check constraint trên log.workflow_history
+Hợp lý, cần tránh workflow log không gắn đối tượng và tránh transition không hợp lệ.
+Bổ sung constraint workflow phải có staging_id hoặc research_id; from_status không được bằng to_status.
+Ưu tiên 1
+Partial unique index cho auth.users khi dùng soft delete
+Hợp lý, UNIQUE trực tiếp trên username/email làm xung đột khi xóa mềm và tạo lại tài khoản.
+Bổ sung yêu cầu bỏ UNIQUE cứng, dùng unique index có điều kiện WHERE deleted_at IS NULL.
+Ưu tiên 2
+Use Case Diagram và State Machine Diagram workflow
+Hợp lý, cần cho bảo vệ và giúp sinh viên triển khai thống nhất.
+Bổ sung sơ đồ Use Case và State Machine trong phần Specific Requirements.
+Ưu tiên 2
+Bảng NFR có ngưỡng đo lường định lượng
+Hợp lý, SRS IEEE cần yêu cầu có thể kiểm thử.
+Bổ sung bảng NFR với P95 response time, RPO/RTO, test coverage, token lifetime, upload limit.
+Ưu tiên 2
+Search vector trigger cover tác giả và từ khóa trong FTS
+Hợp lý, nếu FTS chỉ index title/abstract thì không đáp ứng search theo author/keyword.
+Bổ sung yêu cầu search_vector/search_text trigger lấy title, abstract, authors, keywords, domains.
+Ưu tiên 2
+Unique constraint có điều kiện cho core.identifier
+Hợp lý, identifier có thể NULL nhưng nếu có thì phải duy nhất trên bản ghi còn hiệu lực.
+Bổ sung partial unique index WHERE identifier IS NOT NULL AND deleted_at IS NULL.
+Ưu tiên 3
+Row-Level Security policy cho core.research_objects
+Hợp lý nhưng nên đưa vào nâng cao do tăng độ phức tạp.
+Bổ sung là SHOULD/extension: RLS theo access_level và department_id.
+Ưu tiên 3
+FR-CORE-04 luồng cập nhật bản ghi đã approved
+Rất cần thiết vì bản ghi core không nên sửa trực tiếp.
+Bổ sung FR-CORE-04: update approved record qua staging revision, review/approval và metadata version.
+Ưu tiên 3
+Xử lý tiếng Việt trong FTS bằng unaccent
+Hợp lý, giúp tìm kiếm không dấu/có dấu tốt hơn.
+Bổ sung yêu cầu unaccent-based normalization cho FTS.
+1. Introduction
+1.1 Purpose
+Tài liệu này đặc tả yêu cầu phần mềm cho hệ thống Research Data Management System, viết tắt là RDMS. RDMS là cổng quản lý dữ liệu nghiên cứu khoa học trong trường đại học, lấy metadata làm trung tâm để chuẩn hóa, kiểm duyệt, lưu trữ, tìm kiếm, thống kê và truy vết dữ liệu nghiên cứu.
+Phiên bản 1.1 cập nhật các yêu cầu quan trọng sau rà soát kỹ thuật: sửa logic tính điểm chất lượng metadata, bổ sung ràng buộc database, bổ sung sơ đồ use case và workflow state machine, định lượng hóa các NFR, mở rộng full-text search để bao phủ tác giả và từ khóa, đồng thời mô tả rõ luồng cập nhật bản ghi đã được phê duyệt.
+1.2 Scope
+Trong phạm vi luận văn ba tháng cho hai sinh viên, RDMS tập trung vào MVP gồm xác thực, phân quyền, quản lý metadata nghiên cứu, upload file minh chứng, workflow kiểm duyệt, chuyển dữ liệu từ staging sang core, tìm kiếm, dashboard, export và audit log. Các chức năng AI, recommendation, semantic search, research knowledge graph, tích hợp HEMIS/DWH/BI thời gian thực và Elasticsearch/OpenSearch được xem là hướng mở rộng, không phải điều kiện bắt buộc của MVP.
+2. Overall Description
+2.1 Product Perspective
+Trong nhiều trường đại học, dữ liệu nghiên cứu khoa học phân tán ở file Excel, Google Drive, email, PDF rời rạc, website tĩnh hoặc hồ sơ nội bộ. Điều này gây khó khăn cho tìm kiếm, kiểm định, tổng hợp báo cáo, tích hợp HEMIS và phân tích dữ liệu. RDMS được thiết kế như repository metadata nghiên cứu có kiểm soát, trong đó dữ liệu mới được nhập vào staging, đi qua workflow kiểm duyệt, sau đó mới chuyển vào core làm dữ liệu chính thức.
+2.2 Product Functions
+RDMS cung cấp các chức năng chính: quản lý người dùng và vai trò, quản lý danh mục dùng chung, tạo và chỉnh sửa metadata, upload file PDF/minh chứng, gửi kiểm duyệt, review, phê duyệt, từ chối, lưu bản ghi chính thức trong core, quản lý phiên bản metadata, tìm kiếm toàn văn, lọc theo năm/đơn vị/lĩnh vực/tác giả/từ khóa, dashboard thống kê, export báo cáo, audit log và login log.
+3. Use Case Model and Workflow Model
+3.1 Use Case Diagram
+Sơ đồ use case sau mô tả các tác nhân chính và các nhóm chức năng bắt buộc của RDMS. Sơ đồ này được bổ sung trong phiên bản 1.1 để phục vụ bảo vệ luận văn và làm cơ sở kiểm thử chức năng.
+Hình 1. Use Case Diagram của RDMS
+Actor
+Use case chính
+Super Admin
+Quản lý người dùng, vai trò, danh mục, xem audit log.
+Data Entry / Researcher
+Tạo metadata, upload file, gửi kiểm duyệt, yêu cầu cập nhật bản ghi đã approved.
+Reviewer
+Kiểm tra metadata, yêu cầu chỉnh sửa, chuyển chờ phê duyệt.
+Approver
+Phê duyệt, từ chối, thiết lập mức truy cập, phê duyệt cập nhật bản ghi core.
+Manager / QA
+Tìm kiếm, dashboard, export, khai thác audit phục vụ kiểm định.
+Public User
+Tìm kiếm và xem metadata public.
+3.2 Workflow State Machine Diagram
+Workflow kiểm duyệt là thành phần cốt lõi để RDMS không trở thành hệ thống CRUD đơn giản. Dữ liệu được kiểm soát qua các trạng thái từ nháp đến phê duyệt, đồng thời có luồng cập nhật riêng cho bản ghi đã vào core.
+Hình 2. State Machine Diagram cho workflow metadata RDMS
+Ràng buộc nghiệp vụ: người nhập liệu không được sửa trực tiếp bản ghi trong core. Khi bản ghi đã approved cần cập nhật, hệ thống tạo một staging revision hoặc update request, sau đó phải đi lại qua review và approval. Sau khi được duyệt, hệ thống tạo metadata version mới và cập nhật bản ghi core theo transaction.
+4. Functional Requirements
+4.1 Authentication and Authorization
+FR-AUTH-01: Hệ thống phải cho phép người dùng đăng nhập bằng username/email và mật khẩu. Mật khẩu phải được hash an toàn, không lưu plain text. Khi đăng nhập thành công, hệ thống cấp access token và refresh token. Khi đăng nhập thất bại, hệ thống ghi login log và trả thông báo lỗi chung.
+FR-AUTH-02: Hệ thống phải hỗ trợ RBAC với tối thiểu các vai trò Super Admin, Data Entry, Reviewer, Approver, Manager và Public User. Quyền truy cập API phải kiểm tra theo vai trò, không chỉ kiểm tra ở giao diện frontend.
+FR-AUTH-03: Khi thiết kế database người dùng có soft delete, hệ thống không được dùng UNIQUE cứng trực tiếp trên username/email nếu vẫn muốn cho phép tạo lại tài khoản sau khi bản ghi cũ đã bị xóa mềm. SRS v1.1 yêu cầu dùng partial unique index có điều kiện trên username/email với deleted_at IS NULL.
+-- SRS v1.1 - yêu cầu database cho soft delete user
+CREATE UNIQUE INDEX uq_users_username_active
+ON auth.users (lower(username))
+WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX uq_users_email_active
+ON auth.users (lower(email))
+WHERE deleted_at IS NULL;
+4.2 Metadata Management and Quality Assessment
+FR-META-01: Hệ thống phải cho phép tạo metadata trong staging với trạng thái draft. Bản ghi phải có UUID, title, output type, department, year, domain, keyword, access level và người tạo. Bản ghi có thể lưu nháp khi thiếu một số trường, nhưng không được gửi kiểm duyệt nếu thiếu trường bắt buộc.
+FR-META-02: Hệ thống phải tính metadata quality score dựa trên completeness, validity, evidence availability và traceability. Phiên bản v1.1 sửa rõ logic year: trường year chỉ được cộng điểm khi khác NULL và nằm trong khoảng hợp lệ; nếu year IS NULL thì không được cộng điểm.
+-- Logic yêu cầu trong compute_staging_metadata_quality()
+-- Sai: year IS NULL vẫn cộng điểm.
+-- Đúng: chỉ cộng điểm khi year hợp lệ.
+IF v_record.year IS NOT NULL AND v_record.year BETWEEN 1900 AND 2100 THEN
+    v_validity_score := v_validity_score + 10;
+END IF;
+FR-META-03: Hệ thống phải cho phép upload file PDF hoặc minh chứng với dung lượng tối đa 50MB/file trong MVP. Metadata file gồm original filename, stored filename, storage path, MIME type, extension, size, checksum, uploaded_by, uploaded_at và access_level.
+4.3 Review and Approval Workflow
+FR-REV-01: Reviewer xem được các bản ghi ở trạng thái pending_review, có thể yêu cầu chỉnh sửa hoặc chuyển sang pending_approval. Khi yêu cầu chỉnh sửa, reviewer phải nhập lý do, hệ thống ghi workflow_history.
+FR-APP-01: Approver phê duyệt bản ghi pending_approval. Khi phê duyệt, hệ thống chuyển dữ liệu từ staging sang core bằng transaction, đồng thời ghi metadata version, workflow history và audit log.
+FR-APP-02: Approver có thể từ chối bản ghi và phải nhập lý do từ chối. Bản ghi bị rejected không được chuyển lại workflow nếu không có quyền mở lại hoặc tạo bản ghi mới.
+4.4 Core Repository and Approved Record Update
+FR-CORE-01: Core repository chỉ lưu dữ liệu đã được phê duyệt. Người dùng thông thường không được chỉnh sửa trực tiếp bảng core.research_objects.
+FR-CORE-02: Hệ thống phải quản lý version metadata cho bản ghi core. Mỗi lần bản ghi chính thức thay đổi sau phê duyệt phải sinh metadata version mới hoặc snapshot JSON mới.
+FR-CORE-03: Mỗi bản ghi core phải có UUID duy nhất. Nếu có external identifier như DOI, URL hoặc mã hồ sơ, các định danh này được lưu trong identifier/external_url nhưng không thay thế UUID nội bộ.
+FR-CORE-04: Khi cập nhật bản ghi đã approved, hệ thống phải tạo một bản staging revision liên kết với bản ghi core hiện tại. Người đề xuất cập nhật nhập lý do thay đổi và nội dung metadata mới. Revision này phải đi qua pending_review, revision_required nếu cần, pending_approval và approve. Sau khi approver phê duyệt, hệ thống cập nhật core bằng transaction, tăng version_no, tạo metadata_versions snapshot, ghi audit log và workflow_history. Cách này bảo đảm dữ liệu core không bị sửa trực tiếp và vẫn có khả năng truy vết.
+-- SRS v1.1 - unique identifier có điều kiện trong core
+CREATE UNIQUE INDEX uq_core_identifier_active
+ON core.research_objects (lower(identifier))
+WHERE identifier IS NOT NULL AND deleted_at IS NULL;
+4.5 Search and Discovery
+FR-SEARCH-01: Hệ thống phải hỗ trợ tìm kiếm metadata theo title, abstract, description, author, keyword, domain và identifier. Phiên bản MVP dùng PostgreSQL Full-Text Search; Elasticsearch/OpenSearch là tùy chọn mở rộng.
+FR-SEARCH-02: SRS v1.1 yêu cầu search vector không chỉ index title/abstract mà phải bao phủ cả tác giả và từ khóa. Giải pháp khuyến nghị là tạo cột search_text/search_vector và trigger cập nhật khi research object, authors, keywords hoặc domains thay đổi.
+FR-SEARCH-03: Với tiếng Việt, hệ thống SHOULD dùng extension unaccent và normalization để hỗ trợ tìm kiếm có dấu/không dấu. Trong MVP có thể dùng cấu hình simple + unaccent; giai đoạn nâng cao có thể nghiên cứu Vietnamese tokenizer hoặc search engine chuyên biệt.
+-- SRS v1.1 - yêu cầu thiết kế FTS có tác giả, từ khóa và unaccent
+CREATE EXTENSION IF NOT EXISTS unaccent;
+-- Khuyến nghị: tạo search_text/search_vector và trigger ở backend hoặc database.
+-- Nội dung search_text phải gộp: title, abstract, description, authors, keywords, domains, identifier.
+CREATE INDEX idx_core_research_search_vector
+ON core.research_objects
+USING GIN (search_vector);
+4.6 Audit and Workflow Constraints
+FR-LOG-01: Hệ thống phải ghi audit log cho các thao tác tạo, sửa, gửi duyệt, yêu cầu chỉnh sửa, phê duyệt, từ chối, cập nhật bản ghi approved, upload file, export, đăng nhập và thay đổi quyền.
+FR-LOG-02: log.workflow_history phải có ràng buộc dữ liệu để không xuất hiện log mồ côi. Một workflow history phải tham chiếu ít nhất một đối tượng staging hoặc core. Nếu có from_status thì from_status không được bằng to_status.
+-- SRS v1.1 - check constraint cho workflow history
+ALTER TABLE log.workflow_history
+ADD CONSTRAINT ck_workflow_target_not_null
+CHECK (staging_id IS NOT NULL OR research_id IS NOT NULL);
+ALTER TABLE log.workflow_history
+ADD CONSTRAINT ck_workflow_status_transition
+CHECK (from_status IS NULL OR from_status &lt;&gt; to_status);
+5. Data Architecture Requirements
+Database RDMS phải tách schema theo vai trò dữ liệu: auth cho người dùng và token, reference cho danh mục, staging cho dữ liệu chưa duyệt, core cho dữ liệu chính thức, log cho audit và workflow history. Thiết kế này là yêu cầu kiến trúc bắt buộc vì nó hỗ trợ metadata governance, kiểm duyệt, truy vết và báo cáo.
+Schema
+Mục đích
+Bảng chính
+auth
+Quản lý tài khoản, vai trò, refresh token, soft delete user.
+roles, users, refresh_tokens
+reference
+Danh mục chuẩn hóa dùng chung.
+departments, output_types, research_domains, keywords, researchers
+staging
+Dữ liệu mới nhập, nháp, chờ kiểm duyệt hoặc yêu cầu chỉnh sửa.
+research_objects, research_object_authors, file_attachments
+core
+Dữ liệu chính thức đã phê duyệt, dùng cho search/dashboard/export.
+research_objects, authors, keywords, domains, file_attachments, metadata_versions
+log
+Truy vết thao tác và workflow.
+audit_logs, login_logs, workflow_history
+Các cập nhật v1.1 phải được phản ánh trong database migration. Sinh viên cần ưu tiên sửa migration trước khi cài đặt hệ thống: sửa function tính metadata_quality_score, thêm check constraint cho workflow_history, thay unique constraint cứng trên users bằng partial unique index, bổ sung unique index có điều kiện cho core.identifier, bổ sung cấu trúc search_vector/search_text để index authors và keywords.
+6. Non-Functional Requirements with Quantitative Thresholds
+Phiên bản v1.1 bổ sung bảng NFR định lượng để các yêu cầu phi chức năng có thể kiểm thử được. Các ngưỡng bên dưới áp dụng cho môi trường demo với 1.000 đến 5.000 bản ghi metadata, 10 người dùng đồng thời mức tải nhẹ và máy chủ thử nghiệm thông thường.
+Mã NFR
+Nhóm
+Yêu cầu định lượng
+Cách đo/tiêu chí nghiệm thu
+NFR-PERF-01
+Search
+P95 search response time &lt;= 2 giây với 5.000 bản ghi metadata.
+Dùng 20 truy vấn mẫu, đo response time API /api/search.
+NFR-PERF-02
+API
+P95 GET API &lt;= 1.5 giây; P95 POST/PUT workflow &lt;= 2 giây, không tính upload file lớn.
+Đo bằng pytest, Postman/Newman hoặc script Python.
+NFR-PERF-03
+Upload
+Upload file PDF 50MB phải được xử lý ổn định; nếu vượt 50MB phải trả lỗi rõ ràng.
+Test file 1MB, 10MB, 50MB và 51MB.
+NFR-SEC-01
+Authentication
+Access token &lt;= 30 phút; refresh token &lt;= 7 ngày; logout phải revoke refresh token.
+Kiểm thử token hết hạn, refresh và revoke.
+NFR-SEC-02
+Password
+Mật khẩu phải hash bằng bcrypt/argon2; không lưu plain text.
+Kiểm tra database và unit test auth service.
+NFR-SEC-03
+RBAC
+100% API thay đổi dữ liệu phải kiểm tra quyền server-side.
+Kiểm thử role Data Entry, Reviewer, Approver, Manager.
+NFR-SEC-04
+Audit
+100% hành động workflow và user management phải ghi audit log.
+Đối chiếu test case với log.audit_logs và log.workflow_history.
+NFR-REL-01
+Backup
+RPO &lt;= 24 giờ; RTO demo &lt;= 4 giờ.
+Có script backup/restore và báo cáo test restore.
+NFR-USAB-01
+Usability
+Người dùng thử nghiệm hoàn thành luồng tạo-gửi duyệt-phê duyệt &gt;= 80% không cần hỗ trợ kỹ thuật.
+Thử nghiệm với 5-10 người dùng hoặc mô phỏng kịch bản.
+NFR-MAINT-01
+Maintainability
+OpenAPI phải mô tả 100% endpoint chính; test coverage backend core &gt;= 60%.
+Kiểm tra /docs FastAPI và báo cáo pytest coverage.
+NFR-DATA-01
+Data Quality
+Metadata quality score phải phân biệt được bản ghi thiếu dữ liệu và bản ghi đầy đủ.
+Tạo dữ liệu lỗi và dữ liệu sạch, so sánh score.
+NFR-PORT-01
+Portability
+Hệ thống phải chạy được bằng Docker Compose hoặc hướng dẫn cài đặt tương đương.
+Sinh viên demo setup từ database trống.
+7. Security Enhancement Requirements
+7.1 Row-Level Security as Recommended Extension
+Row-Level Security trên core.research_objects được đánh giá hợp lý nhưng không nên đặt là bắt buộc trong MVP vì làm tăng độ phức tạp khi sinh viên mới triển khai. SRS v1.1 quy định RLS là SHOULD cho giai đoạn nâng cao. Nếu triển khai, policy cần dựa trên access_level, department_id và role. Public chỉ xem public, user nội bộ xem internal, user cấp khoa xem dữ liệu khoa mình, Manager/Super Admin xem toàn hệ thống.
+-- Gợi ý policy nâng cao, không bắt buộc trong MVP
+ALTER TABLE core.research_objects ENABLE ROW LEVEL SECURITY;
+-- Policy cụ thể nên triển khai sau khi backend đã ổn định và có cơ chế set app.current_user_role/app.current_department_id.
+8. Test Plan and Acceptance Criteria
+Hệ thống được nghiệm thu khi chạy được luồng end-to-end: tạo user, đăng nhập, tạo metadata, upload file, gửi kiểm duyệt, reviewer yêu cầu chỉnh sửa hoặc chuyển phê duyệt, approver phê duyệt, dữ liệu vào core, tìm kiếm thấy bản ghi, dashboard cập nhật, export hoạt động và audit log ghi đầy đủ. Các lỗi Ưu tiên 1 phải được sửa trước khi demo cài đặt database.
+Nhóm kiểm thử
+Test case bắt buộc
+Kết quả mong đợi
+Database migration
+Chạy schema trên database trống.
+Không lỗi; có đầy đủ schema auth/reference/staging/core/log.
+Metadata quality
+Tạo bản ghi thiếu year.
+Không cộng điểm validity cho year; hệ thống cảnh báo thiếu dữ liệu.
+Soft delete user
+Xóa mềm user, tạo lại user cùng username/email.
+Không conflict nếu bản ghi cũ deleted_at IS NOT NULL.
+Workflow constraint
+Thử insert workflow_history không có staging_id/research_id.
+Database từ chối bằng check constraint.
+Core identifier
+Tạo hai bản ghi active cùng identifier.
+Database từ chối nếu identifier không NULL và chưa deleted.
+FTS
+Tìm theo tên tác giả và keyword.
+Kết quả trả về bản ghi liên quan.
+Vietnamese FTS
+Tìm không dấu một từ khóa tiếng Việt.
+Hệ thống SHOULD trả kết quả nếu đã bật unaccent.
+Approved update
+Yêu cầu cập nhật bản ghi đã approved.
+Tạo revision, qua workflow, tăng version khi phê duyệt.
+9. Updated 12-Week Implementation Focus
+Sau các cập nhật v1.1, kế hoạch 12 tuần cần thêm một checkpoint kỹ thuật trước khi cài đặt. Trong tuần 1-2, sinh viên phải hoàn thành migration v1.1, chạy được database trống, kiểm tra function metadata quality, unique index, workflow constraint và search vector. Các phần này phải xong trước khi triển khai backend chính thức.
+Tuần
+Trọng tâm
+Sản phẩm kiểm tra
+1
+Chốt SRS v1.1, use case, state machine, ERD cập nhật.
+SRS v1.1, sơ đồ, danh sách NFR định lượng.
+2
+Sửa migration database trước cài đặt.
+Schema chạy được; pass test constraint, index, metadata quality.
+3-4
+Backend auth, RBAC, reference data, staging metadata.
+API auth/user/metadata chạy được.
+5-6
+Workflow review/approval, core repository, versioning.
+End-to-end từ draft đến approved.
+7-8
+Search vector, unaccent FTS, dashboard, export.
+Tìm được theo title/author/keyword; dashboard cập nhật.
+9-10
+Test NFR, audit, backup/restore, approved update flow.
+Test report, NFR measurement, restore demo.
+11
+Hoàn thiện báo cáo luận văn, tài liệu API, hướng dẫn cài đặt.
+README, OpenAPI, hình giao diện, kết quả thử nghiệm.
+12
+Chuẩn bị bảo vệ và hướng nghiên cứu khoa học.
+Slide, demo script, phần future work.
+10. Conclusion
+Các điểm chỉnh sửa được đề xuất là hợp lý và cần cập nhật vào SRS. Sau khi cập nhật v1.1, tài liệu chặt hơn ở ba lớp: lớp cài đặt database, lớp đặc tả yêu cầu có thể kiểm thử và lớp mở rộng nghiên cứu. Nhóm Ưu tiên 1 phải sửa trước khi cài đặt; nhóm Ưu tiên 2 nên hoàn thành trước bảo vệ; nhóm Ưu tiên 3 có thể triển khai nếu còn thời gian hoặc đưa vào phần nghiên cứu mở rộng. Với phạm vi này, đề tài vẫn khả thi cho hai sinh viên trong ba tháng, đồng thời có nền tốt để phát triển thành nghiên cứu khoa học về metadata quality, FAIR-oriented RDMS hoặc research knowledge graph.
