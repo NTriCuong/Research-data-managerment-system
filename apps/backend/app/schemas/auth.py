@@ -7,9 +7,6 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
-class RefreshRequest(BaseModel):
-    refresh_token: str
-
 # Response schemas 
 
 class LoginResponse(BaseModel):
