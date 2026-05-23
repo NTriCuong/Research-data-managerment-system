@@ -5,9 +5,6 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.config import Base
-from app.models.reference.keyword import Keyword  # noqa: F401
-from app.models.stagging.stg_research_object import StgResearchObject  # noqa: F401
-
 
 class StgResearchObjectKeyword(Base):
     __tablename__ = "research_object_keywords"
