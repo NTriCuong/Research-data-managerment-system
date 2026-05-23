@@ -7,8 +7,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.config import Base
 from app.models.enum import AuthorRole, AuthorRoleType
-from app.models.reference.researcher import Researcher  # noqa: F401
-from app.models.core.core_research_object import CoreResearchObject  # noqa: F401
 
 class CoreResearchObjectAuthor(Base):
     __tablename__ = "research_object_authors"

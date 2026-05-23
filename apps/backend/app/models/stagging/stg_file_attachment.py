@@ -7,7 +7,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.config import Base
 from app.models.enum import AccessLevel, AccessLevelType, FileStatus, FileStatusType
-from app.models.stagging.stg_research_object import StgResearchObject  # noqa: F401
 
 class StgFileAttachment(Base):
     __tablename__ = "file_attachments"

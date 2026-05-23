@@ -7,9 +7,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.config import Base
 from app.models.enum import UserStatus, UserStatusType
-from app.models.auth.refresh_token import RefreshToken  # noqa: F401
-from app.models.auth.role import Role  # noqa: F401
-from app.models.reference.department import Department  # noqa: F401
 
 
 class User(Base):
