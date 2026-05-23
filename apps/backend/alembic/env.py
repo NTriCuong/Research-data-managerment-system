@@ -35,11 +35,26 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+TRACKED_SCHEMAS = {"auth", "reference", "staging", "core", "log"}
+
+
+def include_object(object, name, type_, reflected, compare_to):
+    if type_ == "table":
+        if name == "alembic_version":
+            return False
+        schema = getattr(object, "schema", None) or "public"
+        return schema in TRACKED_SCHEMAS
+    return True
+
+
 def do_run_migrations(connection: Connection) -> None:
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
-        compare_type=False,
+        compare_type=True,
+        include_schemas=True,
+        include_object=include_object,
+        version_table_schema="public",
     )
 
     with context.begin_transaction():
