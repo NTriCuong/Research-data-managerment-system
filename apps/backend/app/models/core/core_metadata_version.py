@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.config import Base
+from app.models.core.core_research_object import CoreResearchObject  # noqa: F401
 
 
 class CoreMetadataVersion(Base):

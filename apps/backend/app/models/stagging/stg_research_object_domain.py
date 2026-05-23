@@ -1,16 +1,3 @@
-"""
-Model: CoreResearchObjectDomain
-Schema: core
-Table:  core.research_object_domains
-
-SQL gốc:
-    CREATE TABLE IF NOT EXISTS core.research_object_domains (
-        research_id UUID NOT NULL REFERENCES core.research_objects ON DELETE CASCADE,
-        domain_id   UUID NOT NULL REFERENCES reference.research_domains,
-        PRIMARY KEY (research_id, domain_id)
-    );
-"""
-
 import uuid
 
 from sqlalchemy import ForeignKey
@@ -18,15 +5,17 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.config import Base
+from app.models.reference.research_domain import ResearchDomain  # noqa: F401
+from app.models.stagging.stg_research_object import StgResearchObject  # noqa: F401
 
 
-class CoreResearchObjectDomain(Base):
+class StgResearchObjectDomain(Base):
     __tablename__ = "research_object_domains"
-    __table_args__ = {"schema": "core"}
+    __table_args__ = {"schema": "staging"}
 
-    research_id: Mapped[uuid.UUID] = mapped_column(
+    staging_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("core.research_objects.research_id", ondelete="CASCADE"),
+        ForeignKey("staging.research_objects.staging_id", ondelete="CASCADE"),
         primary_key=True,
     )
     domain_id: Mapped[uuid.UUID] = mapped_column(
@@ -36,8 +25,8 @@ class CoreResearchObjectDomain(Base):
     )
 
     # ── relationships ──────────────────────────────
-    research_object: Mapped["CoreResearchObject"] = relationship(  # noqa: F821
-        "CoreResearchObject",
+    research_object: Mapped["StgResearchObject"] = relationship(  # noqa: F821
+        "StgResearchObject",
         back_populates="domains",
     )
     domain: Mapped["ResearchDomain"] = relationship("ResearchDomain")  # noqa: F821

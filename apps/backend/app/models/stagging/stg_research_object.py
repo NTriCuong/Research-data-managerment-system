@@ -8,7 +8,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.config import Base
 from app.models.enum import AccessLevel, AccessLevelType, WorkflowStatus, WorkflowStatusType
-
+from app.models.reference.department import Department  # noqa: F401
+from app.models.reference.output_type import OutputType  # noqa: F401
+from app.models.stagging.stg_research_object_author import StgResearchObjectAuthor  # noqa: F401
+from app.models.stagging.stg_research_object_domain import StgResearchObjectDomain  # noqa: F401
+from app.models.stagging.stg_research_object_keyword import StgResearchObjectKeyword  # noqa: F401
+from app.models.stagging.stg_file_attachment import StgFileAttachment  # noqa: F401
 
 class StgResearchObject(Base):
     __tablename__ = "research_objects"
