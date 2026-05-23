@@ -6,10 +6,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.auth.RefreshToken import RefreshToken
+from app.models.auth.refresh_token import RefreshToken
 from app.models.auth.user import User
 from app.models.enum import UserStatus
-from app.models.logs.Loginlog import LoginLog
+from app.models.logs.login_log import LoginLog
 from app.services.auth.config import settings
 from app.services.auth.security import (
     create_access_token,
