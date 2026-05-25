@@ -90,7 +90,7 @@ class AuthService:
                 detail=f"Too many failed attempts. Try again after {settings.LOCK_DURATION} minutes.",
             )
 
-        if not verify_password(password, user.password_hash): // kiểm tra với password hash trong db
+        if not verify_password(password, user.password_hash): #kiểm tra với password hash trong db
             await _log("failed", "wrong_password")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
