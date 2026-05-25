@@ -30,7 +30,6 @@ Thumbs.db
 desktop.ini
 
 # Logs
-logs/
 *.log
 
 # Testing / Pytest
