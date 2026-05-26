@@ -17,8 +17,8 @@ from app.models.auth.user import User
 from app.models.enum import AccessLevel, UserStatus, WorkflowStatus
 from app.models.reference.department import Department
 from app.models.reference.output_type import OutputType
-from app.models.stagging.stg_file_attachment import StgFileAttachment
-from app.models.stagging.stg_research_object import StgResearchObject
+from app.models.staging.stg_file_attachment import StgFileAttachment
+from app.models.staging.stg_research_object import StgResearchObject
 from app.core import permissions
 from app.models.logs.workflow_history import WorkflowHistory
 
@@ -201,7 +201,7 @@ async def api_client(db_session: AsyncSession, seeded_context):
 
 async def test_upload_endpoint_uses_real_test_db_and_mocked_r2(api_client: AsyncClient, db_session: AsyncSession, seeded_context, monkeypatch):
     monkeypatch.setattr(
-        "app.api.v1.endpoints.staging_metadata.upload_bytes_to_r2",
+        "app.services.storage.file_service.upload_bytes_to_r2",
         lambda **kwargs: SimpleNamespace(storage_path=kwargs["object_key"], public_url=None),
     )
 
@@ -232,7 +232,7 @@ async def test_upload_endpoint_rejects_large_file_without_calling_r2(api_client:
         calls["count"] += 1
         return SimpleNamespace(storage_path="x", public_url=None)
 
-    monkeypatch.setattr("app.api.v1.endpoints.staging_metadata.upload_bytes_to_r2", _fake_upload)
+    monkeypatch.setattr("app.services.storage.file_service.upload_bytes_to_r2", _fake_upload)
 
     large_bytes = b"a" * (50 * 1024 * 1024 + 1)
     response = await api_client.post(
