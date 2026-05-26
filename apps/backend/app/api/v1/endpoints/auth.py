@@ -5,16 +5,22 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.database.config import get_db
 from app.models.auth.user import User
 from app.schemas.auth import LoginRequest, MessageResponse, TokenResponse
 from app.schemas.user import UserRead
 from app.services.auth.auth_service import auth_service
-from app.services.auth.config import settings
 from app.services.auth.deps import get_current_active_user, get_valid_refresh_token
 from app.services.auth.security import decode_access_token
 
 router = APIRouter()
+
+
+async def _commit_if_supported(db: AsyncSession) -> None:
+    commit = getattr(db, "commit", None)
+    if callable(commit):
+        await commit()
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -54,6 +60,7 @@ async def login(
         samesite="lax",
         max_age=settings.REFRESH_TOKEN_EXPIRE * 24 * 60 * 60,
     )
+    await _commit_if_supported(db)
 
     return TokenResponse(access_token=access_token, user=UserRead.model_validate(user))
 
@@ -82,6 +89,7 @@ async def refresh_token(
         samesite="lax",
         max_age=settings.REFRESH_TOKEN_EXPIRE * 24 * 60 * 60,
     )
+    await _commit_if_supported(db)
 
     return TokenResponse(access_token=access_token, user=UserRead.model_validate(user))
 
@@ -94,6 +102,7 @@ async def logout(
 ) -> MessageResponse:
     db_token, _ = token_and_user
     await auth_service.logout(db, db_token=db_token)
+    await _commit_if_supported(db)
     response.delete_cookie("refresh_token")
     return MessageResponse(message="Logged out")
 

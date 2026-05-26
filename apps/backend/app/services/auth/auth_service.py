@@ -2,15 +2,13 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from app.models.auth.refresh_token import RefreshToken
 from app.models.auth.user import User
 from app.models.enum import UserStatus
-from app.models.logs.login_log import LoginLog
-from app.services.auth.config import settings
+from app.core.config import settings
+from app.models.auth.refresh_token import RefreshToken
+from app.repositories.auth_repository import AuthRepository
 from app.services.auth.security import (
     create_access_token,
     create_refresh_token,
@@ -36,22 +34,19 @@ class AuthService:
         """Xác thực người dùng. Trả về (access_token, raw_refresh_token).
             client phải đặt raw_refresh_token làm cookie HttpOnly.
         """
-        result = await db.execute(
-            select(User)
-            .options(selectinload(User.role))
-            .where(  User.email == email )
-        )
-        user = result.scalar_one_or_none() # Lấy user object nếu k tìm thấy là none
-        # Ghi log đăng nhập (thành công hoặc thất bại) để hỗ trợ brute-force lockout và authentication audit trail
+
+        repo = AuthRepository(db)
+        user = await repo.find_user_by_email_or_username_with_role(email)
+
         async def _log(login_result: str, reason: str | None = None) -> None:
-            db.add(LoginLog(
+            await repo.add_login_log(
                 user_id=user.user_id if user else None,
                 username_attempted=user.username if user else None,
                 login_result=login_result,
                 failure_reason=reason,
                 ip_address=ip_address,
                 user_agent=user_agent,
-            ))
+            )
 
         if user is None: 
             await _log("failed", "user_not_found")
@@ -76,14 +71,8 @@ class AuthService:
 
         # Brute-force
         window_start = datetime.now(timezone.utc) - timedelta(minutes=settings.LOCK_DURATION)
-        fail_count_result = await db.execute( # login đúng và chưa fail lần nào thì ->none
-            select(func.count())
-            .select_from(LoginLog)
-            .where(LoginLog.user_id == user.user_id)
-            .where(LoginLog.login_result == "failed")
-            .where(LoginLog.created_at >= window_start)
-        )
-        if fail_count_result.scalar_one() >= settings.MAX_LOGIN_ATTEMPTS: # số lần login fail liên tiếp thì lock tài khoản 
+        fail_count = await repo.count_failed_logins_since(user_id=user.user_id, window_start=window_start)
+        if fail_count >= settings.MAX_LOGIN_ATTEMPTS:
             await _log("failed", "account_locked")
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS, #login fail quá nhiều lần liên tiếp
@@ -101,14 +90,14 @@ class AuthService:
         user.last_login_at = datetime.now(timezone.utc) # cập nhật thời gian đăng nhập cuối cùng
 
         raw_rt, hashed_rt = create_refresh_token()
-        db.add(RefreshToken( # lưu refresh token hash vào db, gửi raw token cho client
+        await repo.add_refresh_token(
             user_id=user.user_id,
             issued_at=datetime.now(timezone.utc), #token đươcj tạo lúc nào hay đăng nhập lúc nào 
             token_hash=hashed_rt,
             expires_at=refresh_token_expires_at(), # thời gian hết hạng
             ip_address=ip_address,
             user_agent=user_agent,
-        ))
+        )
 
         access_token = create_access_token(str(user.user_id), user.role.role_code)
         await _log("success")
@@ -127,13 +116,10 @@ class AuthService:
         role_id: UUID,
         department_id: UUID | None = None,
     ) -> User:
-        """tạo user mới dành cho super admin"""
-        dup = await db.execute( # tìm user name và email đã tồn tại chưa
-            select(User).where(
-                (User.username == username) | (User.email == email)
-            )
-        )
-        if dup.scalar_one_or_none(): # tồn tại rồi thì 409
+
+        """Create a new user. Raises 409 if username or email is already taken."""
+        repo = AuthRepository(db)
+        if await repo.find_duplicate_user(username=username, email=email):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Username or email already exists",
@@ -147,9 +133,7 @@ class AuthService:
             role_id=role_id,
             department_id=department_id,
         )
-        db.add(user)
-        await db.flush()  # sau dòng này user có thể xử dụng
-        return user
+        return await repo.create_user(user)
 
     # ── refresh_token ─────────────────────────────────────────────────────────
 
@@ -165,16 +149,17 @@ class AuthService:
         """Token rotation: revoke old refresh token, issue new access + refresh pair.
         Returns (new_access_token, new_raw_refresh_token).
         """
+        repo = AuthRepository(db)
         db_token.revoked_at = datetime.now(timezone.utc)
 
         raw_rt, hashed_rt = create_refresh_token()
-        db.add(RefreshToken(
+        await repo.add_refresh_token(
             user_id=user.user_id,
             token_hash=hashed_rt,
             expires_at=refresh_token_expires_at(),
             ip_address=ip_address,
             user_agent=user_agent,
-        ))
+        )
 
         access_token = create_access_token(str(user.user_id), user.role.role_code)
         return access_token, raw_rt
@@ -198,13 +183,9 @@ class AuthService:
         *,
         user_id: UUID,
     ) -> int:
-        """Revoke tất cả các session của user return về số lượng session đã bị revoke."""
-        result = await db.execute(
-            select(RefreshToken)
-            .where(RefreshToken.user_id == user_id)
-            .where(RefreshToken.revoked_at.is_(None))
-        )
-        tokens = result.scalars().all()
+        """Revoke all active refresh tokens for a user. Returns number of revoked tokens."""
+        repo = AuthRepository(db)
+        tokens = await repo.get_active_refresh_tokens(user_id)
         now = datetime.now(timezone.utc)
         for token in tokens:
             token.revoked_at = now

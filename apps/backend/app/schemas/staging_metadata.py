@@ -2,17 +2,17 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
 
 from app.models.enum import AccessLevel, AuthorRole, WorkflowStatus
 
 
 class StagingAuthorIn(BaseModel):
     researcher_id: UUID | None = None
-    full_name: str
-    email: str | None = None
-    affiliation: str | None = None
-    author_order: int = 1
+    full_name: str = Field(min_length=1, max_length=255)
+    email: EmailStr | None = None
+    affiliation: str | None = Field(default=None, max_length=255)
+    author_order: int = Field(default=1, ge=1)
     author_role: AuthorRole = AuthorRole.creator
 
 
@@ -25,43 +25,43 @@ class StagingAuthorOut(StagingAuthorIn):
 
 
 class StagingResearchObjectCreate(BaseModel):
-    title: str
+    title: str = Field(min_length=1, max_length=500)
     output_type_id: UUID
     department_id: UUID
-    year: int | None = None
+    year: int | None = Field(default=None, ge=1900, le=2100)
     description: str | None = None
     abstract: str | None = None
     start_date: date | None = None
     end_date: date | None = None
     date_issued: date | None = None
-    publisher: str | None = None
-    language: str | None = "vi"
-    identifier: str | None = None
-    external_url: str | None = None
+    publisher: str | None = Field(default=None, max_length=255)
+    language: str | None = Field(default="vi", min_length=2, max_length=10)
+    identifier: str | None = Field(default=None, max_length=255)
+    external_url: HttpUrl | None = None
     source: str | None = None
     relation: str | None = None
     coverage: str | None = None
     rights: str | None = None
     access_level: AccessLevel = AccessLevel.internal
-    domain_ids: list[UUID] = []
-    keyword_ids: list[UUID] = []
-    authors: list[StagingAuthorIn] = []
+    domain_ids: list[UUID] = Field(default_factory=list)
+    keyword_ids: list[UUID] = Field(default_factory=list)
+    authors: list[StagingAuthorIn] = Field(default_factory=list)
 
 
 class StagingResearchObjectUpdate(BaseModel):
-    title: str | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=500)
     output_type_id: UUID | None = None
     department_id: UUID | None = None
-    year: int | None = None
+    year: int | None = Field(default=None, ge=1900, le=2100)
     description: str | None = None
     abstract: str | None = None
     start_date: date | None = None
     end_date: date | None = None
     date_issued: date | None = None
-    publisher: str | None = None
-    language: str | None = None
-    identifier: str | None = None
-    external_url: str | None = None
+    publisher: str | None = Field(default=None, max_length=255)
+    language: str | None = Field(default=None, min_length=2, max_length=10)
+    identifier: str | None = Field(default=None, max_length=255)
+    external_url: HttpUrl | None = None
     source: str | None = None
     relation: str | None = None
     coverage: str | None = None
@@ -93,22 +93,22 @@ class StagingResearchObjectOut(BaseModel):
 
 
 class SubmitForReviewRequest(BaseModel):
-    note: str | None = None
+    note: str | None = Field(default=None, max_length=1000)
 
 
 class CreateRevisionRequest(BaseModel):
     research_id: UUID
-    update_reason: str
+    update_reason: str = Field(min_length=1, max_length=1000)
 
 
 class StagingFileCreate(BaseModel):
-    original_filename: str
-    stored_filename: str
-    storage_path: str
-    mime_type: str
-    file_extension: str | None = None
-    file_size_bytes: int
-    checksum_sha256: str | None = None
+    original_filename: str = Field(min_length=1, max_length=255)
+    stored_filename: str = Field(min_length=1, max_length=255)
+    storage_path: str = Field(min_length=1, max_length=1000)
+    mime_type: str = Field(min_length=1, max_length=255)
+    file_extension: str | None = Field(default=None, max_length=20)
+    file_size_bytes: int = Field(gt=0)
+    checksum_sha256: str | None = Field(default=None, min_length=64, max_length=64)
     access_level: AccessLevel = AccessLevel.internal
 
 
