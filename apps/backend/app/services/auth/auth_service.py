@@ -34,51 +34,52 @@ class AuthService:
         """Xác thực người dùng. Trả về (access_token, raw_refresh_token).
             client phải đặt raw_refresh_token làm cookie HttpOnly.
         """
+
         repo = AuthRepository(db)
         user = await repo.find_user_by_email_or_username_with_role(email)
 
         async def _log(login_result: str, reason: str | None = None) -> None:
             await repo.add_login_log(
                 user_id=user.user_id if user else None,
-                username_attempted=email,
+                username_attempted=user.username if user else None,
                 login_result=login_result,
                 failure_reason=reason,
                 ip_address=ip_address,
                 user_agent=user_agent,
             )
 
-        if user is None:
+        if user is None: 
             await _log("failed", "user_not_found")
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
+                status_code=status.HTTP_401_UNAUTHORIZED, #user không tồn tại
                 detail="Invalid credentials",
             )
 
         if user.deleted_at is not None:
             await _log("failed", "account_deleted")
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_403_FORBIDDEN, # user đã bị xoá
                 detail="Account has been deleted",
             )
 
         if user.status != UserStatus.active:
             await _log("failed", "account_disabled")
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_403_FORBIDDEN, # account bị disabled
                 detail="Account is disabled",
             )
 
-        # Brute-force lockout: count recent failures within lock window
+        # Brute-force
         window_start = datetime.now(timezone.utc) - timedelta(minutes=settings.LOCK_DURATION)
         fail_count = await repo.count_failed_logins_since(user_id=user.user_id, window_start=window_start)
         if fail_count >= settings.MAX_LOGIN_ATTEMPTS:
             await _log("failed", "account_locked")
             raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS, #login fail quá nhiều lần liên tiếp
                 detail=f"Too many failed attempts. Try again after {settings.LOCK_DURATION} minutes.",
             )
 
-        if not verify_password(password, user.password_hash):
+        if not verify_password(password, user.password_hash): #kiểm tra với password hash trong db
             await _log("failed", "wrong_password")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -86,13 +87,14 @@ class AuthService:
             )
 
         # Issue tokens
-        user.last_login_at = datetime.now(timezone.utc)
+        user.last_login_at = datetime.now(timezone.utc) # cập nhật thời gian đăng nhập cuối cùng
 
         raw_rt, hashed_rt = create_refresh_token()
         await repo.add_refresh_token(
             user_id=user.user_id,
+            issued_at=datetime.now(timezone.utc), #token đươcj tạo lúc nào hay đăng nhập lúc nào 
             token_hash=hashed_rt,
-            expires_at=refresh_token_expires_at(),
+            expires_at=refresh_token_expires_at(), # thời gian hết hạng
             ip_address=ip_address,
             user_agent=user_agent,
         )
@@ -114,6 +116,7 @@ class AuthService:
         role_id: UUID,
         department_id: UUID | None = None,
     ) -> User:
+
         """Create a new user. Raises 409 if username or email is already taken."""
         repo = AuthRepository(db)
         if await repo.find_duplicate_user(username=username, email=email):
@@ -122,7 +125,7 @@ class AuthService:
                 detail="Username or email already exists",
             )
 
-        user = User(
+        user = User( # tạo user mới
             username=username,
             email=email,
             password_hash=hash_password(password),
@@ -138,7 +141,7 @@ class AuthService:
         self,
         db: AsyncSession,
         *,
-        db_token: RefreshToken,
+        db_token: RefreshToken, #dependencies injection
         user: User,
         ip_address: str | None = None,
         user_agent: str | None = None,
