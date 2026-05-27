@@ -1,36 +1,110 @@
 services:
   postgres:
     image: postgres:16
-    container_name: rdms_postgres
-    restart: always
+    container_name: rdms-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: nguyen14102004
-      POSTGRES_DB: research_data_management_system
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - rdms_postgres_data:/var/lib/postgresql/data
+    networks:
+      - rdms-network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rdms-rabbitmq
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "${RABBITMQ_PORT}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT}:15672"
+    networks:
+      - rdms-network
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
-    container_name: rdms_elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    container_name: rdms-elasticsearch
+    restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      discovery.type: single-node
+      xpack.security.enabled: "${ELASTICSEARCH_SECURITY_ENABLED}"
+      ES_JAVA_OPTS: "${ES_JAVA_OPTS}"
     ports:
-      - "9200:9200"
+      - "${ELASTICSEARCH_PORT}:9200"
+    volumes:
+      - rdms_elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - rdms-network
 
   kibana:
-    image: docker.elastic.co/kibana/kibana:8.13.4
-    container_name: rdms_kibana
+    image: docker.elastic.co/kibana/kibana:8.15.3
+    container_name: rdms-kibana
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      ELASTICSEARCH_HOSTS: ${ELASTICSEARCH_HOSTS}
+    ports:
+      - "${KIBANA_PORT}:5601"
     depends_on:
       - elasticsearch
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    networks:
+      - rdms-network
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: rdms-backend
+    restart: unless-stopped
+    env_file:
+      - .env
     ports:
-      - "5601:5601"
+      - "${BACKEND_PORT}:8000"
+    depends_on:
+      - postgres
+      - rabbitmq
+      - elasticsearch
+    volumes:
+      - ./apps/backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - rdms-network
+
+  search-worker:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: rdms-search-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - rabbitmq
+      - elasticsearch
+    volumes:
+      - ./apps/backend:/app
+    command: python -m app.workers.search_worker
+    networks:
+      - rdms-network
 
 volumes:
-  postgres_data:
+  rdms_postgres_data:
+  rdms_elasticsearch_data:
+
+networks:
+  rdms-network:
+    driver: bridge

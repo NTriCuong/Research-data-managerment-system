@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 from jose import jwt
 
-from app.services.auth.config import settings
+from app.core.config import settings
 
 
 # ── Password ──────────────────────────────────────────────────────────────────

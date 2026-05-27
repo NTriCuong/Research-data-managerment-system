@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     CLOUDFLARE_R2_PUBLIC_BASE_URL: str | None = None
 
     password_min_length: int = 8
+    SECRET_KEY: str
+    ALGORITHM: str
+    ACCESS_TOKEN_EXPIRE: int
+    REFRESH_TOKEN_EXPIRE: int
+    MAX_LOGIN_ATTEMPTS: int
+    LOCK_DURATION: int
 
     @field_validator("DEBUG", mode="before")
     @classmethod
