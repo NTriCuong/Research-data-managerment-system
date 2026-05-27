@@ -5,7 +5,7 @@ from sqlalchemy import TIMESTAMP, ForeignKey, String, Text, text
 from sqlalchemy.dialects.postgresql import INET, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.database.config import Base
+from app.database.base import Base
 
 
 class LoginLog(Base):

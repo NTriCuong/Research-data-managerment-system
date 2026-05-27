@@ -5,7 +5,7 @@ from sqlalchemy import TIMESTAMP, CheckConstraint, ForeignKey, String, Text, tex
 from sqlalchemy.dialects.postgresql import INET, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.database.config import Base
+from app.database.base import Base
 from app.models.enum import WorkflowStatus, WorkflowStatusType
 
 

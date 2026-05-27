@@ -11,7 +11,7 @@ from app.models.staging.stg_research_object import StgResearchObject
 from app.models.staging.stg_research_object_author import StgResearchObjectAuthor
 from app.models.staging.stg_research_object_domain import StgResearchObjectDomain
 from app.models.staging.stg_research_object_keyword import StgResearchObjectKeyword
-from app.repositories.staging_repository import StagingRepository
+from app.repositories.staging_metadata_repository import StagingRepository
 from app.schemas.auth import MessageResponse
 from app.schemas.staging_metadata import (
     CreateRevisionRequest,
@@ -21,6 +21,7 @@ from app.schemas.staging_metadata import (
     StagingResearchObjectUpdate,
     SubmitForReviewRequest,
 )
+from app.services.logs.audit_service import audit_service
 from app.services.storage.file_service import file_service
 from app.services.logs.workflow_service import workflow_service
 
@@ -112,6 +113,16 @@ class StagingService:
             to_status=WorkflowStatus.draft,
             action_code="CREATE_DRAFT",
         )
+        await audit_service.write_log(
+            db,
+            actor_user_id=current_user.user_id,
+            action_code="CREATE_DRAFT",
+            target_schema="staging",
+            target_table="research_objects",
+            target_id=obj.staging_id,
+            new_value={"workflow_status": WorkflowStatus.draft.value, "title": obj.title},
+            message="Created staging draft",
+        )
         await db.refresh(obj)
         return StagingResearchObjectOut.model_validate(obj)
 
@@ -155,43 +166,130 @@ class StagingService:
         if obj is None or obj.deleted_at is not None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staging record not found")
         self._assert_editable(obj, current_user)
-
-        for field, value in payload.model_dump(exclude_unset=True).items():
+        now = datetime.now(timezone.utc)
+        
+        payload_data = payload.model_dump(exclude_unset=True)
+        
+        changed_old: dict = {}
+        changed_new: dict = {}
+        
+        for field, value in payload_data.items():
             if field in {"domain_ids", "keyword_ids", "authors"}:
-                continue
-            setattr(obj, field, value)
+                continue    
+            old = getattr(obj, field)
 
+            if old != value:
+                changed_old[field] = old
+                changed_new[field] = value
+                setattr(obj, field, value)
+
+        # 2. Update domains
         if payload.domain_ids is not None:
-            obj.domains.clear()
-            obj.domains.extend([StgResearchObjectDomain(staging_id=obj.staging_id, domain_id=domain_id) for domain_id in payload.domain_ids])
-        if payload.keyword_ids is not None:
-            obj.keywords.clear()
-            obj.keywords.extend([StgResearchObjectKeyword(staging_id=obj.staging_id, keyword_id=keyword_id) for keyword_id in payload.keyword_ids])
-        if payload.authors is not None:
-            obj.authors.clear()
-            obj.authors.extend(
-                [
-                    StgResearchObjectAuthor(
-                        staging_id=obj.staging_id,
-                        researcher_id=author.researcher_id,
-                        full_name=author.full_name,
-                        email=author.email,
-                        affiliation=author.affiliation,
-                        author_order=author.author_order,
-                        author_role=author.author_role,
-                    )
-                    for author in payload.authors
-                ]
-            )
+            old_domain_ids = [x.domain_id for x in obj.domains]
+            new_domain_ids = payload.domain_ids
 
-        await workflow_service.write_history(
-            db,
-            staging_id=obj.staging_id,
-            performed_by=current_user.user_id,
-            from_status=None,
-            to_status=obj.workflow_status,
-            action_code="UPDATE_DRAFT",
-        )
+            if set(old_domain_ids) != set(new_domain_ids):
+                changed_old["domain_ids"] = [str(x) for x in old_domain_ids]
+                changed_new["domain_ids"] = [str(x) for x in new_domain_ids]
+
+                obj.domains.clear()
+                await db.flush()
+                obj.domains.extend(
+                    [
+                        StgResearchObjectDomain(
+                            staging_id=obj.staging_id,
+                            domain_id=domain_id,
+                        )
+                        for domain_id in new_domain_ids
+                    ]
+                )
+
+        # 3. Update keywords
+        if payload.keyword_ids is not None:
+            old_keyword_ids = [x.keyword_id for x in obj.keywords]
+            new_keyword_ids = payload.keyword_ids
+
+            if set(old_keyword_ids) != set(new_keyword_ids):
+                changed_old["keyword_ids"] = [str(x) for x in old_keyword_ids]
+                changed_new["keyword_ids"] = [str(x) for x in new_keyword_ids]
+
+                obj.keywords.clear()
+                await db.flush()
+                obj.keywords.extend(
+                    [
+                        StgResearchObjectKeyword(
+                            staging_id=obj.staging_id,
+                            keyword_id=keyword_id,
+                        )
+                        for keyword_id in new_keyword_ids
+                    ]
+                )
+
+        # 4. Update authors
+        if payload.authors is not None:
+            old_authors = [
+                {
+                    "researcher_id": str(x.researcher_id) if x.researcher_id else None,
+                    "full_name": x.full_name,
+                    "email": x.email,
+                    "affiliation": x.affiliation,
+                    "author_order": x.author_order,
+                    "author_role": x.author_role.value if hasattr(x.author_role, "value") else x.author_role,
+                }
+                for x in obj.authors
+            ]
+
+            new_authors = [
+                {
+                    "researcher_id": str(author.researcher_id) if author.researcher_id else None,
+                    "full_name": author.full_name,
+                    "email": author.email,
+                    "affiliation": author.affiliation,
+                    "author_order": author.author_order,
+                    "author_role": author.author_role.value if hasattr(author.author_role, "value") else author.author_role,
+                }
+                for author in payload.authors
+            ]
+
+            if old_authors != new_authors:
+                changed_old["authors"] = old_authors
+                changed_new["authors"] = new_authors
+
+                obj.authors.clear()
+                await db.flush()
+                obj.authors.extend(
+                    [
+                        StgResearchObjectAuthor(
+                            staging_id=obj.staging_id,
+                            researcher_id=author.researcher_id,
+                            full_name=author.full_name,
+                            email=author.email,
+                            affiliation=author.affiliation,
+                            author_order=author.author_order,
+                            author_role=author.author_role,
+                        )
+                        for author in payload.authors
+                    ]
+                )
+
+        obj.updated_at = now
+
+        # 5. Chỉ ghi audit nếu thật sự có thay đổi
+        if changed_old or changed_new:
+            changed_new["updated_at"] = now.isoformat()
+            
+            await audit_service.write_log(
+                db,
+                actor_user_id=current_user.user_id,
+                action_code="UPDATE_DRAFT",
+                target_schema="staging",
+                target_table="research_objects",
+                target_id=obj.staging_id,
+                old_value=changed_old,
+                new_value=changed_new,
+                message="Updated staging draft metadata",
+                created_at=now,
+            )
         await db.flush()
         await db.refresh(obj)
         return StagingResearchObjectOut.model_validate(obj)
@@ -212,9 +310,11 @@ class StagingService:
         self._validate_before_submit(obj)
 
         old_status = obj.workflow_status
+        now = datetime.now(timezone.utc)
         obj.workflow_status = WorkflowStatus.pending_review
         obj.submitted_by = current_user.user_id
-        obj.submitted_at = datetime.now(timezone.utc)
+        obj.submitted_at = now
+        obj.updated_at = now
         await workflow_service.write_history(
             db,
             staging_id=obj.staging_id,
@@ -223,6 +323,17 @@ class StagingService:
             to_status=WorkflowStatus.pending_review,
             action_code="SUBMIT_FOR_REVIEW",
             action_note=payload.note,
+        )
+        await audit_service.write_log(
+            db,
+            actor_user_id=current_user.user_id,
+            action_code="SUBMIT_FOR_REVIEW",
+            target_schema="staging",
+            target_table="research_objects",
+            target_id=obj.staging_id,
+            old_value={"workflow_status": old_status.value},
+            new_value={"workflow_status": WorkflowStatus.pending_review.value, "note": payload.note},
+            message="Submitted staging record for review",
         )
         return MessageResponse(message="Submitted for review")
 
@@ -290,6 +401,16 @@ class StagingService:
             action_code="CREATE_REVISION_DRAFT",
             action_note=payload.update_reason,
         )
+        await audit_service.write_log(
+            db,
+            actor_user_id=current_user.user_id,
+            action_code="CREATE_REVISION_DRAFT",
+            target_schema="staging",
+            target_table="research_objects",
+            target_id=revision.staging_id,
+            new_value={"workflow_status": WorkflowStatus.draft.value, "update_reason": payload.update_reason},
+            message="Created revision draft from core research object",
+        )
         await db.refresh(revision)
         return StagingResearchObjectOut.model_validate(revision)
 
@@ -307,6 +428,7 @@ class StagingService:
         if obj is None or obj.deleted_at is not None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staging record not found")
         self._assert_editable(obj, current_user)
+        obj.updated_at = datetime.now(timezone.utc)
 
         uploaded = await file_service.prepare_file_upload(staging_id=staging_id, file=file, access_level=access_level)
         file_obj = StgFileAttachment(
@@ -330,6 +452,16 @@ class StagingService:
             to_status=obj.workflow_status,
             action_code="UPLOAD_EVIDENCE_FILE",
             action_note=uploaded["original_filename"],
+        )
+        await audit_service.write_log(
+            db,
+            actor_user_id=current_user.user_id,
+            action_code="UPLOAD_EVIDENCE_FILE",
+            target_schema="staging",
+            target_table="research_objects",
+            target_id=obj.staging_id,
+            new_value={"filename": uploaded["original_filename"], "workflow_status": obj.workflow_status.value},
+            message="Uploaded staging evidence file metadata",
         )
         await db.refresh(file_obj)
         return StagingFileOut.model_validate(file_obj)

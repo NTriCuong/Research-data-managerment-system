@@ -2,7 +2,7 @@
 from uuid import uuid4
 
 from app.core.config import settings
-from app.database.config import get_db
+from app.database.session import get_db
 from app.services.auth import deps as auth_deps
 from app.api.v1.endpoints import auth as auth_endpoint
 
