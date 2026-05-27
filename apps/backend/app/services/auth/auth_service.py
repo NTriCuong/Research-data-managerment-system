@@ -4,10 +4,10 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.auth.user import User
-from app.models.enum import UserStatus
 from app.core.config import settings
 from app.models.auth.refresh_token import RefreshToken
+from app.models.auth.user import User
+from app.models.enum import UserStatus
 from app.repositories.auth_repository import AuthRepository
 from app.services.auth.security import (
     create_access_token,
@@ -16,6 +16,7 @@ from app.services.auth.security import (
     refresh_token_expires_at,
     verify_password,
 )
+from app.services.logs.logs_service import LogService
 
 
 class AuthService:
@@ -32,16 +33,16 @@ class AuthService:
         user_agent: str | None = None,
     ) -> tuple[str, str]:
         """Xác thực người dùng. Trả về (access_token, raw_refresh_token).
-            client phải đặt raw_refresh_token làm cookie HttpOnly.
+        Client phải đặt raw_refresh_token làm cookie HttpOnly.
         """
         repo = AuthRepository(db)
         user = await repo.find_user_by_email_or_username_with_role(email)
 
         async def _log(login_result: str, reason: str | None = None) -> None:
             await repo.add_login_log(
-                user_id=user.user_id if user else None,
-                username_attempted=email,
                 login_result=login_result,
+                user_id=user.user_id if user else None,
+                username_attempted=user.username if user else email,  # fallback email nếu user không tồn tại
                 failure_reason=reason,
                 ip_address=ip_address,
                 user_agent=user_agent,
@@ -68,7 +69,7 @@ class AuthService:
                 detail="Account is disabled",
             )
 
-        # Brute-force lockout: count recent failures within lock window
+        # Brute-force lockout
         window_start = datetime.now(timezone.utc) - timedelta(minutes=settings.LOCK_DURATION)
         fail_count = await repo.count_failed_logins_since(user_id=user.user_id, window_start=window_start)
         if fail_count >= settings.MAX_LOGIN_ATTEMPTS:
@@ -92,6 +93,7 @@ class AuthService:
         await repo.add_refresh_token(
             user_id=user.user_id,
             token_hash=hashed_rt,
+            issued_at=datetime.now(timezone.utc),
             expires_at=refresh_token_expires_at(),
             ip_address=ip_address,
             user_agent=user_agent,
@@ -115,6 +117,7 @@ class AuthService:
         department_id: UUID | None = None,
     ) -> User:
         """Create a new user. Raises 409 if username or email is already taken."""
+        log_svc = LogService(db)
         repo = AuthRepository(db)
         if await repo.find_duplicate_user(username=username, email=email):
             raise HTTPException(
@@ -130,7 +133,20 @@ class AuthService:
             role_id=role_id,
             department_id=department_id,
         )
-        return await repo.create_user(user)
+        user = await repo.create_user(user)
+        await db.flush()  # sau dòng này user.user_id đã có
+
+        await log_svc.write_audit_log(
+            action_code="CREATE",
+            actor_user_id=None,
+            target_schema="auth",
+            target_table="users",
+            target_id=user.user_id,
+            new_value={"username": username, "email": email, "role_id": str(role_id)},
+            result="success",
+        )
+
+        return user
 
     # ── refresh_token ─────────────────────────────────────────────────────────
 
@@ -148,7 +164,6 @@ class AuthService:
         """
         repo = AuthRepository(db)
         db_token.revoked_at = datetime.now(timezone.utc)
-
         raw_rt, hashed_rt = create_refresh_token()
         await repo.add_refresh_token(
             user_id=user.user_id,
@@ -169,7 +184,7 @@ class AuthService:
         *,
         db_token: RefreshToken,
     ) -> None:
-        """Revoke the current refresh token (invalidate this session)."""
+        """Revoke refresh token hiện tại."""
         db_token.revoked_at = datetime.now(timezone.utc)
 
     # ── revoke_all_sessions ───────────────────────────────────────────────────
@@ -183,6 +198,7 @@ class AuthService:
         """Revoke all active refresh tokens for a user. Returns number of revoked tokens."""
         repo = AuthRepository(db)
         tokens = await repo.get_active_refresh_tokens(user_id)
+
         now = datetime.now(timezone.utc)
         for token in tokens:
             token.revoked_at = now
@@ -198,7 +214,9 @@ class AuthService:
         old_password: str,
         new_password: str,
     ) -> None:
-        """Verify old password, update hash, and revoke all sessions."""
+        """Verify mật khẩu cũ, cập nhật hash, revoke toàn bộ session."""
+        log_svc = LogService(db)
+
         if not verify_password(old_password, user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -209,5 +227,13 @@ class AuthService:
         user.updated_at = datetime.now(timezone.utc)
         await self.revoke_all_sessions(db, user_id=user.user_id)
 
+        await log_svc.write_audit_log(
+            action_code="CHANGE_PASSWORD",
+            actor_user_id=user.user_id,
+            target_schema="auth",
+            target_table="users",
+            target_id=user.user_id,
+            result="success",
+        )
 
 auth_service = AuthService()
