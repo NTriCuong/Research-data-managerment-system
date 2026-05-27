@@ -11,7 +11,7 @@ class WorkflowService:
         self,
         db: AsyncSession,
         *,
-        staging_id: UUID,
+        staging_id: UUID | None = None,
         research_id: UUID | None = None,
         performed_by: UUID,
         from_status: WorkflowStatus | None,
@@ -19,6 +19,8 @@ class WorkflowService:
         action_code: str,
         action_note: str | None = None,
     ) -> None:
+        if staging_id is None and research_id is None:
+            raise ValueError("workflow_history requires staging_id or research_id")
         db.add(
             WorkflowHistory(
                 staging_id=staging_id,

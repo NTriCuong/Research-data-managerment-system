@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.database.config import get_db
+from app.database.session import get_db
 from app.models.auth.user import User
 from app.models.auth.refresh_token import RefreshToken
 from app.models.enum import UserStatus

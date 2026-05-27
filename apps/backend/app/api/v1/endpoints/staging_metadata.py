@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import require_roles
-from app.database.config import get_db
+from app.database.session import get_db
 from app.models.auth.user import User
 from app.models.enum import WorkflowStatus
 from app.schemas.auth import MessageResponse
@@ -16,7 +16,7 @@ from app.schemas.staging_metadata import (
     StagingResearchObjectUpdate,
     SubmitForReviewRequest,
 )
-from app.services.staging.staging_service import staging_service
+from app.services.staging.staging_metadata_service import staging_service
 
 router = APIRouter()
 

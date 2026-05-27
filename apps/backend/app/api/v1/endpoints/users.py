@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.permissions import require_roles
-from app.database.config import get_db
+from app.database.session import get_db
 from app.models.auth.user import User
 from app.schemas.user import UserRead
 

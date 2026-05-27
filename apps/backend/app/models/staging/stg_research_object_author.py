@@ -5,7 +5,7 @@ from sqlalchemy import TIMESTAMP, ForeignKey, Integer, String, UniqueConstraint,
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database.config import Base
+from app.database.base import Base
 from app.models.enum import AuthorRole, AuthorRoleType
 
 class StgResearchObjectAuthor(Base):

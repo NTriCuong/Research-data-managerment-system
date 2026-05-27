@@ -1,27 +1,45 @@
-import uuid
+﻿from datetime import datetime, timezone
+from uuid import UUID
+
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reference.department import Department
-from app.services.logs.logs_service import LogService
+from app.services.logs.audit_service import audit_service
 
 
 class DepartmentService:
-    def __init__(self, db: AsyncSession):
-        self.db = db
-        self.log_svc = LogService(db)  # cùng session → cùng transaction
+    async def list_departments(self, db: AsyncSession) -> list[Department]:
+        result = await db.execute(select(Department).order_by(Department.department_name.asc()))
+        return list(result.scalars().all())
+
+    async def get_department(self, db: AsyncSession, *, department_id: UUID) -> Department | None:
+        result = await db.execute(select(Department).where(Department.department_id == department_id))
+        return result.scalar_one_or_none()
+
+    async def get_department_by_code(self, db: AsyncSession, *, department_code: str) -> Department | None:
+        result = await db.execute(select(Department).where(Department.department_code == department_code))
+        return result.scalar_one_or_none()
 
     async def create_department(
         self,
+        db: AsyncSession,
+        *,
         department_code: str,
         department_name: str,
-        actor_user_id: uuid.UUID | None = None,
-        parent_department_id: uuid.UUID | None = None,
-        description: str | None = None,
-        is_active: bool = True,
-        ip_address: str | None = None,
-        user_agent: str | None = None,
+        actor_user_id: UUID,
+        parent_department_id: UUID | None,
+        description: str | None,
+        is_active: bool,
+        ip_address: str | None,
+        user_agent: str | None,
     ) -> Department:
+        if parent_department_id is not None:
+            parent = await self.get_department(db, department_id=parent_department_id)
+            if parent is None:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Parent department not found")
+
         department = Department(
             department_code=department_code,
             department_name=department_name,
@@ -29,74 +47,48 @@ class DepartmentService:
             description=description,
             is_active=is_active,
         )
+        db.add(department)
+        await db.flush()
+        await db.refresh(department)
 
-        self.db.add(department)
-        await self.db.commit()
-        await self.db.refresh(department)
-
-        await self.log_svc.write_audit_log(
-            action_code="CREATE",
+        await audit_service.write_log(
+            db,
             actor_user_id=actor_user_id,
-            target_schema="public",
+            action_code="CREATE_DEPARTMENT",
+            target_schema="reference",
             target_table="departments",
             target_id=department.department_id,
             new_value={
-                "department_code": department_code,
-                "department_name": department_name,
-                "parent_department_id": str(parent_department_id) if parent_department_id else None,
-                "description": description,
-                "is_active": is_active,
+                "department_code": department.department_code,
+                "department_name": department.department_name,
+                "parent_department_id": str(department.parent_department_id) if department.parent_department_id else None,
+                "description": department.description,
+                "is_active": department.is_active,
             },
-            result="success",
-            ip_address=ip_address,
-            user_agent=user_agent,
+            message="Created department",
         )
-        await self.db.commit()
 
         return department
 
-    async def get_department(
-        self,
-        department_id: uuid.UUID,
-    ) -> Department | None:
-        result = await self.db.execute(
-            select(Department).where(
-                Department.department_id == department_id
-            )
-        )
-
-        return result.scalar_one_or_none()
-
-    async def get_department_by_code(
-        self,
-        department_code: str,
-    ) -> Department | None:
-        result = await self.db.execute(
-            select(Department).where(
-                Department.department_code == department_code
-            )
-        )
-
-        return result.scalar_one_or_none()
-
     async def update_department(
         self,
-        department_id: uuid.UUID,
-        actor_user_id: uuid.UUID | None = None,
-        department_code: str | None = None,
-        department_name: str | None = None,
-        parent_department_id: uuid.UUID | None = None,
-        description: str | None = None,
-        is_active: bool | None = None,
-        ip_address: str | None = None,
-        user_agent: str | None = None,
+        db: AsyncSession,
+        *,
+        department_id: UUID,
+        actor_user_id: UUID,
+        department_code: str | None,
+        department_name: str | None,
+        parent_department_id: UUID | None,
+        description: str | None,
+        is_active: bool | None,
+        ip_address: str | None,
+        user_agent: str | None,
+        fields_set: set[str],
     ) -> Department | None:
-        department = await self.get_department(department_id)
-
-        if not department:
+        department = await self.get_department(db, department_id=department_id)
+        if department is None:
             return None
 
-        # snapshot trước khi thay đổi để ghi vào old_value
         old_value = {
             "department_code": department.department_code,
             "department_name": department.department_name,
@@ -105,30 +97,39 @@ class DepartmentService:
             "is_active": department.is_active,
         }
 
-        if department_code is not None:
-            department.department_code = department_code
-
-        if department_name is not None:
-            department.department_name = department_name
-
-        if parent_department_id is not None:
+        if "parent_department_id" in fields_set:
+            if parent_department_id == department_id:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Department cannot be its own parent")
+            if parent_department_id is not None:
+                parent = await self.get_department(db, department_id=parent_department_id)
+                if parent is None:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Parent department not found")
             department.parent_department_id = parent_department_id
 
-        if description is not None:
+        if "department_code" in fields_set:
+            if department_code is None:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="department_code cannot be null")
+            department.department_code = department_code
+        if "department_name" in fields_set:
+            if department_name is None:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="department_name cannot be null")
+            department.department_name = department_name
+        if "description" in fields_set:
             department.description = description
+        if "is_active" in fields_set:
+            department.is_active = bool(is_active)
 
-        if is_active is not None:
-            department.is_active = is_active
+        department.updated_at = datetime.now(timezone.utc)
+        await db.flush()
+        await db.refresh(department)
 
-        await self.db.commit()
-        await self.db.refresh(department)
-
-        await self.log_svc.write_audit_log(
-            action_code="UPDATE",
+        await audit_service.write_log(
+            db,
             actor_user_id=actor_user_id,
-            target_schema="public",
+            action_code="UPDATE_DEPARTMENT",
+            target_schema="reference",
             target_table="departments",
-            target_id=department_id,
+            target_id=department.department_id,
             old_value=old_value,
             new_value={
                 "department_code": department.department_code,
@@ -137,24 +138,21 @@ class DepartmentService:
                 "description": department.description,
                 "is_active": department.is_active,
             },
-            result="success",
-            ip_address=ip_address,
-            user_agent=user_agent,
+            message="Updated department",
         )
-        await self.db.commit()
-
         return department
 
     async def delete_department(
         self,
-        department_id: uuid.UUID,
-        actor_user_id: uuid.UUID | None = None,
-        ip_address: str | None = None,
-        user_agent: str | None = None,
+        db: AsyncSession,
+        *,
+        department_id: UUID,
+        actor_user_id: UUID,
+        ip_address: str | None,
+        user_agent: str | None,
     ) -> bool:
-        department = await self.get_department(department_id)
-
-        if not department:
+        department = await self.get_department(db, department_id=department_id)
+        if department is None:
             return False
 
         old_value = {
@@ -165,27 +163,20 @@ class DepartmentService:
             "is_active": department.is_active,
         }
 
-        await self.db.delete(department)
-        await self.db.commit()
+        await db.delete(department)
+        await db.flush()
 
-        await self.log_svc.write_audit_log(
-            action_code="DELETE",
+        await audit_service.write_log(
+            db,
             actor_user_id=actor_user_id,
-            target_schema="public",
+            action_code="DELETE_DEPARTMENT",
+            target_schema="reference",
             target_table="departments",
             target_id=department_id,
             old_value=old_value,
-            result="success",
-            ip_address=ip_address,
-            user_agent=user_agent,
+            message="Deleted department",
         )
-        await self.db.commit()
-
         return True
 
-    async def list_departments(self) -> list[Department]:
-        result = await self.db.execute(
-            select(Department)
-        )
 
-        return list(result.scalars().all())
+department_service = DepartmentService()

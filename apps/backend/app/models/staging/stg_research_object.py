@@ -6,7 +6,7 @@ from sqlalchemy import TIMESTAMP, CheckConstraint, Date, ForeignKey, Integer, Nu
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database.config import Base
+from app.database.base import Base
 from app.models.enum import AccessLevel, AccessLevelType, WorkflowStatus, WorkflowStatusType
 
 class StgResearchObject(Base):

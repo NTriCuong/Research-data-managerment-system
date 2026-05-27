@@ -10,7 +10,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
-from app.database.config import get_db
+from app.database.session import get_db
 from app.main import app
 from app.models.auth.role import Role
 from app.models.auth.user import User
@@ -21,6 +21,7 @@ from app.models.staging.stg_file_attachment import StgFileAttachment
 from app.models.staging.stg_research_object import StgResearchObject
 from app.core import permissions
 from app.models.logs.workflow_history import WorkflowHistory
+from app.models.logs.audit_log import AuditLog
 
 pytestmark = pytest.mark.asyncio
 
@@ -128,6 +129,12 @@ async def _cleanup_seeded_data(
     output_type_id = seeded.output_type_id
 
     # delete child tables first
+    await db.execute(
+        delete(AuditLog).where(
+            AuditLog.actor_user_id == user_id
+        )
+    )
+    
     await db.execute(
         delete(WorkflowHistory).where(
             WorkflowHistory.staging_id == staging_id

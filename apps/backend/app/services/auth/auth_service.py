@@ -236,5 +236,4 @@ class AuthService:
             result="success",
         )
 
-
 auth_service = AuthService()
