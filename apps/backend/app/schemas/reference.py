@@ -83,3 +83,58 @@ class ResearchDomainOut(BaseModel):
     parent_domain_id: UUID | None
     description: str | None
     is_active: bool
+
+
+# ── Researcher ────────────────────────────────────────────────────────────────
+
+class ResearcherCreate(BaseModel):
+    full_name: str
+    email: str | None = None
+    orcid: str | None = None
+    department_id: UUID | None = None
+    academic_title: str | None = None
+    researcher_code: str | None = None
+    is_internal: bool = True
+
+
+class ResearcherUpdate(BaseModel):
+    full_name: str | None = None
+    email: str | None = None
+    orcid: str | None = None
+    department_id: UUID | None = None
+    academic_title: str | None = None
+    researcher_code: str | None = None
+    is_internal: bool | None = None
+
+
+class ResearcherOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    researcher_id: UUID
+    full_name: str
+    email: str | None
+    orcid: str | None
+    department_id: UUID | None
+    academic_title: str | None
+    researcher_code: str | None
+    is_internal: bool
+
+
+# ── Keyword ───────────────────────────────────────────────────────────────────
+
+class KeywordCreate(BaseModel):
+    keyword_text: str
+    normalized_text: str | None = None
+
+
+class KeywordUpdate(BaseModel):
+    keyword_text: str | None = None
+    normalized_text: str | None = None
+
+
+class KeywordOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    keyword_id: UUID
+    keyword_text: str
+    normalized_text: str | None

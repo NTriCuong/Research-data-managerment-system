@@ -1,17 +1,26 @@
-﻿from pydantic import BaseModel, EmailStr
+﻿from uuid import UUID
 
-from app.schemas.user import UserRead
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    username: str
     password: str
+
+
+class UserTokenOut(BaseModel):
+    user_id: UUID
+    username: str
+    email: EmailStr
+    full_name: str
+    role_name: str
+    department_name: str | None = None
 
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    user: UserRead
+    user: UserTokenOut
 
 
 class MessageResponse(BaseModel):

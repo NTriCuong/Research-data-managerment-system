@@ -1,18 +1,13 @@
-﻿from uuid import UUID
-
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlalchemy import select
+﻿from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.database.session import get_db
 from app.models.auth.user import User
-from app.schemas.auth import LoginRequest, MessageResponse, TokenResponse
+from app.schemas.auth import LoginRequest, MessageResponse, TokenResponse, UserTokenOut
 from app.schemas.user import UserRead
 from app.services.auth.auth_service import auth_service
 from app.services.auth.deps import get_current_active_user, get_valid_refresh_token
-from app.services.auth.security import decode_access_token
 
 router = APIRouter()
 
@@ -23,6 +18,17 @@ async def _commit_if_supported(db: AsyncSession) -> None:
         await commit()
 
 
+def _user_token_out(user: User) -> UserTokenOut:
+    return UserTokenOut(
+        user_id=user.user_id,
+        username=user.username,
+        email=user.email,
+        full_name=user.full_name,
+        role_name=user.role.role_name,
+        department_name=user.department.department_name if user.department else None,
+    )
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login(
     payload: LoginRequest,
@@ -30,27 +36,13 @@ async def login(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
-    access_token, refresh_token = await auth_service.login(
+    access_token, refresh_token, user = await auth_service.login(
         db,
-        email=payload.email,
+        username=payload.username,
         password=payload.password,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
-
-    payload_data = decode_access_token(access_token)
-    user_id = payload_data.get("sub")
-    if not user_id:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Token missing subject")
-
-    result = await db.execute(
-        select(User)
-        .options(selectinload(User.role))
-        .where(User.user_id == UUID(str(user_id)))
-    )
-    user = result.scalar_one_or_none()
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Authenticated user not found")
 
     response.set_cookie(
         key="refresh_token",
@@ -62,7 +54,7 @@ async def login(
     )
     await _commit_if_supported(db)
 
-    return TokenResponse(access_token=access_token, user=UserRead.model_validate(user))
+    return TokenResponse(access_token=access_token, user=_user_token_out(user))
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -91,7 +83,7 @@ async def refresh_token(
     )
     await _commit_if_supported(db)
 
-    return TokenResponse(access_token=access_token, user=UserRead.model_validate(user))
+    return TokenResponse(access_token=access_token, user=_user_token_out(user))
 
 
 @router.post("/logout", response_model=MessageResponse)
@@ -105,8 +97,3 @@ async def logout(
     await _commit_if_supported(db)
     response.delete_cookie("refresh_token")
     return MessageResponse(message="Logged out")
-
-
-@router.get("/me", response_model=UserRead)
-async def read_me(current_user: User = Depends(get_current_active_user)) -> UserRead:
-    return UserRead.model_validate(current_user)
