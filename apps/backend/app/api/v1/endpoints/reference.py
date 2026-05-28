@@ -31,8 +31,6 @@ async def _commit_if_supported(db: AsyncSession) -> None:
     if callable(commit):
         await commit()
 
-
-
 @router.get("/departments", response_model=list[DepartmentOut])
 async def list_departments(
     _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
