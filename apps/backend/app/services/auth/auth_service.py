@@ -21,6 +21,18 @@ from app.services.logs.audit_service import audit_service
 from app.services.logs.login_log_service import login_log_service
 
 class AuthService:
+    @staticmethod
+    def _validate_token_lifetime_policy() -> None:
+        if settings.ACCESS_TOKEN_EXPIRE > 30:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="ACCESS_TOKEN_EXPIRE must be <= 30 minutes",
+            )
+        if settings.REFRESH_TOKEN_EXPIRE > 7:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="REFRESH_TOKEN_EXPIRE must be <= 7 days",
+            )
 
     # ── login ─────────────────────────────────────────────────────────────────
 
@@ -36,11 +48,13 @@ class AuthService:
         """Xác thực người dùng. Trả về (access_token, raw_refresh_token).
         Client phải đặt raw_refresh_token làm cookie HttpOnly.
         """
+        self._validate_token_lifetime_policy()
         repo = AuthRepository(db)
         user = await repo.find_user_by_email_or_username_with_role(email)
 
         async def _log(login_result: str, reason: str | None = None) -> None:
-            await repo.add_login_log(
+            await login_log_service.write_log(
+                db,
                 login_result=login_result,
                 user_id=user.user_id if user else None,
                 username_attempted=user.username if user else email,  # fallback email nếu user không tồn tại
@@ -163,6 +177,7 @@ class AuthService:
         Returns (new_access_token, new_raw_refresh_token).
         """
         repo = AuthRepository(db)
+        self._validate_token_lifetime_policy()
         db_token.revoked_at = datetime.now(timezone.utc)
         raw_rt, hashed_rt = create_refresh_token()
         await repo.add_refresh_token(
@@ -233,6 +248,195 @@ class AuthService:
             target_table="users",
             target_id=user.user_id,
             result="success",
+        )
+
+    async def create_user(
+        self,
+        db: AsyncSession,
+        *,
+        actor: User,
+        username: str,
+        email: str,
+        password: str,
+        full_name: str,
+        role_id: UUID,
+        department_id: UUID | None = None,
+    ) -> User:
+        user = await self.register(
+            db,
+            username=username,
+            email=email,
+            password=password,
+            full_name=full_name,
+            role_id=role_id,
+            department_id=department_id,
+        )
+        await audit_service.write_log(
+            db,
+            action_code="ADMIN_CREATE_USER",
+            actor_user_id=actor.user_id,
+            target_schema="auth",
+            target_table="users",
+            target_id=user.user_id,
+            new_value={"username": username, "email": email, "role_id": str(role_id)},
+            result="success",
+            message="Admin created user",
+        )
+        return user
+
+    async def update_user(
+        self,
+        db: AsyncSession,
+        *,
+        actor: User,
+        user_id: UUID,
+        username: str | None = None,
+        email: str | None = None,
+        full_name: str | None = None,
+        department_id: UUID | None = None,
+        fields_set: set[str] | None = None,
+    ) -> User:
+        repo = AuthRepository(db)
+        user = await repo.find_user_by_id_with_role(user_id)
+        if user is None or user.deleted_at is not None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        changed_old: dict = {}
+        changed_new: dict = {}
+
+        if username is not None and username != user.username:
+            existing = await repo.find_user_by_username(username)
+            if existing is not None and existing.user_id != user.user_id:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists")
+            changed_old["username"] = user.username
+            changed_new["username"] = username
+            user.username = username
+        if email is not None and email != user.email:
+            existing = await repo.find_user_by_email(email)
+            if existing is not None and existing.user_id != user.user_id:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
+            changed_old["email"] = user.email
+            changed_new["email"] = email
+            user.email = email
+        if full_name is not None and full_name != user.full_name:
+            changed_old["full_name"] = user.full_name
+            changed_new["full_name"] = full_name
+            user.full_name = full_name
+        if fields_set and "department_id" in fields_set and department_id != user.department_id:
+            changed_old["department_id"] = str(user.department_id) if user.department_id else None
+            changed_new["department_id"] = str(department_id) if department_id else None
+            user.department_id = department_id
+
+        if changed_new:
+            user.updated_at = datetime.now(timezone.utc)
+            await audit_service.write_log(
+                db,
+                action_code="ADMIN_UPDATE_USER",
+                actor_user_id=actor.user_id,
+                target_schema="auth",
+                target_table="users",
+                target_id=user.user_id,
+                old_value=changed_old,
+                new_value=changed_new,
+                result="success",
+                message="Admin updated user profile",
+            )
+        return user
+
+    async def soft_delete_user(self, db: AsyncSession, *, actor: User, user_id: UUID) -> None:
+        repo = AuthRepository(db)
+        user = await repo.find_user_by_id_with_role(user_id)
+        if user is None or user.deleted_at is not None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        if user.user_id == actor.user_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete current user")
+        now = datetime.now(timezone.utc)
+        user.deleted_at = now
+        user.updated_at = now
+        await self.revoke_all_sessions(db, user_id=user.user_id)
+        await audit_service.write_log(
+            db,
+            action_code="ADMIN_SOFT_DELETE_USER",
+            actor_user_id=actor.user_id,
+            target_schema="auth",
+            target_table="users",
+            target_id=user.user_id,
+            old_value={"deleted_at": None},
+            new_value={"deleted_at": now.isoformat()},
+            result="success",
+            message="Admin soft-deleted user",
+        )
+
+    async def update_user_role(self, db: AsyncSession, *, actor: User, user_id: UUID, role_id: UUID) -> User:
+        repo = AuthRepository(db)
+        user = await repo.find_user_by_id_with_role(user_id)
+        if user is None or user.deleted_at is not None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        old_role_id = user.role_id
+        user.role_id = role_id
+        user.updated_at = datetime.now(timezone.utc)
+        await self.revoke_all_sessions(db, user_id=user.user_id)
+        await audit_service.write_log(
+            db,
+            action_code="ADMIN_ASSIGN_ROLE",
+            actor_user_id=actor.user_id,
+            target_schema="auth",
+            target_table="users",
+            target_id=user.user_id,
+            old_value={"role_id": str(old_role_id)},
+            new_value={"role_id": str(role_id)},
+            result="success",
+            message="Admin changed user role",
+        )
+        return user
+
+    async def update_user_status(self, db: AsyncSession, *, actor: User, user_id: UUID, new_status: UserStatus) -> User:
+        repo = AuthRepository(db)
+        user = await repo.find_user_by_id_with_role(user_id)
+        if user is None or user.deleted_at is not None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        old_status = user.status
+        user.status = new_status
+        user.updated_at = datetime.now(timezone.utc)
+        if new_status != UserStatus.active:
+            await self.revoke_all_sessions(db, user_id=user.user_id)
+        await audit_service.write_log(
+            db,
+            action_code="ADMIN_UPDATE_USER_STATUS",
+            actor_user_id=actor.user_id,
+            target_schema="auth",
+            target_table="users",
+            target_id=user.user_id,
+            old_value={"status": old_status.value},
+            new_value={"status": new_status.value},
+            result="success",
+            message="Admin updated user status",
+        )
+        return user
+
+    async def admin_reset_password(
+        self,
+        db: AsyncSession,
+        *,
+        actor: User,
+        user_id: UUID,
+        new_password: str,
+    ) -> None:
+        repo = AuthRepository(db)
+        user = await repo.find_user_by_id_with_role(user_id)
+        if user is None or user.deleted_at is not None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        user.password_hash = hash_password(new_password)
+        user.updated_at = datetime.now(timezone.utc)
+        await self.revoke_all_sessions(db, user_id=user.user_id)
+        await audit_service.write_log(
+            db,
+            action_code="ADMIN_RESET_PASSWORD",
+            actor_user_id=actor.user_id,
+            target_schema="auth",
+            target_table="users",
+            target_id=user.user_id,
+            result="success",
+            message="Admin reset user password",
         )
 
 auth_service = AuthService()

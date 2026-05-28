@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr
 
 from app.schemas.user import UserRead
 
@@ -16,3 +16,13 @@ class TokenResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     message: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class AdminResetPasswordRequest(BaseModel):
+    new_password: str
+

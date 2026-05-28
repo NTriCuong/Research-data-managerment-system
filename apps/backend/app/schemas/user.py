@@ -1,7 +1,9 @@
-﻿from datetime import datetime
+from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+from app.models.enum import UserStatus
 
 
 class UserRead(BaseModel):
@@ -13,8 +15,33 @@ class UserRead(BaseModel):
     full_name: str
     role_id: UUID
     department_id: UUID | None = None
-    status: str
+    status: UserStatus
     last_login_at: datetime | None = None
     created_at: datetime
     updated_at: datetime | None = None
     deleted_at: datetime | None = None
+
+
+class UserCreate(BaseModel):
+    username: str = Field(min_length=3, max_length=100)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+    full_name: str = Field(min_length=1, max_length=255)
+    role_id: UUID
+    department_id: UUID | None = None
+
+
+class UserUpdate(BaseModel):
+    username: str | None = Field(default=None, min_length=3, max_length=100)
+    email: EmailStr | None = None
+    full_name: str | None = Field(default=None, min_length=1, max_length=255)
+    department_id: UUID | None = None
+
+
+class UserRoleUpdate(BaseModel):
+    role_id: UUID
+
+
+class UserStatusUpdate(BaseModel):
+    status: UserStatus
+
