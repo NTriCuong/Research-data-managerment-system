@@ -16,8 +16,9 @@ from app.services.auth.security import (
     refresh_token_expires_at,
     verify_password,
 )
-from app.services.logs.audit_service import audit_service
 
+from app.services.logs.audit_service import audit_service
+from app.services.logs.login_log_service import login_log_service
 
 class AuthService:
 

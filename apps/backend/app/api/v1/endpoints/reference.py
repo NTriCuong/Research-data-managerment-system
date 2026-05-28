@@ -32,7 +32,8 @@ async def _commit_if_supported(db: AsyncSession) -> None:
         await commit()
 
 
-@router.get("departments/", response_model=list[DepartmentOut])
+
+@router.get("/departments", response_model=list[DepartmentOut])
 async def list_departments(
     _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
     db: AsyncSession = Depends(get_db),
@@ -41,7 +42,7 @@ async def list_departments(
     return [DepartmentOut.model_validate(d) for d in departments]
 
 
-@router.get("departments/{department_id}", response_model=DepartmentOut)
+@router.get("/department/{department_id}", response_model=DepartmentOut)
 async def get_department(
     department_id: UUID,
     _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
@@ -53,7 +54,7 @@ async def get_department(
     return DepartmentOut.model_validate(department)
 
 
-@router.post("departments/", response_model=DepartmentOut, status_code=status.HTTP_201_CREATED)
+@router.post("/department", response_model=DepartmentOut, status_code=status.HTTP_201_CREATED)
 async def create_department(
     payload: DepartmentCreate,
     request: Request,
@@ -82,7 +83,7 @@ async def create_department(
     return DepartmentOut.model_validate(department)
 
 
-@router.put("departments/{department_id}", response_model=DepartmentOut)
+@router.put("/department/{department_id}", response_model=DepartmentOut)
 async def update_department(
     department_id: UUID,
     payload: DepartmentUpdate,
@@ -118,7 +119,7 @@ async def update_department(
     return DepartmentOut.model_validate(department)
 
 
-@router.delete("departments/{department_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/department/{department_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_department(
     department_id: UUID,
     request: Request,
