@@ -28,22 +28,22 @@ class AuthService:
         self,
         db: AsyncSession,
         *,
-        email: str,
+        username: str,
         password: str,
         ip_address: str | None = None,
         user_agent: str | None = None,
-    ) -> tuple[str, str]:
-        """Xác thực người dùng. Trả về (access_token, raw_refresh_token).
+    ) -> tuple[str, str, User]:
+        """Xác thực người dùng. Trả về (access_token, raw_refresh_token, user).
         Client phải đặt raw_refresh_token làm cookie HttpOnly.
         """
         repo = AuthRepository(db)
-        user = await repo.find_user_by_email_or_username_with_role(email)
+        user = await repo.find_user_by_username_with_role(username)
 
         async def _log(login_result: str, reason: str | None = None) -> None:
             await repo.add_login_log(
                 login_result=login_result,
                 user_id=user.user_id if user else None,
-                username_attempted=user.username if user else email,  # fallback email nếu user không tồn tại
+                username_attempted=user.username if user else username,
                 failure_reason=reason,
                 ip_address=ip_address,
                 user_agent=user_agent,
@@ -101,7 +101,7 @@ class AuthService:
 
         access_token = create_access_token(str(user.user_id), user.role.role_code)
         await _log("success")
-        return access_token, raw_rt
+        return access_token, raw_rt, user
 
     # ── register ──────────────────────────────────────────────────────────────
 
