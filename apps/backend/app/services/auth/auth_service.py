@@ -63,26 +63,27 @@ class AuthService:
                 user_agent=user_agent,
             )
 
-        if user is None:
+        if user is None: 
             await _log("failed", "user_not_found")
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
+                status_code=status.HTTP_401_UNAUTHORIZED, #user không tồn tại
                 detail="Invalid credentials",
             )
 
         if user.deleted_at is not None:
             await _log("failed", "account_deleted")
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_403_FORBIDDEN, # user đã bị xoá
                 detail="Account has been deleted",
             )
 
         if user.status != UserStatus.active:
             await _log("failed", "account_disabled")
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_403_FORBIDDEN, # account bị disabled
                 detail="Account is disabled",
             )
+
 
         # Brute-force lockout
         window_start = datetime.now(timezone.utc) - timedelta(minutes=settings.LOCK_DURATION)
@@ -90,11 +91,11 @@ class AuthService:
         if fail_count >= settings.MAX_LOGIN_ATTEMPTS:
             await _log("failed", "account_locked")
             raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS, #login fail quá nhiều lần liên tiếp
                 detail=f"Too many failed attempts. Try again after {settings.LOCK_DURATION} minutes.",
             )
 
-        if not verify_password(password, user.password_hash):
+        if not verify_password(password, user.password_hash): #kiểm tra với password hash trong db
             await _log("failed", "wrong_password")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -102,13 +103,14 @@ class AuthService:
             )
 
         # Issue tokens
-        user.last_login_at = datetime.now(timezone.utc)
+        user.last_login_at = datetime.now(timezone.utc) # cập nhật thời gian đăng nhập cuối cùng
 
         raw_rt, hashed_rt = create_refresh_token()
         await repo.add_refresh_token(
             user_id=user.user_id,
+            issued_at=datetime.now(timezone.utc), #token đươcj tạo lúc nào hay đăng nhập lúc nào 
             token_hash=hashed_rt,
-            expires_at=refresh_token_expires_at(),
+            expires_at=refresh_token_expires_at(), # thời gian hết hạng
             ip_address=ip_address,
             user_agent=user_agent,
         )
@@ -138,7 +140,7 @@ class AuthService:
                 detail="Username or email already exists",
             )
 
-        user = User(
+        user = User( # tạo user mới
             username=username,
             email=email,
             password_hash=hash_password(password),
@@ -168,7 +170,7 @@ class AuthService:
         self,
         db: AsyncSession,
         *,
-        db_token: RefreshToken,
+        db_token: RefreshToken, #dependencies injection
         user: User,
         ip_address: str | None = None,
         user_agent: str | None = None,
