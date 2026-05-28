@@ -16,7 +16,7 @@ from app.services.auth.security import (
     refresh_token_expires_at,
     verify_password,
 )
-from app.services.logs.logs_service import LogService
+from app.services.logs.audit_service import audit_service
 
 
 class AuthService:
@@ -93,7 +93,6 @@ class AuthService:
         await repo.add_refresh_token(
             user_id=user.user_id,
             token_hash=hashed_rt,
-            issued_at=datetime.now(timezone.utc),
             expires_at=refresh_token_expires_at(),
             ip_address=ip_address,
             user_agent=user_agent,
@@ -117,7 +116,6 @@ class AuthService:
         department_id: UUID | None = None,
     ) -> User:
         """Create a new user. Raises 409 if username or email is already taken."""
-        log_svc = LogService(db)
         repo = AuthRepository(db)
         if await repo.find_duplicate_user(username=username, email=email):
             raise HTTPException(
@@ -136,8 +134,9 @@ class AuthService:
         user = await repo.create_user(user)
         await db.flush()  # sau dòng này user.user_id đã có
 
-        await log_svc.write_audit_log(
-            action_code="CREATE",
+        await audit_service.write_log(
+            db,
+            action_code="CREATE_USER",
             actor_user_id=None,
             target_schema="auth",
             target_table="users",
@@ -215,8 +214,6 @@ class AuthService:
         new_password: str,
     ) -> None:
         """Verify mật khẩu cũ, cập nhật hash, revoke toàn bộ session."""
-        log_svc = LogService(db)
-
         if not verify_password(old_password, user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -227,7 +224,8 @@ class AuthService:
         user.updated_at = datetime.now(timezone.utc)
         await self.revoke_all_sessions(db, user_id=user.user_id)
 
-        await log_svc.write_audit_log(
+        await audit_service.write_log(
+            db,
             action_code="CHANGE_PASSWORD",
             actor_user_id=user.user_id,
             target_schema="auth",
