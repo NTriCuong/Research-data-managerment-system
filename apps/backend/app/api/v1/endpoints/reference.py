@@ -10,16 +10,24 @@ from app.schemas.reference import (
     DepartmentCreate,
     DepartmentOut,
     DepartmentUpdate,
+    KeywordCreate,
+    KeywordOut,
+    KeywordUpdate,
     OutputTypeCreate,
     OutputTypeOut,
     OutputTypeUpdate,
     ResearchDomainCreate,
     ResearchDomainOut,
     ResearchDomainUpdate,
+    ResearcherCreate,
+    ResearcherOut,
+    ResearcherUpdate,
 )
 from app.services.reference.department_service import department_service
+from app.services.reference.keyword_service import keyword_service
 from app.services.reference.output_types_service import output_type_service
 from app.services.reference.research_domain_service import research_domain_service
+from app.services.reference.researcher_service import researcher_service
 
 router = APIRouter()
 
@@ -296,4 +304,164 @@ async def delete_research_domain(
     )
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research domain not found")
+    await _commit_if_supported(db)
+
+
+# ── Researcher ────────────────────────────────────────────────────────────────
+
+@router.get("/researchers/", response_model=list[ResearcherOut])
+async def list_researchers(
+    _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
+    db: AsyncSession = Depends(get_db),
+) -> list[ResearcherOut]:
+    return [ResearcherOut.model_validate(r) for r in await researcher_service.list_researchers(db)]
+
+
+@router.get("/researchers/{researcher_id}", response_model=ResearcherOut)
+async def get_researcher(
+    researcher_id: UUID,
+    _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
+    db: AsyncSession = Depends(get_db),
+) -> ResearcherOut:
+    researcher = await researcher_service.get_researcher(db, researcher_id=researcher_id)
+    if researcher is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Researcher not found")
+    return ResearcherOut.model_validate(researcher)
+
+
+@router.post("/researchers/", response_model=ResearcherOut, status_code=status.HTTP_201_CREATED)
+async def create_researcher(
+    payload: ResearcherCreate,
+    current_user: User = Depends(require_roles("SUPER_ADMIN")),
+    db: AsyncSession = Depends(get_db),
+) -> ResearcherOut:
+    researcher = await researcher_service.create_researcher(
+        db,
+        full_name=payload.full_name,
+        email=payload.email,
+        orcid=payload.orcid,
+        department_id=payload.department_id,
+        academic_title=payload.academic_title,
+        researcher_code=payload.researcher_code,
+        is_internal=payload.is_internal,
+        actor_user_id=current_user.user_id,
+    )
+    await _commit_if_supported(db)
+    return ResearcherOut.model_validate(researcher)
+
+
+@router.put("/researchers/{researcher_id}", response_model=ResearcherOut)
+async def update_researcher(
+    researcher_id: UUID,
+    payload: ResearcherUpdate,
+    current_user: User = Depends(require_roles("SUPER_ADMIN")),
+    db: AsyncSession = Depends(get_db),
+) -> ResearcherOut:
+    researcher = await researcher_service.update_researcher(
+        db,
+        researcher_id=researcher_id,
+        actor_user_id=current_user.user_id,
+        full_name=payload.full_name,
+        email=payload.email,
+        orcid=payload.orcid,
+        department_id=payload.department_id,
+        academic_title=payload.academic_title,
+        researcher_code=payload.researcher_code,
+        is_internal=payload.is_internal,
+        fields_set=payload.model_fields_set,
+    )
+    if researcher is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Researcher not found")
+    await _commit_if_supported(db)
+    return ResearcherOut.model_validate(researcher)
+
+
+@router.delete("/researchers/{researcher_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_researcher(
+    researcher_id: UUID,
+    current_user: User = Depends(require_roles("SUPER_ADMIN")),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    deleted = await researcher_service.delete_researcher(
+        db,
+        researcher_id=researcher_id,
+        actor_user_id=current_user.user_id,
+    )
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Researcher not found")
+    await _commit_if_supported(db)
+
+
+# ── Keyword ───────────────────────────────────────────────────────────────────
+
+@router.get("/keywords/", response_model=list[KeywordOut])
+async def list_keywords(
+    _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
+    db: AsyncSession = Depends(get_db),
+) -> list[KeywordOut]:
+    return [KeywordOut.model_validate(k) for k in await keyword_service.list_keywords(db)]
+
+
+@router.get("/keywords/{keyword_id}", response_model=KeywordOut)
+async def get_keyword(
+    keyword_id: UUID,
+    _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
+    db: AsyncSession = Depends(get_db),
+) -> KeywordOut:
+    keyword = await keyword_service.get_keyword(db, keyword_id=keyword_id)
+    if keyword is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Keyword not found")
+    return KeywordOut.model_validate(keyword)
+
+
+@router.post("/keywords/", response_model=KeywordOut, status_code=status.HTTP_201_CREATED)
+async def create_keyword(
+    payload: KeywordCreate,
+    current_user: User = Depends(require_roles("SUPER_ADMIN")),
+    db: AsyncSession = Depends(get_db),
+) -> KeywordOut:
+    keyword = await keyword_service.create_keyword(
+        db,
+        keyword_text=payload.keyword_text,
+        normalized_text=payload.normalized_text,
+        actor_user_id=current_user.user_id,
+    )
+    await _commit_if_supported(db)
+    return KeywordOut.model_validate(keyword)
+
+
+@router.put("/keywords/{keyword_id}", response_model=KeywordOut)
+async def update_keyword(
+    keyword_id: UUID,
+    payload: KeywordUpdate,
+    current_user: User = Depends(require_roles("SUPER_ADMIN")),
+    db: AsyncSession = Depends(get_db),
+) -> KeywordOut:
+    keyword = await keyword_service.update_keyword(
+        db,
+        keyword_id=keyword_id,
+        actor_user_id=current_user.user_id,
+        keyword_text=payload.keyword_text,
+        normalized_text=payload.normalized_text,
+        fields_set=payload.model_fields_set,
+    )
+    if keyword is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Keyword not found")
+    await _commit_if_supported(db)
+    return KeywordOut.model_validate(keyword)
+
+
+@router.delete("/keywords/{keyword_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_keyword(
+    keyword_id: UUID,
+    current_user: User = Depends(require_roles("SUPER_ADMIN")),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    deleted = await keyword_service.delete_keyword(
+        db,
+        keyword_id=keyword_id,
+        actor_user_id=current_user.user_id,
+    )
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Keyword not found")
     await _commit_if_supported(db)

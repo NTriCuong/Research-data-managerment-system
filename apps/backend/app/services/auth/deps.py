@@ -40,7 +40,7 @@ async def _load_user(db: AsyncSession, user_id: str) -> User | None:
         return None
     result = await db.execute(
         select(User)
-        .options(selectinload(User.role))
+        .options(selectinload(User.role), selectinload(User.department))
         .where(User.user_id == uid)
     )
     return result.scalar_one_or_none()
@@ -106,7 +106,7 @@ async def get_valid_refresh_token(
     token_hash = hash_refresh_token(refresh_token)
     result = await db.execute(
         select(RefreshToken)
-        .options(selectinload(RefreshToken.user).selectinload(User.role))
+        .options(selectinload(RefreshToken.user).selectinload(User.role), selectinload(RefreshToken.user).selectinload(User.department))
         .where(RefreshToken.token_hash == token_hash)
         .where(RefreshToken.revoked_at.is_(None))
     )

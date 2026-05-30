@@ -14,10 +14,18 @@ class AuthRepository:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
+    async def find_user_by_username_with_role(self, username: str) -> User | None:
+        result = await self.db.execute(
+            select(User)
+            .options(selectinload(User.role), selectinload(User.department))
+            .where(User.username == username)
+        )
+        return result.scalar_one_or_none()
+
     async def find_user_by_email_or_username_with_role(self, email_or_username: str) -> User | None:
         result = await self.db.execute(
             select(User)
-            .options(selectinload(User.role))
+            .options(selectinload(User.role), selectinload(User.department))
             .where((User.username == email_or_username) | (User.email == email_or_username))
         )
         return result.scalar_one_or_none()
@@ -25,7 +33,7 @@ class AuthRepository:
     async def find_user_by_id_with_role(self, user_id: UUID) -> User | None:
         result = await self.db.execute(
             select(User)
-            .options(selectinload(User.role))
+            .options(selectinload(User.role), selectinload(User.department))
             .where(User.user_id == user_id)
         )
         return result.scalar_one_or_none()
@@ -69,6 +77,7 @@ class AuthRepository:
         expires_at: datetime,
         ip_address: str | None,
         user_agent: str | None,
+        issued_at: datetime,
     ) -> None:
         self.db.add(
             RefreshToken(
@@ -77,6 +86,7 @@ class AuthRepository:
                 expires_at=expires_at,
                 ip_address=ip_address,
                 user_agent=user_agent,
+                issued_at=issued_at,
             )
         )
 
