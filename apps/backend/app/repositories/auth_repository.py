@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -77,6 +77,7 @@ class AuthRepository:
         expires_at: datetime,
         ip_address: str | None,
         user_agent: str | None,
+        issued_at: datetime,
     ) -> None:
         self.db.add(
             RefreshToken(
@@ -85,12 +86,52 @@ class AuthRepository:
                 expires_at=expires_at,
                 ip_address=ip_address,
                 user_agent=user_agent,
+                issued_at=issued_at,
             )
         )
 
     async def find_duplicate_user(self, *, username: str, email: str) -> User | None:
         result = await self.db.execute(select(User).where((User.username == username) | (User.email == email)))
         return result.scalar_one_or_none()
+
+    async def find_user_by_id(self, user_id: UUID) -> User | None:
+        result = await self.db.execute(select(User).where(User.user_id == user_id))
+        return result.scalar_one_or_none()
+
+    async def find_user_by_username(self, username: str) -> User | None:
+        result = await self.db.execute(select(User).where(User.username == username))
+        return result.scalar_one_or_none()
+
+    async def find_user_by_email(self, email: str) -> User | None:
+        result = await self.db.execute(select(User).where(User.email == email))
+        return result.scalar_one_or_none()
+
+    async def list_users(
+        self,
+        *,
+        limit: int,
+        offset: int,
+        q: str | None = None,
+        role_id: UUID | None = None,
+        status: str | None = None,
+    ) -> list[User]:
+        stmt = (
+            select(User)
+            .options(selectinload(User.role))
+            .where(User.deleted_at.is_(None))
+            .order_by(User.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        if q:
+            like_q = f"%{q}%"
+            stmt = stmt.where(or_(User.username.ilike(like_q), User.email.ilike(like_q), User.full_name.ilike(like_q)))
+        if role_id is not None:
+            stmt = stmt.where(User.role_id == role_id)
+        if status is not None:
+            stmt = stmt.where(User.status == status)
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
 
     async def create_user(self, user: User) -> User:
         self.db.add(user)

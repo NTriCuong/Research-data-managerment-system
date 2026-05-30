@@ -1,10 +1,13 @@
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 ﻿from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.database.session import get_db
 from app.models.auth.user import User
-from app.schemas.auth import LoginRequest, MessageResponse, TokenResponse, UserTokenOut
+from app.schemas.auth import AdminResetPasswordRequest, ChangePasswordRequest, LoginRequest, MessageResponse, TokenResponse, UserTokenOut
 from app.schemas.user import UserRead
 from app.services.auth.auth_service import auth_service
 from app.services.auth.deps import get_current_active_user, get_valid_refresh_token
@@ -97,3 +100,38 @@ async def logout(
     await _commit_if_supported(db)
     response.delete_cookie("refresh_token")
     return MessageResponse(message="Logged out")
+
+
+@router.post("/change-password", response_model=MessageResponse)
+async def change_password(
+    payload: ChangePasswordRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    await auth_service.change_password(
+        db,
+        user=current_user,
+        old_password=payload.current_password,
+        new_password=payload.new_password,
+    )
+    await _commit_if_supported(db)
+    return MessageResponse(message="Password changed successfully")
+
+
+@router.post("/admin/reset-password/{user_id}", response_model=MessageResponse)
+async def admin_reset_password(
+    user_id: UUID,
+    payload: AdminResetPasswordRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    if current_user.role.role_code != "SUPER_ADMIN":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
+    await auth_service.admin_reset_password(
+        db,
+        actor=current_user,
+        user_id=user_id,
+        new_password=payload.new_password,
+    )
+    await _commit_if_supported(db)
+    return MessageResponse(message="Password reset successfully")

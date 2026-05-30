@@ -1,4 +1,4 @@
-﻿from types import SimpleNamespace
+from types import SimpleNamespace
 from uuid import uuid4
 
 from app.core.config import settings
@@ -115,3 +115,57 @@ def test_auth_login_500_when_token_missing_sub(client, sample_user, monkeypatch)
 
     assert response.status_code == 500
     assert response.json()["detail"] == "Token missing subject"
+
+
+def test_auth_change_password_success(client, sample_user, monkeypatch, override_active_user):
+    async def _fake_change_password(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(auth_endpoint.auth_service, "change_password", _fake_change_password)
+    client.app.dependency_overrides[get_db] = _fake_db_provider(sample_user)
+
+    response = client.post(
+        f"{settings.API_V1_PREFIX}/auth/change-password",
+        json={"current_password": "OldPass123", "new_password": "NewPass123"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "Password changed successfully"
+
+
+def test_auth_admin_reset_password_requires_super_admin(client, sample_user, monkeypatch, override_active_user):
+    sample_user.role = SimpleNamespace(role_code="REVIEWER")
+    user_id = uuid4()
+
+    async def _fake_reset(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(auth_endpoint.auth_service, "admin_reset_password", _fake_reset)
+    client.app.dependency_overrides[get_db] = _fake_db_provider(sample_user)
+
+    response = client.post(
+        f"{settings.API_V1_PREFIX}/auth/admin/reset-password/{user_id}",
+        json={"new_password": "ResetPass123"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Not enough permissions"
+
+
+def test_auth_admin_reset_password_success(client, sample_user, monkeypatch, override_active_user):
+    sample_user.role = SimpleNamespace(role_code="SUPER_ADMIN")
+    user_id = uuid4()
+
+    async def _fake_reset(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(auth_endpoint.auth_service, "admin_reset_password", _fake_reset)
+    client.app.dependency_overrides[get_db] = _fake_db_provider(sample_user)
+
+    response = client.post(
+        f"{settings.API_V1_PREFIX}/auth/admin/reset-password/{user_id}",
+        json={"new_password": "ResetPass123"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "Password reset successfully"
