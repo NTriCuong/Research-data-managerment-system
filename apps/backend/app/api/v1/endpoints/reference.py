@@ -1,6 +1,6 @@
 ﻿from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import require_roles
@@ -16,6 +16,7 @@ from app.schemas.reference import (
     OutputTypeCreate,
     OutputTypeOut,
     OutputTypeUpdate,
+    PaginatedResponse,
     ResearchDomainCreate,
     ResearchDomainOut,
     ResearchDomainUpdate,
@@ -39,13 +40,21 @@ async def _commit_if_supported(db: AsyncSession) -> None:
     if callable(commit):
         await commit()
 
-@router.get("/departments", response_model=list[DepartmentOut])
+@router.get("/departments", response_model=PaginatedResponse[DepartmentOut])
 async def list_departments(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
     db: AsyncSession = Depends(get_db),
-) -> list[DepartmentOut]:
-    departments = await department_service.list_departments(db)
-    return [DepartmentOut.model_validate(d) for d in departments]
+) -> PaginatedResponse[DepartmentOut]:
+    items, total = await department_service.list_departments(db, page=page, page_size=page_size)
+    return PaginatedResponse(
+        items=[DepartmentOut.model_validate(d) for d in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=-(-total // page_size),
+    )
 
 
 @router.get("/department/{department_id}", response_model=DepartmentOut)
@@ -147,13 +156,21 @@ async def delete_department(
 
 # ── OutputType ────────────────────────────────────────────────────────────────
 
-@router.get("/output-types/", response_model=list[OutputTypeOut])
+@router.get("/output-types/", response_model=PaginatedResponse[OutputTypeOut])
 async def list_output_types(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
     db: AsyncSession = Depends(get_db),
-) -> list[OutputTypeOut]:
-    output_types = await output_type_service.list_output_types(db)
-    return [OutputTypeOut.model_validate(o) for o in output_types]
+) -> PaginatedResponse[OutputTypeOut]:
+    items, total = await output_type_service.list_output_types(db, page=page, page_size=page_size)
+    return PaginatedResponse(
+        items=[OutputTypeOut.model_validate(o) for o in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=-(-total // page_size),
+    )
 
 
 @router.get("/output-types/{output_type_id}", response_model=OutputTypeOut)
@@ -227,13 +244,21 @@ async def delete_output_type(
 
 # ── ResearchDomain ────────────────────────────────────────────────────────────
 
-@router.get("/research-domains/", response_model=list[ResearchDomainOut])
+@router.get("/research-domains/", response_model=PaginatedResponse[ResearchDomainOut])
 async def list_research_domains(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
     db: AsyncSession = Depends(get_db),
-) -> list[ResearchDomainOut]:
-    domains = await research_domain_service.list_research_domains(db)
-    return [ResearchDomainOut.model_validate(d) for d in domains]
+) -> PaginatedResponse[ResearchDomainOut]:
+    items, total = await research_domain_service.list_research_domains(db, page=page, page_size=page_size)
+    return PaginatedResponse(
+        items=[ResearchDomainOut.model_validate(d) for d in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=-(-total // page_size),
+    )
 
 
 @router.get("/research-domains/{domain_id}", response_model=ResearchDomainOut)
@@ -309,12 +334,21 @@ async def delete_research_domain(
 
 # ── Researcher ────────────────────────────────────────────────────────────────
 
-@router.get("/researchers/", response_model=list[ResearcherOut])
+@router.get("/researchers/", response_model=PaginatedResponse[ResearcherOut])
 async def list_researchers(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
     db: AsyncSession = Depends(get_db),
-) -> list[ResearcherOut]:
-    return [ResearcherOut.model_validate(r) for r in await researcher_service.list_researchers(db)]
+) -> PaginatedResponse[ResearcherOut]:
+    items, total = await researcher_service.list_researchers(db, page=page, page_size=page_size)
+    return PaginatedResponse(
+        items=[ResearcherOut.model_validate(r) for r in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=-(-total // page_size),
+    )
 
 
 @router.get("/researchers/{researcher_id}", response_model=ResearcherOut)
@@ -394,12 +428,21 @@ async def delete_researcher(
 
 # ── Keyword ───────────────────────────────────────────────────────────────────
 
-@router.get("/keywords/", response_model=list[KeywordOut])
+@router.get("/keywords/", response_model=PaginatedResponse[KeywordOut])
 async def list_keywords(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
     db: AsyncSession = Depends(get_db),
-) -> list[KeywordOut]:
-    return [KeywordOut.model_validate(k) for k in await keyword_service.list_keywords(db)]
+) -> PaginatedResponse[KeywordOut]:
+    items, total = await keyword_service.list_keywords(db, page=page, page_size=page_size)
+    return PaginatedResponse(
+        items=[KeywordOut.model_validate(k) for k in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=-(-total // page_size),
+    )
 
 
 @router.get("/keywords/{keyword_id}", response_model=KeywordOut)
