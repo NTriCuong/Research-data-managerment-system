@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reference.output_type import OutputType
@@ -10,9 +10,15 @@ from app.services.logs.audit_service import audit_service
 
 
 class OutputTypeService:
-    async def list_output_types(self, db: AsyncSession) -> list[OutputType]:
-        result = await db.execute(select(OutputType).order_by(OutputType.type_name.asc()))
-        return list(result.scalars().all())
+    async def list_output_types(
+        self, db: AsyncSession, *, page: int = 1, page_size: int = 20
+    ) -> tuple[list[OutputType], int]:
+        offset = (page - 1) * page_size
+        total = (await db.execute(select(func.count()).select_from(OutputType))).scalar_one()
+        result = await db.execute(
+            select(OutputType).order_by(OutputType.type_name.asc()).offset(offset).limit(page_size)
+        )
+        return list(result.scalars().all()), total
 
     async def get_output_type_by_code(self, db: AsyncSession, *, type_code: str) -> OutputType | None:
         result = await db.execute(select(OutputType).where(OutputType.type_code == type_code))

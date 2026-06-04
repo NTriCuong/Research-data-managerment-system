@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reference.researcher import Researcher
@@ -10,9 +10,15 @@ from app.services.logs.audit_service import audit_service
 
 
 class ResearcherService:
-    async def list_researchers(self, db: AsyncSession) -> list[Researcher]:
-        result = await db.execute(select(Researcher).order_by(Researcher.full_name.asc()))
-        return list(result.scalars().all())
+    async def list_researchers(
+        self, db: AsyncSession, *, page: int = 1, page_size: int = 20
+    ) -> tuple[list[Researcher], int]:
+        offset = (page - 1) * page_size
+        total = (await db.execute(select(func.count()).select_from(Researcher))).scalar_one()
+        result = await db.execute(
+            select(Researcher).order_by(Researcher.full_name.asc()).offset(offset).limit(page_size)
+        )
+        return list(result.scalars().all()), total
 
     async def get_researcher(self, db: AsyncSession, *, researcher_id: UUID) -> Researcher | None:
         result = await db.execute(select(Researcher).where(Researcher.researcher_id == researcher_id))

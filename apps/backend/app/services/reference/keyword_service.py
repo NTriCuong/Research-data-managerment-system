@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reference.keyword import Keyword
@@ -9,9 +9,15 @@ from app.services.logs.audit_service import audit_service
 
 
 class KeywordService:
-    async def list_keywords(self, db: AsyncSession) -> list[Keyword]:
-        result = await db.execute(select(Keyword).order_by(Keyword.keyword_text.asc()))
-        return list(result.scalars().all())
+    async def list_keywords(
+        self, db: AsyncSession, *, page: int = 1, page_size: int = 20
+    ) -> tuple[list[Keyword], int]:
+        offset = (page - 1) * page_size
+        total = (await db.execute(select(func.count()).select_from(Keyword))).scalar_one()
+        result = await db.execute(
+            select(Keyword).order_by(Keyword.keyword_text.asc()).offset(offset).limit(page_size)
+        )
+        return list(result.scalars().all()), total
 
     async def get_keyword(self, db: AsyncSession, *, keyword_id: UUID) -> Keyword | None:
         result = await db.execute(select(Keyword).where(Keyword.keyword_id == keyword_id))

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reference.research_domain import ResearchDomain
@@ -10,9 +10,15 @@ from app.services.logs.audit_service import audit_service
 
 
 class ResearchDomainService:
-    async def list_research_domains(self, db: AsyncSession) -> list[ResearchDomain]:
-        result = await db.execute(select(ResearchDomain).order_by(ResearchDomain.domain_name.asc()))
-        return list(result.scalars().all())
+    async def list_research_domains(
+        self, db: AsyncSession, *, page: int = 1, page_size: int = 20
+    ) -> tuple[list[ResearchDomain], int]:
+        offset = (page - 1) * page_size
+        total = (await db.execute(select(func.count()).select_from(ResearchDomain))).scalar_one()
+        result = await db.execute(
+            select(ResearchDomain).order_by(ResearchDomain.domain_name.asc()).offset(offset).limit(page_size)
+        )
+        return list(result.scalars().all()), total
 
     async def get_research_domain(self, db: AsyncSession, *, domain_id: UUID) -> ResearchDomain | None:
         result = await db.execute(select(ResearchDomain).where(ResearchDomain.domain_id == domain_id))

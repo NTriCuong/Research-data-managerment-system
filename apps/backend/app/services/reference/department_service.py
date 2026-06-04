@@ -2,7 +2,7 @@
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reference.department import Department
@@ -10,9 +10,15 @@ from app.services.logs.audit_service import audit_service
 
 
 class DepartmentService:
-    async def list_departments(self, db: AsyncSession) -> list[Department]:
-        result = await db.execute(select(Department).order_by(Department.department_name.asc()))
-        return list(result.scalars().all())
+    async def list_departments(
+        self, db: AsyncSession, *, page: int = 1, page_size: int = 20
+    ) -> tuple[list[Department], int]:
+        offset = (page - 1) * page_size
+        total = (await db.execute(select(func.count()).select_from(Department))).scalar_one()
+        result = await db.execute(
+            select(Department).order_by(Department.department_name.asc()).offset(offset).limit(page_size)
+        )
+        return list(result.scalars().all()), total
 
     async def get_department(self, db: AsyncSession, *, department_id: UUID) -> Department | None:
         result = await db.execute(select(Department).where(Department.department_id == department_id))
