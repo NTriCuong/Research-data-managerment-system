@@ -1,14 +1,13 @@
-from uuid import UUID
+﻿from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-﻿from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.database.session import get_db
 from app.models.auth.user import User
 from app.schemas.auth import AdminResetPasswordRequest, ChangePasswordRequest, LoginRequest, MessageResponse, TokenResponse, UserTokenOut
-from app.schemas.user import UserRead
 from app.services.auth.auth_service import auth_service
 from app.services.auth.deps import get_current_active_user, get_valid_refresh_token
 
@@ -43,6 +42,34 @@ async def login(
         db,
         username=payload.username,
         password=payload.password,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=settings.REFRESH_TOKEN_EXPIRE * 24 * 60 * 60,
+    )
+    await _commit_if_supported(db)
+
+    return TokenResponse(access_token=access_token, user=_user_token_out(user))
+
+
+@router.post("/token", response_model=TokenResponse)
+async def token(
+    request: Request,
+    response: Response,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    access_token, refresh_token, user = await auth_service.login(
+        db,
+        username=form_data.username,
+        password=form_data.password,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )

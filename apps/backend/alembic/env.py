@@ -4,8 +4,9 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
-from app.database.config import Base, DATABASE_URL
-import app.database.registry  # noqa: F401 — registers all models with SQLAlchemy
+from app.database.base import Base
+from app.database.session import DATABASE_URL
+import app.models  # noqa: F401 — registers all models with SQLAlchemy
 
 config = context.config
 

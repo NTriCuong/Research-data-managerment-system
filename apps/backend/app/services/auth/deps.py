@@ -14,7 +14,7 @@ from app.models.auth.refresh_token import RefreshToken
 from app.models.enum import UserStatus
 from app.services.auth.security import decode_access_token, hash_refresh_token
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
 
 
 # ── RBAC permission map ───────────────────────────────────────────────────────

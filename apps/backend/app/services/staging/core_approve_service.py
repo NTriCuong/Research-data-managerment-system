@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import Float, cast, func, or_, select
+from sqlalchemy import Float, cast, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth.user import User
@@ -13,6 +13,8 @@ from app.models.core.core_research_object_author import CoreResearchObjectAuthor
 from app.models.core.core_research_object_domain import CoreResearchObjectDomain
 from app.models.core.core_research_object_keyword import CoreResearchObjectKeyword
 from app.models.enum import WorkflowStatus
+from app.models.reference.keyword import Keyword
+from app.models.reference.research_domain import ResearchDomain
 from app.repositories.core_approve_repository import CoreApproveRepository
 from app.schemas.auth import MessageResponse
 from app.schemas.core_approve import CoreSearchResultOut, PendingApprovalOut
@@ -21,6 +23,39 @@ from app.services.logs.workflow_service import workflow_service
 
 
 class CoreApproveService:
+    _REFRESH_SEARCH_VECTOR_SQL = text(
+        """
+        UPDATE core.research_objects AS ro
+        SET search_vector =
+            setweight(to_tsvector('simple', unaccent(coalesce(ro.title, ''))), 'A') ||
+            setweight(to_tsvector('simple', unaccent(coalesce(ro.identifier, ''))), 'A') ||
+            setweight(to_tsvector('simple', unaccent(coalesce(ro.abstract, ''))), 'B') ||
+            setweight(to_tsvector('simple', unaccent(coalesce((
+                SELECT string_agg(
+                    concat_ws(' ', a.full_name, a.email, a.affiliation),
+                    ' '
+                    ORDER BY a.author_order
+                )
+                FROM core.research_object_authors AS a
+                WHERE a.research_id = ro.research_id
+            ), ''))), 'B') ||
+            setweight(to_tsvector('simple', unaccent(coalesce((
+                SELECT string_agg(concat_ws(' ', k.keyword_text, k.normalized_text), ' ' ORDER BY k.keyword_text)
+                FROM core.research_object_keywords AS rok
+                JOIN reference.keywords AS k ON k.keyword_id = rok.keyword_id
+                WHERE rok.research_id = ro.research_id
+            ), ''))), 'B') ||
+            setweight(to_tsvector('simple', unaccent(coalesce((
+                SELECT string_agg(concat_ws(' ', d.domain_code, d.domain_name, d.description), ' ' ORDER BY d.domain_name)
+                FROM core.research_object_domains AS rod
+                JOIN reference.research_domains AS d ON d.domain_id = rod.domain_id
+                WHERE rod.research_id = ro.research_id
+            ), ''))), 'B') ||
+            setweight(to_tsvector('simple', unaccent(coalesce(ro.description, ''))), 'C')
+        WHERE ro.research_id = CAST(:research_id AS uuid)
+        """
+    )
+
     @staticmethod
     def _assert_pending_approval(status_value: WorkflowStatus) -> None:
         if status_value != WorkflowStatus.pending_approval:
@@ -215,6 +250,8 @@ class CoreApproveService:
             new_value={"workflow_status": WorkflowStatus.approved.value, "research_id": str(core_obj.research_id)},
             message="Approver approved staging record and published to core",
         )
+        await db.flush()
+        await self._refresh_search_vector(db, research_id=core_obj.research_id)
         return MessageResponse(message="Record approved and published to core")
 
     async def reject_record(self, db: AsyncSession, *, staging_id: UUID, reason: str, current_user: User) -> MessageResponse:
@@ -255,18 +292,57 @@ class CoreApproveService:
         )
         return MessageResponse(message="Record rejected")
 
+    async def _refresh_search_vector(self, db: AsyncSession, *, research_id: UUID) -> None:
+        await db.execute(self._REFRESH_SEARCH_VECTOR_SQL, {"research_id": str(research_id)})
+
+    @staticmethod
+    def _unaccent_ilike(column, pattern):
+        return func.unaccent(func.coalesce(column, "")).ilike(pattern)
+
     async def search_core_postgres(self, db: AsyncSession, *, query: str, limit: int, offset: int) -> list[CoreSearchResultOut]:
-        ts_query = func.plainto_tsquery("simple", query)
-        rank = cast(func.ts_rank_cd(CoreResearchObject.search_vector, ts_query), Float)
+        normalized_query = query.strip()
+        if not normalized_query:
+            return []
+
+        ts_query = func.websearch_to_tsquery("simple", func.unaccent(normalized_query))
+        search_vector = func.coalesce(CoreResearchObject.search_vector, func.to_tsvector("simple", ""))
+        rank = cast(func.ts_rank_cd(search_vector, ts_query), Float)
+        ilike_pattern = func.unaccent(f"%{normalized_query}%")
 
         stmt = (
             select(CoreResearchObject, rank.label("rank"))
             .where(CoreResearchObject.deleted_at.is_(None))
             .where(
                 or_(
-                    CoreResearchObject.search_vector.op("@@")(ts_query),
-                    CoreResearchObject.title.ilike(f"%{query}%"),
-                    CoreResearchObject.abstract.ilike(f"%{query}%"),
+                    search_vector.op("@@")(ts_query),
+                    self._unaccent_ilike(CoreResearchObject.title, ilike_pattern),
+                    self._unaccent_ilike(CoreResearchObject.abstract, ilike_pattern),
+                    self._unaccent_ilike(CoreResearchObject.description, ilike_pattern),
+                    self._unaccent_ilike(CoreResearchObject.identifier, ilike_pattern),
+                    CoreResearchObject.authors.any(
+                        or_(
+                            self._unaccent_ilike(CoreResearchObjectAuthor.full_name, ilike_pattern),
+                            self._unaccent_ilike(CoreResearchObjectAuthor.email, ilike_pattern),
+                            self._unaccent_ilike(CoreResearchObjectAuthor.affiliation, ilike_pattern),
+                        )
+                    ),
+                    CoreResearchObject.keywords.any(
+                        CoreResearchObjectKeyword.keyword.has(
+                            or_(
+                                self._unaccent_ilike(Keyword.keyword_text, ilike_pattern),
+                                self._unaccent_ilike(Keyword.normalized_text, ilike_pattern),
+                            )
+                        )
+                    ),
+                    CoreResearchObject.domains.any(
+                        CoreResearchObjectDomain.domain.has(
+                            or_(
+                                self._unaccent_ilike(ResearchDomain.domain_code, ilike_pattern),
+                                self._unaccent_ilike(ResearchDomain.domain_name, ilike_pattern),
+                                self._unaccent_ilike(ResearchDomain.description, ilike_pattern),
+                            )
+                        )
+                    ),
                 )
             )
             .order_by(rank.desc(), CoreResearchObject.created_at.desc())

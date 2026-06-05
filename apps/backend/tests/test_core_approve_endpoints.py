@@ -1,15 +1,33 @@
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
+from sqlalchemy.dialects import postgresql
+
 from app.api.v1.endpoints import core_approve as approve_endpoint
 from app.core.config import settings
 from app.database.session import get_db
 from app.services.auth import deps as auth_deps
+from app.services.staging.core_approve_service import core_approve_service
 
 
 class _FakeDbSession:
     async def commit(self):
         return None
+
+
+class _FakeSearchResult:
+    def all(self):
+        return []
+
+
+class _CaptureSearchDbSession:
+    def __init__(self):
+        self.statement = None
+
+    async def execute(self, statement):
+        self.statement = statement
+        return _FakeSearchResult()
 
 
 def _fake_db_provider():
@@ -122,6 +140,76 @@ def test_postgres_search_accessible_for_reviewer(client, sample_user, monkeypatc
     body = response.json()
     assert len(body) == 1
     assert body[0]["research_id"] == str(research_id)
+
+
+def test_postgres_search_strips_query_and_passes_pagination(client, sample_user, monkeypatch):
+    _override_user_with_role(client, sample_user, "DATA_ENTRY")
+    client.app.dependency_overrides[get_db] = _fake_db_provider()
+    captured = {}
+
+    async def _fake_search(*args, **kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(approve_endpoint.core_approve_service, "search_core_postgres", _fake_search)
+
+    response = client.get(
+        f"{settings.API_V1_PREFIX}/core-approve/search",
+        params={"q": "  trí tuệ  ", "limit": 5, "offset": 2},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+    assert captured["query"] == "trí tuệ"
+    assert captured["limit"] == 5
+    assert captured["offset"] == 2
+
+
+def test_guest_role_cannot_search_core_records(client, sample_user):
+    _override_user_with_role(client, sample_user, "GUEST")
+    client.app.dependency_overrides[get_db] = _fake_db_provider()
+
+    response = client.get(f"{settings.API_V1_PREFIX}/core-approve/search?q=benchmark")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Not enough permissions"
+
+
+def test_reject_record_requires_non_empty_reason(client, sample_user):
+    _override_user_with_role(client, sample_user, "APPROVER")
+    client.app.dependency_overrides[get_db] = _fake_db_provider()
+
+    response = client.post(
+        f"{settings.API_V1_PREFIX}/core-approve/{uuid4()}/reject",
+        json={"reason": ""},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_postgres_search_query_matches_srs_fields():
+    db = _CaptureSearchDbSession()
+
+    rows = await core_approve_service.search_core_postgres(db, query="tri tue nhan tao", limit=10, offset=0)
+
+    assert rows == []
+    compiled_sql = str(
+        db.statement.compile(
+            dialect=postgresql.dialect(),
+            compile_kwargs={"literal_binds": False},
+        )
+    ).lower()
+    assert "websearch_to_tsquery" in compiled_sql
+    assert "unaccent" in compiled_sql
+    assert "search_vector" in compiled_sql
+    assert "description" in compiled_sql
+    assert "identifier" in compiled_sql
+    assert "research_object_authors" in compiled_sql
+    assert "research_object_keywords" in compiled_sql
+    assert "keywords" in compiled_sql
+    assert "research_object_domains" in compiled_sql
+    assert "research_domains" in compiled_sql
 
 
 def test_data_entry_cannot_approve(client, sample_user):

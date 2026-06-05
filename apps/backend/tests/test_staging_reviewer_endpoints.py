@@ -64,6 +64,28 @@ def test_reviewer_can_list_pending_records(client, sample_user, monkeypatch):
     assert body[0]["workflow_status"] == "pending_review"
 
 
+def test_reviewer_pending_list_passes_pagination(client, sample_user, monkeypatch):
+    _override_user_with_role(client, sample_user, "REVIEWER")
+    client.app.dependency_overrides[get_db] = _fake_db_provider()
+    captured = {}
+
+    async def _fake_list_pending(*_args, **kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(staging_endpoint.staging_review_service, "list_pending_review_records", _fake_list_pending)
+
+    response = client.get(
+        f"{settings.API_V1_PREFIX}/staging-review/pending",
+        params={"limit": 6, "offset": 2},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+    assert captured["limit"] == 6
+    assert captured["offset"] == 2
+
+
 def test_reviewer_can_request_revision(client, sample_user, monkeypatch):
     _override_user_with_role(client, sample_user, "REVIEWER")
     client.app.dependency_overrides[get_db] = _fake_db_provider()
@@ -80,6 +102,18 @@ def test_reviewer_can_request_revision(client, sample_user, monkeypatch):
     )
     assert response.status_code == 200
     assert response.json()["message"] == "Revision requested"
+
+
+def test_request_revision_requires_note(client, sample_user):
+    _override_user_with_role(client, sample_user, "REVIEWER")
+    client.app.dependency_overrides[get_db] = _fake_db_provider()
+
+    response = client.post(
+        f"{settings.API_V1_PREFIX}/staging-review/{uuid4()}/request-revision",
+        json={"note": ""},
+    )
+
+    assert response.status_code == 422
 
 
 def test_reviewer_can_forward_to_approval(client, sample_user, monkeypatch):

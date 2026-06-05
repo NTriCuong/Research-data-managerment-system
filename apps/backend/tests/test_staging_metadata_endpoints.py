@@ -16,9 +16,14 @@ from app.models.auth.role import Role
 from app.models.auth.user import User
 from app.models.enum import AccessLevel, UserStatus, WorkflowStatus
 from app.models.reference.department import Department
+from app.models.reference.keyword import Keyword
 from app.models.reference.output_type import OutputType
+from app.models.reference.research_domain import ResearchDomain
 from app.models.staging.stg_file_attachment import StgFileAttachment
 from app.models.staging.stg_research_object import StgResearchObject
+from app.models.staging.stg_research_object_author import StgResearchObjectAuthor
+from app.models.staging.stg_research_object_domain import StgResearchObjectDomain
+from app.models.staging.stg_research_object_keyword import StgResearchObjectKeyword
 from app.core import permissions
 from app.models.logs.workflow_history import WorkflowHistory
 from app.models.logs.audit_log import AuditLog
@@ -208,7 +213,7 @@ async def api_client(db_session: AsyncSession, seeded_context):
 
 async def test_upload_endpoint_uses_real_test_db_and_mocked_r2(api_client: AsyncClient, db_session: AsyncSession, seeded_context, monkeypatch):
     monkeypatch.setattr(
-        "app.services.storage.file_service.upload_bytes_to_r2",
+        "app.services.storage.file_service.upload_fileobj_to_r2",
         lambda **kwargs: SimpleNamespace(storage_path=kwargs["object_key"], public_url=None),
     )
 
@@ -232,6 +237,126 @@ async def test_upload_endpoint_uses_real_test_db_and_mocked_r2(api_client: Async
     assert saved_file.file_size_bytes == len(b"test-pdf-content")
 
 
+async def test_admin_can_list_all_staging_file_attachments(api_client: AsyncClient, seeded_context, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.storage.file_service.upload_fileobj_to_r2",
+        lambda **kwargs: SimpleNamespace(storage_path=kwargs["object_key"], public_url=None),
+    )
+
+    upload_response = await api_client.post(
+        f"{settings.API_V1_PREFIX}/staging-metadata/{seeded_context.staging_id}/files",
+        files={"file": ("admin-list.pdf", b"admin-list-content", "application/pdf")},
+        data={"access_level": "internal"},
+    )
+    assert upload_response.status_code == 201
+    uploaded_file_id = upload_response.json()["file_id"]
+
+    async def _override_admin_user():
+        return SimpleNamespace(
+            user_id=seeded_context.user_id,
+            role=SimpleNamespace(role_code="SUPER_ADMIN"),
+        )
+
+    app.dependency_overrides[permissions.get_current_active_user] = _override_admin_user
+
+    response = await api_client.get(f"{settings.API_V1_PREFIX}/staging-metadata/files")
+
+    assert response.status_code == 200
+    body = response.json()
+    listed_file = next((x for x in body if x["file_id"] == uploaded_file_id), None)
+    assert listed_file is not None
+    assert listed_file["staging_id"] == str(seeded_context.staging_id)
+    assert listed_file["original_filename"] == "admin-list.pdf"
+    assert listed_file["file_status"] == "active"
+
+
+async def test_bulk_submit_for_review_returns_per_record_results(api_client: AsyncClient, db_session: AsyncSession, seeded_context):
+    domain = ResearchDomain(
+        domain_code=f"DOMAIN_{uuid4().hex[:8]}",
+        domain_name="Bulk Submit Domain",
+    )
+    keyword = Keyword(
+        keyword_text=f"bulk-submit-{uuid4().hex[:8]}",
+        normalized_text="bulk-submit",
+    )
+    complete_obj = StgResearchObject(
+        title="Bulk submit complete object",
+        output_type_id=seeded_context.output_type_id,
+        department_id=seeded_context.department_id,
+        year=2026,
+        workflow_status=WorkflowStatus.draft,
+        access_level=AccessLevel.internal,
+        created_by=seeded_context.user_id,
+    )
+    db_session.add_all([domain, keyword, complete_obj])
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            StgResearchObjectDomain(staging_id=complete_obj.staging_id, domain_id=domain.domain_id),
+            StgResearchObjectKeyword(staging_id=complete_obj.staging_id, keyword_id=keyword.keyword_id),
+            StgResearchObjectAuthor(
+                staging_id=complete_obj.staging_id,
+                full_name="Bulk Submit Author",
+                author_order=1,
+            ),
+            StgFileAttachment(
+                staging_id=complete_obj.staging_id,
+                original_filename="bulk.pdf",
+                stored_filename="bulk.pdf",
+                storage_path=f"staging/{complete_obj.staging_id}/bulk.pdf",
+                mime_type="application/pdf",
+                file_extension=".pdf",
+                file_size_bytes=123,
+                uploaded_by=seeded_context.user_id,
+                access_level=AccessLevel.internal,
+            ),
+        ]
+    )
+    await db_session.commit()
+    complete_staging_id = complete_obj.staging_id
+    domain_id = domain.domain_id
+    keyword_id = keyword.keyword_id
+
+    try:
+        response = await api_client.post(
+            f"{settings.API_V1_PREFIX}/staging-metadata/submit-bulk",
+            json={
+                "staging_ids": [
+                    str(complete_staging_id),
+                    str(seeded_context.staging_id),
+                ],
+                "note": "bulk submit test",
+            },
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["submitted_count"] == 1
+        assert body["failed_count"] == 1
+
+        result_by_id = {x["staging_id"]: x for x in body["results"]}
+        assert result_by_id[str(complete_staging_id)]["success"] is True
+        assert result_by_id[str(seeded_context.staging_id)]["success"] is False
+        assert "Missing required metadata before submit" in result_by_id[str(seeded_context.staging_id)]["message"]
+
+        await db_session.refresh(complete_obj)
+        assert complete_obj.workflow_status == WorkflowStatus.pending_review
+        assert complete_obj.submitted_by == seeded_context.user_id
+    finally:
+        await db_session.rollback()
+        await db_session.execute(delete(AuditLog).where(AuditLog.target_id == complete_staging_id))
+        await db_session.execute(delete(WorkflowHistory).where(WorkflowHistory.staging_id == complete_staging_id))
+        await db_session.execute(delete(StgFileAttachment).where(StgFileAttachment.staging_id == complete_staging_id))
+        await db_session.execute(delete(StgResearchObjectAuthor).where(StgResearchObjectAuthor.staging_id == complete_staging_id))
+        await db_session.execute(delete(StgResearchObjectDomain).where(StgResearchObjectDomain.staging_id == complete_staging_id))
+        await db_session.execute(delete(StgResearchObjectKeyword).where(StgResearchObjectKeyword.staging_id == complete_staging_id))
+        await db_session.execute(delete(StgResearchObject).where(StgResearchObject.staging_id == complete_staging_id))
+        await db_session.execute(delete(ResearchDomain).where(ResearchDomain.domain_id == domain_id))
+        await db_session.execute(delete(Keyword).where(Keyword.keyword_id == keyword_id))
+        await db_session.commit()
+
+
 async def test_upload_endpoint_rejects_large_file_without_calling_r2(api_client: AsyncClient, seeded_context, monkeypatch):
     calls = {"count": 0}
 
@@ -239,7 +364,7 @@ async def test_upload_endpoint_rejects_large_file_without_calling_r2(api_client:
         calls["count"] += 1
         return SimpleNamespace(storage_path="x", public_url=None)
 
-    monkeypatch.setattr("app.services.storage.file_service.upload_bytes_to_r2", _fake_upload)
+    monkeypatch.setattr("app.services.storage.file_service.upload_fileobj_to_r2", _fake_upload)
 
     large_bytes = b"a" * (50 * 1024 * 1024 + 1)
     response = await api_client.post(
@@ -248,6 +373,6 @@ async def test_upload_endpoint_rejects_large_file_without_calling_r2(api_client:
         data={"access_level": "internal"},
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 413
     assert response.json()["detail"] == "File size exceeds 50MB limit"
     assert calls["count"] == 0

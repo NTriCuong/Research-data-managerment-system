@@ -1,11 +1,12 @@
 from datetime import datetime, timezone
+from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth.user import User
-from app.models.enum import WorkflowStatus
+from app.models.enum import FileStatus, WorkflowStatus
 from app.models.staging.stg_file_attachment import StgFileAttachment
 from app.models.staging.stg_research_object import StgResearchObject
 from app.models.staging.stg_research_object_author import StgResearchObjectAuthor
@@ -14,19 +15,43 @@ from app.models.staging.stg_research_object_keyword import StgResearchObjectKeyw
 from app.repositories.staging_metadata_repository import StagingRepository
 from app.schemas.auth import MessageResponse
 from app.schemas.staging_metadata import (
+    BulkSubmitForReviewItemOut,
+    BulkSubmitForReviewOut,
+    BulkSubmitForReviewRequest,
     CreateRevisionRequest,
     StagingFileOut,
     StagingResearchObjectCreate,
     StagingResearchObjectOut,
     StagingResearchObjectUpdate,
     SubmitForReviewRequest,
+    WorkflowHistoryOut,
 )
 from app.services.logs.audit_service import audit_service
 from app.services.storage.file_service import file_service
 from app.services.logs.workflow_service import workflow_service
-
+from fastapi.encoders import jsonable_encoder
+from pydantic import AnyUrl
 
 class StagingService:
+    def _recalculate_metadata_quality(self, staging_obj: StgResearchObject) -> None:
+        checks: dict[str, bool] = {
+            "title": bool(staging_obj.title and staging_obj.title.strip()),
+            "output_type_id": staging_obj.output_type_id is not None,
+            "department_id": staging_obj.department_id is not None,
+            "year": staging_obj.year is not None and 1900 <= staging_obj.year <= datetime.now(timezone.utc).year,
+            "authors": len(staging_obj.authors) > 0,
+            "domains": len(staging_obj.domains) > 0,
+            "keywords": len(staging_obj.keywords) > 0,
+        }
+        passed = sum(1 for ok in checks.values() if ok)
+        score = (Decimal(passed) * Decimal("100")) / Decimal(len(checks))
+        staging_obj.metadata_quality_score = score.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        staging_obj.metadata_quality_detail = {
+            "passed": passed,
+            "total": len(checks),
+            "checks": checks,
+        }
+
     def _assert_editable(self, staging_obj: StgResearchObject, user: User) -> None:
         if staging_obj.created_by != user.user_id and user.role.role_code != "SUPER_ADMIN":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot edit this staging record")
@@ -52,11 +77,62 @@ class StagingService:
             missing.append("keywords")
         if not staging_obj.authors:
             missing.append("authors")
+        has_invalid_author = any(not x.full_name or not x.full_name.strip() for x in staging_obj.authors)
+        if has_invalid_author:
+            missing.append("authors.full_name")
         if missing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Missing required metadata before submit: {', '.join(missing)}",
             )
+
+    async def _submit_one_for_review(
+        self,
+        db: AsyncSession,
+        *,
+        repo: StagingRepository,
+        staging_id: UUID,
+        note: str | None,
+        current_user: User,
+        now: datetime | None = None,
+    ) -> None:
+        obj = await repo.get_by_id(staging_id, with_relations=True)
+        if obj is None or obj.deleted_at is not None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staging record not found")
+        self._assert_editable(obj, current_user)
+        self._validate_before_submit(obj)
+        if not await repo.has_active_file_attachment(staging_id=staging_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one file attachment is required before submit",
+            )
+
+        old_status = obj.workflow_status
+        submitted_at = now or datetime.now(timezone.utc)
+        obj.workflow_status = WorkflowStatus.pending_review
+        obj.submitted_by = current_user.user_id
+        obj.submitted_at = submitted_at
+        obj.updated_at = submitted_at
+        await workflow_service.write_history(
+            db,
+            staging_id=obj.staging_id,
+            performed_by=current_user.user_id,
+            from_status=old_status,
+            to_status=WorkflowStatus.pending_review,
+            action_code="SUBMIT_FOR_REVIEW",
+            action_note=note,
+        )
+        await audit_service.write_log(
+            db,
+            actor_user_id=current_user.user_id,
+            action_code="SUBMIT_FOR_REVIEW",
+            target_schema="staging",
+            target_table="research_objects",
+            target_id=obj.staging_id,
+            old_value={"workflow_status": old_status.value},
+            new_value={"workflow_status": WorkflowStatus.pending_review.value, "note": note},
+            message="Submitted staging record for review",
+        )
 
     async def create_staging_research_object(
         self,
@@ -79,7 +155,7 @@ class StagingService:
             publisher=payload.publisher,
             language=payload.language,
             identifier=payload.identifier,
-            external_url=payload.external_url,
+            external_url=str(payload.external_url) if payload.external_url else None,
             source=payload.source,
             relation=payload.relation,
             coverage=payload.coverage,
@@ -123,6 +199,8 @@ class StagingService:
             new_value={"workflow_status": WorkflowStatus.draft.value, "title": obj.title},
             message="Created staging draft",
         )
+        obj = await repo.get_by_id(obj.staging_id, with_relations=True) or obj
+        self._recalculate_metadata_quality(obj)
         await db.refresh(obj)
         return StagingResearchObjectOut.model_validate(obj)
 
@@ -153,6 +231,22 @@ class StagingService:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot view this staging record")
         return StagingResearchObjectOut.model_validate(obj)
 
+    async def list_all_staging_records(
+        self,
+        db: AsyncSession,
+        *,
+        workflow_status: WorkflowStatus | None,
+        limit: int,
+        offset: int,
+    ) -> list[StagingResearchObjectOut]:
+        repo = StagingRepository(db)
+        rows = await repo.list_all(
+            workflow_status=workflow_status,
+            limit=limit,
+            offset=offset,
+        )
+        return [StagingResearchObjectOut.model_validate(x) for x in rows]
+
     async def update_staging_record(
         self,
         db: AsyncSession,
@@ -176,6 +270,8 @@ class StagingService:
         for field, value in payload_data.items():
             if field in {"domain_ids", "keyword_ids", "authors"}:
                 continue    
+            if isinstance(value, AnyUrl):
+                value = str(value)
             old = getattr(obj, field)
 
             if old != value:
@@ -273,6 +369,7 @@ class StagingService:
                 )
 
         obj.updated_at = now
+        self._recalculate_metadata_quality(obj)
 
         # 5. Chỉ ghi audit nếu thật sự có thay đổi
         if changed_old or changed_new:
@@ -285,14 +382,44 @@ class StagingService:
                 target_schema="staging",
                 target_table="research_objects",
                 target_id=obj.staging_id,
-                old_value=changed_old,
-                new_value=changed_new,
+                old_value=jsonable_encoder(changed_old),
+                new_value=jsonable_encoder(changed_new),
                 message="Updated staging draft metadata",
                 created_at=now,
             )
         await db.flush()
         await db.refresh(obj)
         return StagingResearchObjectOut.model_validate(obj)
+
+    async def delete_draft_staging_record(
+        self,
+        db: AsyncSession,
+        *,
+        staging_id: UUID,
+        current_user: User,
+    ) -> MessageResponse:
+        repo = StagingRepository(db)
+        obj = await repo.get_by_id(staging_id)
+        if obj is None or obj.deleted_at is not None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staging record not found")
+        if obj.created_by != current_user.user_id and current_user.role.role_code != "SUPER_ADMIN":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot delete this staging record")
+        if obj.workflow_status != WorkflowStatus.draft:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only draft records can be deleted")
+
+        now = datetime.now(timezone.utc)
+        obj.deleted_at = now
+        obj.updated_at = now
+        await audit_service.write_log(
+            db,
+            actor_user_id=current_user.user_id,
+            action_code="DELETE_DRAFT",
+            target_schema="staging",
+            target_table="research_objects",
+            target_id=obj.staging_id,
+            message="Soft deleted staging draft",
+        )
+        return MessageResponse(message="Draft deleted")
 
     async def submit_for_review(
         self,
@@ -303,39 +430,72 @@ class StagingService:
         current_user: User,
     ) -> MessageResponse:
         repo = StagingRepository(db)
-        obj = await repo.get_by_id(staging_id, with_relations=True)
-        if obj is None or obj.deleted_at is not None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staging record not found")
-        self._assert_editable(obj, current_user)
-        self._validate_before_submit(obj)
-
-        old_status = obj.workflow_status
-        now = datetime.now(timezone.utc)
-        obj.workflow_status = WorkflowStatus.pending_review
-        obj.submitted_by = current_user.user_id
-        obj.submitted_at = now
-        obj.updated_at = now
-        await workflow_service.write_history(
+        await self._submit_one_for_review(
             db,
-            staging_id=obj.staging_id,
-            performed_by=current_user.user_id,
-            from_status=old_status,
-            to_status=WorkflowStatus.pending_review,
-            action_code="SUBMIT_FOR_REVIEW",
-            action_note=payload.note,
-        )
-        await audit_service.write_log(
-            db,
-            actor_user_id=current_user.user_id,
-            action_code="SUBMIT_FOR_REVIEW",
-            target_schema="staging",
-            target_table="research_objects",
-            target_id=obj.staging_id,
-            old_value={"workflow_status": old_status.value},
-            new_value={"workflow_status": WorkflowStatus.pending_review.value, "note": payload.note},
-            message="Submitted staging record for review",
+            repo=repo,
+            staging_id=staging_id,
+            note=payload.note,
+            current_user=current_user,
         )
         return MessageResponse(message="Submitted for review")
+
+    async def bulk_submit_for_review(
+        self,
+        db: AsyncSession,
+        *,
+        payload: BulkSubmitForReviewRequest,
+        current_user: User,
+    ) -> BulkSubmitForReviewOut:
+        repo = StagingRepository(db)
+        now = datetime.now(timezone.utc)
+        results: list[BulkSubmitForReviewItemOut] = []
+        seen: set[UUID] = set()
+
+        for staging_id in payload.staging_ids:
+            if staging_id in seen:
+                results.append(
+                    BulkSubmitForReviewItemOut(
+                        staging_id=staging_id,
+                        success=False,
+                        message="Duplicate staging_id in request",
+                    )
+                )
+                continue
+            seen.add(staging_id)
+
+            try:
+                await self._submit_one_for_review(
+                    db,
+                    repo=repo,
+                    staging_id=staging_id,
+                    note=payload.note,
+                    current_user=current_user,
+                    now=now,
+                )
+            except HTTPException as exc:
+                results.append(
+                    BulkSubmitForReviewItemOut(
+                        staging_id=staging_id,
+                        success=False,
+                        message=str(exc.detail),
+                    )
+                )
+                continue
+
+            results.append(
+                BulkSubmitForReviewItemOut(
+                    staging_id=staging_id,
+                    success=True,
+                    message="Submitted for review",
+                )
+            )
+
+        submitted_count = sum(1 for x in results if x.success)
+        return BulkSubmitForReviewOut(
+            submitted_count=submitted_count,
+            failed_count=len(results) - submitted_count,
+            results=results,
+        )
 
     async def create_revision_from_core(
         self,
@@ -362,7 +522,7 @@ class StagingService:
             publisher=core_obj.publisher,
             language=core_obj.language,
             identifier=core_obj.identifier,
-            external_url=core_obj.external_url,
+            external_url=str(core_obj.external_url) if core_obj.external_url else None,
             source=core_obj.source,
             relation=core_obj.relation,
             coverage=core_obj.coverage,
@@ -411,6 +571,8 @@ class StagingService:
             new_value={"workflow_status": WorkflowStatus.draft.value, "update_reason": payload.update_reason},
             message="Created revision draft from core research object",
         )
+        revision = await repo.get_by_id(revision.staging_id, with_relations=True) or revision
+        self._recalculate_metadata_quality(revision)
         await db.refresh(revision)
         return StagingResearchObjectOut.model_validate(revision)
 
@@ -424,7 +586,7 @@ class StagingService:
         current_user: User,
     ) -> StagingFileOut:
         repo = StagingRepository(db)
-        obj = await repo.get_by_id(staging_id)
+        obj = await repo.get_by_id(staging_id, with_relations=True)
         if obj is None or obj.deleted_at is not None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staging record not found")
         self._assert_editable(obj, current_user)
@@ -463,8 +625,92 @@ class StagingService:
             new_value={"filename": uploaded["original_filename"], "workflow_status": obj.workflow_status.value},
             message="Uploaded staging evidence file metadata",
         )
+        self._recalculate_metadata_quality(obj)
         await db.refresh(file_obj)
         return StagingFileOut.model_validate(file_obj)
+
+    async def list_staging_files(
+        self,
+        db: AsyncSession,
+        *,
+        staging_id: UUID,
+        current_user: User,
+    ) -> list[StagingFileOut]:
+        repo = StagingRepository(db)
+        obj = await repo.get_by_id(staging_id)
+        if obj is None or obj.deleted_at is not None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staging record not found")
+        if obj.created_by != current_user.user_id and current_user.role.role_code not in {"SUPER_ADMIN", "MANAGER"}:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot view files of this staging record")
+        files = await repo.list_file_attachments(staging_id=staging_id)
+        return [StagingFileOut.model_validate(x) for x in files]
+
+    async def list_all_staging_files(
+        self,
+        db: AsyncSession,
+        *,
+        include_deleted: bool,
+        limit: int,
+        offset: int,
+    ) -> list[StagingFileOut]:
+        repo = StagingRepository(db)
+        files = await repo.list_all_file_attachments(
+            include_deleted=include_deleted,
+            limit=limit,
+            offset=offset,
+        )
+        return [StagingFileOut.model_validate(x) for x in files]
+
+    async def delete_staging_file(
+        self,
+        db: AsyncSession,
+        *,
+        staging_id: UUID,
+        file_id: UUID,
+        current_user: User,
+    ) -> MessageResponse:
+        repo = StagingRepository(db)
+        obj = await repo.get_by_id(staging_id)
+        if obj is None or obj.deleted_at is not None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staging record not found")
+        self._assert_editable(obj, current_user)
+        file_obj = await repo.get_file_attachment(staging_id=staging_id, file_id=file_id)
+        if file_obj is None or file_obj.file_status == FileStatus.deleted:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staging file not found")
+
+        previous_file_status = file_obj.file_status
+        file_obj.file_status = FileStatus.deleted
+        obj.updated_at = datetime.now(timezone.utc)
+        await audit_service.write_log(
+            db,
+            actor_user_id=current_user.user_id,
+            action_code="DELETE_EVIDENCE_FILE",
+            target_schema="staging",
+            target_table="file_attachments",
+            target_id=file_obj.file_id,
+            old_value={"file_status": previous_file_status.value},
+            new_value={"file_status": FileStatus.deleted.value},
+            message="Soft deleted staging evidence file",
+        )
+        return MessageResponse(message="File deleted")
+
+    async def list_staging_workflow_history(
+        self,
+        db: AsyncSession,
+        *,
+        staging_id: UUID,
+        current_user: User,
+        limit: int,
+        offset: int,
+    ) -> list[WorkflowHistoryOut]:
+        repo = StagingRepository(db)
+        obj = await repo.get_by_id(staging_id)
+        if obj is None or obj.deleted_at is not None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staging record not found")
+        if obj.created_by != current_user.user_id and current_user.role.role_code not in {"SUPER_ADMIN", "MANAGER"}:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot view this staging workflow history")
+        rows = await repo.list_workflow_history(staging_id=staging_id, limit=limit, offset=offset)
+        return [WorkflowHistoryOut.model_validate(x) for x in rows]
 
 
 staging_service = StagingService()
