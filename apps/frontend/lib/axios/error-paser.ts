@@ -21,7 +21,7 @@ export const parseAxiosError = (error: AxiosError | any): AppError => {
 
     const data = error?.response?.data;
     // Ưu tiên lấy message từ response data, sau đó mới đến message của error gốc.
-    let errMessage = data?.message ?? error?.message ?? 'Có lỗi xảy ra';
+    let errMessage = data?.message ?? data?.detail ?? error?.message ?? 'Có lỗi xảy ra';
 
     if (Array.isArray(errMessage)) {
         errMessage = errMessage[0]?.message || errMessage[0];

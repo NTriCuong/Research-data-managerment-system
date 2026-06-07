@@ -30,7 +30,7 @@ export const setupInterceptors = (store: AppStore) => {
             }
             return config
         },
-        (error) => parseAxiosError(error) // parse error khi loi
+        (error) => Promise.reject(error)
     )
 
     // ── Response: xử lý access token hết hạn ────────────────────────────────────────
@@ -39,17 +39,18 @@ export const setupInterceptors = (store: AppStore) => {
         async (error) => {
             const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
-            const is401 = error.response?.status === 401 // kiểm tra status xem có phải lỗi token (authorization) hết hạn hay không
-            const isRefreshEndpoint = original.url?.includes(API_ENDPOINT.AUTH.REFRESH) // tránh vòng lặp vô hạn nếu chính request refresh token cũng bị 401
+            const is401 = error.response?.status === 401
+            const isRefreshEndpoint = original.url?.includes(API_ENDPOINT.AUTH.REFRESH)
+            const isLoginEndpoint = original.url?.includes(API_ENDPOINT.AUTH.LOGIN)
 
-            // Không retry nếu không phải 401, đã retry rồi, hoặc chính là refresh endpoint
-            if (!is401 || original._retry || isRefreshEndpoint) {
-                if (isRefreshEndpoint) { // khi refresh token cũng hết hang thì
-                    flushQueue(error, null) // đẩy tất cả request đang chờ vào queue lỗi
-                    store.dispatch(clearCredentials()) // xoá credentials khỏi state
-                    window.location.href = '/login' // chuyển về trang login để người dùng đăng nhập lại
+            // Không retry nếu: không phải 401, đã retry, là refresh endpoint, hoặc là login endpoint
+            if (!is401 || original._retry || isRefreshEndpoint || isLoginEndpoint) {
+                if (isRefreshEndpoint) {
+                    flushQueue(error, null)
+                    store.dispatch(clearCredentials())
+                    window.location.href = '/login'
                 }
-                return parseAxiosError(parseAxiosError(error))
+                return Promise.reject(parseAxiosError(error))
             }
 
             // Nếu đang refresh, xếp request vào queue chờ
@@ -80,7 +81,7 @@ export const setupInterceptors = (store: AppStore) => {
             } catch (refreshError) {
                 flushQueue(refreshError, null)
                 store.dispatch(clearCredentials())
-                return parseAxiosError(refreshError)
+                return Promise.reject(parseAxiosError(refreshError))
             } finally {
                 isRefreshing = false
             }

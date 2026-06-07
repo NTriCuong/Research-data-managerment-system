@@ -7,7 +7,7 @@ export const axiosInstance = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
-    withCredentials: true,
+    withCredentials: true, // cho phép gửi cookie cùng với request để hỗ trợ authentication 
 });
 
 export default axiosInstance;
