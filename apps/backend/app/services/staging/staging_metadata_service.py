@@ -1,11 +1,12 @@
 from datetime import datetime, timezone
+from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 
-from fastapi import HTTPException, UploadFile, status
+from app.core.exceptions import AppException, BadRequestException, ForbiddenException, NotFoundException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth.user import User
-from app.models.enum import WorkflowStatus
+from app.models.enum import AccessLevel, FileStatus, WorkflowStatus
 from app.models.staging.stg_file_attachment import StgFileAttachment
 from app.models.staging.stg_research_object import StgResearchObject
 from app.models.staging.stg_research_object_author import StgResearchObjectAuthor
@@ -13,28 +14,50 @@ from app.models.staging.stg_research_object_domain import StgResearchObjectDomai
 from app.models.staging.stg_research_object_keyword import StgResearchObjectKeyword
 from app.repositories.staging_metadata_repository import StagingRepository
 from app.schemas.auth import MessageResponse
+from app.schemas.files import IncomingFile
 from app.schemas.staging_metadata import (
+    BulkSubmitForReviewItemOut,
+    BulkSubmitForReviewOut,
+    BulkSubmitForReviewRequest,
     CreateRevisionRequest,
     StagingFileOut,
     StagingResearchObjectCreate,
     StagingResearchObjectOut,
     StagingResearchObjectUpdate,
     SubmitForReviewRequest,
+    WorkflowHistoryOut,
 )
 from app.services.logs.audit_service import audit_service
 from app.services.storage.file_service import file_service
 from app.services.logs.workflow_service import workflow_service
-
+from fastapi.encoders import jsonable_encoder
+from pydantic import AnyUrl
 
 class StagingService:
+    def _recalculate_metadata_quality(self, staging_obj: StgResearchObject) -> None:
+        checks: dict[str, bool] = {
+            "title": bool(staging_obj.title and staging_obj.title.strip()),
+            "output_type_id": staging_obj.output_type_id is not None,
+            "department_id": staging_obj.department_id is not None,
+            "year": staging_obj.year is not None and 1900 <= staging_obj.year <= datetime.now(timezone.utc).year,
+            "authors": len(staging_obj.authors) > 0,
+            "domains": len(staging_obj.domains) > 0,
+            "keywords": len(staging_obj.keywords) > 0,
+        }
+        passed = sum(1 for ok in checks.values() if ok)
+        score = (Decimal(passed) * Decimal("100")) / Decimal(len(checks))
+        staging_obj.metadata_quality_score = score.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        staging_obj.metadata_quality_detail = {
+            "passed": passed,
+            "total": len(checks),
+            "checks": checks,
+        }
+
     def _assert_editable(self, staging_obj: StgResearchObject, user: User) -> None:
         if staging_obj.created_by != user.user_id and user.role.role_code != "SUPER_ADMIN":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot edit this staging record")
+            raise ForbiddenException("Bạn không có quyền chỉnh sửa bản ghi tạm này")
         if staging_obj.workflow_status not in (WorkflowStatus.draft, WorkflowStatus.revision_required):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only draft or revision_required records can be edited",
-            )
+            raise BadRequestException("Chỉ bản ghi ở trạng thái draft hoặc revision_required mới có thể được chỉnh sửa")
 
     def _validate_before_submit(self, staging_obj: StgResearchObject) -> None:
         missing: list[str] = []
@@ -52,11 +75,56 @@ class StagingService:
             missing.append("keywords")
         if not staging_obj.authors:
             missing.append("authors")
+        has_invalid_author = any(not x.full_name or not x.full_name.strip() for x in staging_obj.authors)
+        if has_invalid_author:
+            missing.append("authors.full_name")
         if missing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Missing required metadata before submit: {', '.join(missing)}",
-            )
+            raise BadRequestException(f"Thiếu metadata bắt buộc trước khi gửi: {', '.join(missing)}")
+
+    async def _submit_one_for_review(
+        self,
+        db: AsyncSession,
+        *,
+        repo: StagingRepository,
+        staging_id: UUID,
+        note: str | None,
+        current_user: User,
+        now: datetime | None = None,
+    ) -> None:
+        obj = await repo.get_by_id(staging_id, with_relations=True)
+        if obj is None or obj.deleted_at is not None:
+            raise NotFoundException("Không tìm thấy bản ghi tạm")
+        self._assert_editable(obj, current_user)
+        self._validate_before_submit(obj)
+        if not await repo.has_active_file_attachment(staging_id=staging_id):
+            raise BadRequestException("Cần đính kèm ít nhất một tệp trước khi gửi")
+
+        old_status = obj.workflow_status
+        submitted_at = now or datetime.now(timezone.utc)
+        obj.workflow_status = WorkflowStatus.pending_review
+        obj.submitted_by = current_user.user_id
+        obj.submitted_at = submitted_at
+        obj.updated_at = submitted_at
+        await workflow_service.write_history(
+            db,
+            staging_id=obj.staging_id,
+            performed_by=current_user.user_id,
+            from_status=old_status,
+            to_status=WorkflowStatus.pending_review,
+            action_code="SUBMIT_FOR_REVIEW",
+            action_note=note,
+        )
+        await audit_service.write_log(
+            db,
+            actor_user_id=current_user.user_id,
+            action_code="SUBMIT_FOR_REVIEW",
+            target_schema="staging",
+            target_table="research_objects",
+            target_id=obj.staging_id,
+            old_value={"workflow_status": old_status.value},
+            new_value={"workflow_status": WorkflowStatus.pending_review.value, "note": note},
+            message="Submitted staging record for review",
+        )
 
     async def create_staging_research_object(
         self,
@@ -79,12 +147,11 @@ class StagingService:
             publisher=payload.publisher,
             language=payload.language,
             identifier=payload.identifier,
-            external_url=payload.external_url,
+            external_url=str(payload.external_url) if payload.external_url else None,
             source=payload.source,
             relation=payload.relation,
             coverage=payload.coverage,
             rights=payload.rights,
-            access_level=payload.access_level,
             created_by=current_user.user_id,
         )
         await repo.create(obj)
@@ -123,6 +190,8 @@ class StagingService:
             new_value={"workflow_status": WorkflowStatus.draft.value, "title": obj.title},
             message="Created staging draft",
         )
+        obj = await repo.get_by_id(obj.staging_id, with_relations=True) or obj
+        self._recalculate_metadata_quality(obj)
         await db.refresh(obj)
         return StagingResearchObjectOut.model_validate(obj)
 
@@ -148,10 +217,26 @@ class StagingService:
         repo = StagingRepository(db)
         obj = await repo.get_by_id(staging_id)
         if obj is None or obj.deleted_at is not None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staging record not found")
+            raise NotFoundException("Không tìm thấy bản ghi tạm")
         if obj.created_by != current_user.user_id and current_user.role.role_code != "SUPER_ADMIN":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot view this staging record")
+            raise ForbiddenException("Bạn không có quyền xem bản ghi tạm này")
         return StagingResearchObjectOut.model_validate(obj)
+
+    async def list_all_staging_records(
+        self,
+        db: AsyncSession,
+        *,
+        workflow_status: WorkflowStatus | None,
+        limit: int,
+        offset: int,
+    ) -> list[StagingResearchObjectOut]:
+        repo = StagingRepository(db)
+        rows = await repo.list_all(
+            workflow_status=workflow_status,
+            limit=limit,
+            offset=offset,
+        )
+        return [StagingResearchObjectOut.model_validate(x) for x in rows]
 
     async def update_staging_record(
         self,
@@ -164,7 +249,7 @@ class StagingService:
         repo = StagingRepository(db)
         obj = await repo.get_by_id(staging_id, with_relations=True)
         if obj is None or obj.deleted_at is not None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staging record not found")
+            raise NotFoundException("Không tìm thấy bản ghi tạm")
         self._assert_editable(obj, current_user)
         now = datetime.now(timezone.utc)
         
@@ -176,6 +261,8 @@ class StagingService:
         for field, value in payload_data.items():
             if field in {"domain_ids", "keyword_ids", "authors"}:
                 continue    
+            if isinstance(value, AnyUrl):
+                value = str(value)
             old = getattr(obj, field)
 
             if old != value:
@@ -273,6 +360,7 @@ class StagingService:
                 )
 
         obj.updated_at = now
+        self._recalculate_metadata_quality(obj)
 
         # 5. Chỉ ghi audit nếu thật sự có thay đổi
         if changed_old or changed_new:
@@ -285,14 +373,44 @@ class StagingService:
                 target_schema="staging",
                 target_table="research_objects",
                 target_id=obj.staging_id,
-                old_value=changed_old,
-                new_value=changed_new,
+                old_value=jsonable_encoder(changed_old),
+                new_value=jsonable_encoder(changed_new),
                 message="Updated staging draft metadata",
                 created_at=now,
             )
         await db.flush()
         await db.refresh(obj)
         return StagingResearchObjectOut.model_validate(obj)
+
+    async def delete_draft_staging_record(
+        self,
+        db: AsyncSession,
+        *,
+        staging_id: UUID,
+        current_user: User,
+    ) -> MessageResponse:
+        repo = StagingRepository(db)
+        obj = await repo.get_by_id(staging_id)
+        if obj is None or obj.deleted_at is not None:
+            raise NotFoundException("Không tìm thấy bản ghi tạm")
+        if obj.created_by != current_user.user_id and current_user.role.role_code != "SUPER_ADMIN":
+            raise ForbiddenException("Bạn không có quyền xóa bản ghi tạm này")
+        if obj.workflow_status != WorkflowStatus.draft:
+            raise BadRequestException("Chỉ bản ghi ở trạng thái draft mới có thể được xóa")
+
+        now = datetime.now(timezone.utc)
+        obj.deleted_at = now
+        obj.updated_at = now
+        await audit_service.write_log(
+            db,
+            actor_user_id=current_user.user_id,
+            action_code="DELETE_DRAFT",
+            target_schema="staging",
+            target_table="research_objects",
+            target_id=obj.staging_id,
+            message="Soft deleted staging draft",
+        )
+        return MessageResponse(message="Xóa bản nháp thành công")
 
     async def submit_for_review(
         self,
@@ -303,39 +421,72 @@ class StagingService:
         current_user: User,
     ) -> MessageResponse:
         repo = StagingRepository(db)
-        obj = await repo.get_by_id(staging_id, with_relations=True)
-        if obj is None or obj.deleted_at is not None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staging record not found")
-        self._assert_editable(obj, current_user)
-        self._validate_before_submit(obj)
+        await self._submit_one_for_review(
+            db,
+            repo=repo,
+            staging_id=staging_id,
+            note=payload.note,
+            current_user=current_user,
+        )
+        return MessageResponse(message="Gửi xét duyệt thành công")
 
-        old_status = obj.workflow_status
+    async def bulk_submit_for_review(
+        self,
+        db: AsyncSession,
+        *,
+        payload: BulkSubmitForReviewRequest,
+        current_user: User,
+    ) -> BulkSubmitForReviewOut:
+        repo = StagingRepository(db)
         now = datetime.now(timezone.utc)
-        obj.workflow_status = WorkflowStatus.pending_review
-        obj.submitted_by = current_user.user_id
-        obj.submitted_at = now
-        obj.updated_at = now
-        await workflow_service.write_history(
-            db,
-            staging_id=obj.staging_id,
-            performed_by=current_user.user_id,
-            from_status=old_status,
-            to_status=WorkflowStatus.pending_review,
-            action_code="SUBMIT_FOR_REVIEW",
-            action_note=payload.note,
+        results: list[BulkSubmitForReviewItemOut] = []
+        seen: set[UUID] = set()
+
+        for staging_id in payload.staging_ids:
+            if staging_id in seen:
+                results.append(
+                    BulkSubmitForReviewItemOut(
+                        staging_id=staging_id,
+                        success=False,
+                        message="staging_id bị trùng trong yêu cầu",
+                    )
+                )
+                continue
+            seen.add(staging_id)
+
+            try:
+                await self._submit_one_for_review(
+                    db,
+                    repo=repo,
+                    staging_id=staging_id,
+                    note=payload.note,
+                    current_user=current_user,
+                    now=now,
+                )
+            except AppException as exc:
+                results.append(
+                    BulkSubmitForReviewItemOut(
+                        staging_id=staging_id,
+                        success=False,
+                        message=str(exc.detail),
+                    )
+                )
+                continue
+
+            results.append(
+                BulkSubmitForReviewItemOut(
+                    staging_id=staging_id,
+                    success=True,
+                    message="Gửi xét duyệt thành công",
+                )
+            )
+
+        submitted_count = sum(1 for x in results if x.success)
+        return BulkSubmitForReviewOut(
+            submitted_count=submitted_count,
+            failed_count=len(results) - submitted_count,
+            results=results,
         )
-        await audit_service.write_log(
-            db,
-            actor_user_id=current_user.user_id,
-            action_code="SUBMIT_FOR_REVIEW",
-            target_schema="staging",
-            target_table="research_objects",
-            target_id=obj.staging_id,
-            old_value={"workflow_status": old_status.value},
-            new_value={"workflow_status": WorkflowStatus.pending_review.value, "note": payload.note},
-            message="Submitted staging record for review",
-        )
-        return MessageResponse(message="Submitted for review")
 
     async def create_revision_from_core(
         self,
@@ -347,7 +498,7 @@ class StagingService:
         repo = StagingRepository(db)
         core_obj = await repo.get_core_by_id_with_relations(payload.research_id)
         if core_obj is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Core research object not found")
+            raise NotFoundException("Không tìm thấy đối tượng nghiên cứu core")
 
         revision = StgResearchObject(
             title=core_obj.title,
@@ -362,7 +513,7 @@ class StagingService:
             publisher=core_obj.publisher,
             language=core_obj.language,
             identifier=core_obj.identifier,
-            external_url=core_obj.external_url,
+            external_url=str(core_obj.external_url) if core_obj.external_url else None,
             source=core_obj.source,
             relation=core_obj.relation,
             coverage=core_obj.coverage,
@@ -391,6 +542,26 @@ class StagingService:
                 for x in core_obj.authors
             ]
         )
+        db.add_all(
+            [
+                StgFileAttachment(
+                    staging_id=revision.staging_id,
+                    original_filename=x.original_filename,
+                    stored_filename=x.stored_filename,
+                    storage_path=x.storage_path,
+                    mime_type=x.mime_type,
+                    file_extension=x.file_extension,
+                    file_size_bytes=x.file_size_bytes,
+                    checksum_sha256=x.checksum_sha256,
+                    file_status=x.file_status,
+                    uploaded_by=x.uploaded_by,
+                    uploaded_at=x.uploaded_at,
+                    access_level=x.access_level,
+                )
+                for x in core_obj.file_attachments
+                if x.file_status != FileStatus.deleted
+            ]
+        )
         await workflow_service.write_history(
             db,
             staging_id=revision.staging_id,
@@ -411,6 +582,8 @@ class StagingService:
             new_value={"workflow_status": WorkflowStatus.draft.value, "update_reason": payload.update_reason},
             message="Created revision draft from core research object",
         )
+        revision = await repo.get_by_id(revision.staging_id, with_relations=True) or revision
+        self._recalculate_metadata_quality(revision)
         await db.refresh(revision)
         return StagingResearchObjectOut.model_validate(revision)
 
@@ -419,18 +592,21 @@ class StagingService:
         db: AsyncSession,
         *,
         staging_id: UUID,
-        file: UploadFile,
-        access_level: str,
+        file: IncomingFile,
         current_user: User,
     ) -> StagingFileOut:
         repo = StagingRepository(db)
-        obj = await repo.get_by_id(staging_id)
+        obj = await repo.get_by_id(staging_id, with_relations=True)
         if obj is None or obj.deleted_at is not None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staging record not found")
+            raise NotFoundException("Không tìm thấy bản ghi tạm")
         self._assert_editable(obj, current_user)
         obj.updated_at = datetime.now(timezone.utc)
 
-        uploaded = await file_service.prepare_file_upload(staging_id=staging_id, file=file, access_level=access_level)
+        uploaded = await file_service.prepare_file_upload(
+            staging_id=staging_id,
+            file=file,
+            access_level=AccessLevel.internal.value,
+        )
         file_obj = StgFileAttachment(
             staging_id=staging_id,
             original_filename=uploaded["original_filename"],
@@ -463,8 +639,92 @@ class StagingService:
             new_value={"filename": uploaded["original_filename"], "workflow_status": obj.workflow_status.value},
             message="Uploaded staging evidence file metadata",
         )
+        self._recalculate_metadata_quality(obj)
         await db.refresh(file_obj)
         return StagingFileOut.model_validate(file_obj)
+
+    async def list_staging_files(
+        self,
+        db: AsyncSession,
+        *,
+        staging_id: UUID,
+        current_user: User,
+    ) -> list[StagingFileOut]:
+        repo = StagingRepository(db)
+        obj = await repo.get_by_id(staging_id)
+        if obj is None or obj.deleted_at is not None:
+            raise NotFoundException("Không tìm thấy bản ghi tạm")
+        if obj.created_by != current_user.user_id and current_user.role.role_code not in {"SUPER_ADMIN", "MANAGER"}:
+            raise ForbiddenException("Bạn không có quyền xem tệp của bản ghi tạm này")
+        files = await repo.list_file_attachments(staging_id=staging_id)
+        return [StagingFileOut.model_validate(x) for x in files]
+
+    async def list_all_staging_files(
+        self,
+        db: AsyncSession,
+        *,
+        include_deleted: bool,
+        limit: int,
+        offset: int,
+    ) -> list[StagingFileOut]:
+        repo = StagingRepository(db)
+        files = await repo.list_all_file_attachments(
+            include_deleted=include_deleted,
+            limit=limit,
+            offset=offset,
+        )
+        return [StagingFileOut.model_validate(x) for x in files]
+
+    async def delete_staging_file(
+        self,
+        db: AsyncSession,
+        *,
+        staging_id: UUID,
+        file_id: UUID,
+        current_user: User,
+    ) -> MessageResponse:
+        repo = StagingRepository(db)
+        obj = await repo.get_by_id(staging_id)
+        if obj is None or obj.deleted_at is not None:
+            raise NotFoundException("Không tìm thấy bản ghi tạm")
+        self._assert_editable(obj, current_user)
+        file_obj = await repo.get_file_attachment(staging_id=staging_id, file_id=file_id)
+        if file_obj is None or file_obj.file_status == FileStatus.deleted:
+            raise NotFoundException("Không tìm thấy tệp của bản ghi tạm")
+
+        previous_file_status = file_obj.file_status
+        file_obj.file_status = FileStatus.deleted
+        obj.updated_at = datetime.now(timezone.utc)
+        await audit_service.write_log(
+            db,
+            actor_user_id=current_user.user_id,
+            action_code="DELETE_EVIDENCE_FILE",
+            target_schema="staging",
+            target_table="file_attachments",
+            target_id=file_obj.file_id,
+            old_value={"file_status": previous_file_status.value},
+            new_value={"file_status": FileStatus.deleted.value},
+            message="Soft deleted staging evidence file",
+        )
+        return MessageResponse(message="Xóa tệp thành công")
+
+    async def list_staging_workflow_history(
+        self,
+        db: AsyncSession,
+        *,
+        staging_id: UUID,
+        current_user: User,
+        limit: int,
+        offset: int,
+    ) -> list[WorkflowHistoryOut]:
+        repo = StagingRepository(db)
+        obj = await repo.get_by_id(staging_id)
+        if obj is None or obj.deleted_at is not None:
+            raise NotFoundException("Không tìm thấy bản ghi tạm")
+        if obj.created_by != current_user.user_id and current_user.role.role_code not in {"SUPER_ADMIN", "MANAGER"}:
+            raise ForbiddenException("Bạn không có quyền xem lịch sử quy trình của bản ghi tạm này")
+        rows = await repo.list_workflow_history(staging_id=staging_id, limit=limit, offset=offset)
+        return [WorkflowHistoryOut.model_validate(x) for x in rows]
 
 
 staging_service = StagingService()
