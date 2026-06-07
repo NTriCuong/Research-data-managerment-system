@@ -6,15 +6,11 @@ import type { AppDispatch } from "@/store/store"
 
 export const authService = {
     async login(username: string, password: string) {
-        try {
-            const response = await axiosInstance.post(API_ENDPOINT.AUTH.LOGIN, {
-                username,
-                password,
-            })
-            return response.data
-        } catch (error) {
-            throw parseAxiosError(error)
-        }
+        const response = await axiosInstance.post(API_ENDPOINT.AUTH.LOGIN, {
+            username,
+            password,
+        })
+        return response.data
     },
 
     async logout(dispatch: AppDispatch) {

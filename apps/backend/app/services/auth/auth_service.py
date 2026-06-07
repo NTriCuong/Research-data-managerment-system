@@ -67,21 +67,21 @@ class AuthService:
             await _log("failed", "user_not_found")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, #user không tồn tại
-                detail="Invalid credentials",
+                detail="Sai tên đăng nhập hoặc mật khẩu",
             )
 
         if user.deleted_at is not None:
             await _log("failed", "account_deleted")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, # user đã bị xoá
-                detail="Account has been deleted",
+                detail="Tài khoản đã bị xóa",
             )
 
         if user.status != UserStatus.active:
             await _log("failed", "account_disabled")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, # account bị disabled
-                detail="Account is disabled",
+                detail="Tài khoản đã bị vô hiệu hóa",
             )
 
 
@@ -92,14 +92,14 @@ class AuthService:
             await _log("failed", "account_locked")
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS, #login fail quá nhiều lần liên tiếp
-                detail=f"Too many failed attempts. Try again after {settings.LOCK_DURATION} minutes.",
+                detail=f"Quá nhiều lần thử không thành công. Hãy thử lại sau  {settings.LOCK_DURATION} phút.",
             )
 
         if not verify_password(password, user.password_hash): #kiểm tra với password hash trong db
             await _log("failed", "wrong_password")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid credentials",
+                detail="Sai tên đăng nhập hoặc mật khẩu",
             )
 
         # Issue tokens
