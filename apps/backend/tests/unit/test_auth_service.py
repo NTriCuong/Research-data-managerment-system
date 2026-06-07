@@ -4,9 +4,8 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException
-
 import app.services.auth.auth_service as auth_service_module
+from app.core.exceptions import BadRequestException, ConfigurationException, NotFoundException
 from app.models.enum import UserStatus
 
 
@@ -34,10 +33,9 @@ def test_token_lifetime_policy_rejects_access_token_over_30(monkeypatch):
     monkeypatch.setattr(auth_service_module.settings, "ACCESS_TOKEN_EXPIRE", 31)
     monkeypatch.setattr(auth_service_module.settings, "REFRESH_TOKEN_EXPIRE", 7)
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ConfigurationException) as exc:
         auth_service_module.auth_service._validate_token_lifetime_policy()
 
-    assert exc.value.status_code == 500
     assert "ACCESS_TOKEN_EXPIRE" in exc.value.detail
 
 
@@ -45,10 +43,9 @@ def test_token_lifetime_policy_rejects_refresh_token_over_7(monkeypatch):
     monkeypatch.setattr(auth_service_module.settings, "ACCESS_TOKEN_EXPIRE", 30)
     monkeypatch.setattr(auth_service_module.settings, "REFRESH_TOKEN_EXPIRE", 8)
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(ConfigurationException) as exc:
         auth_service_module.auth_service._validate_token_lifetime_policy()
 
-    assert exc.value.status_code == 500
     assert "REFRESH_TOKEN_EXPIRE" in exc.value.detail
 
 
@@ -93,7 +90,7 @@ def test_change_password_rejects_wrong_current_password(monkeypatch):
 
     monkeypatch.setattr(auth_service_module, "verify_password", lambda plain, hashed: False)
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(BadRequestException) as exc:
         asyncio.run(
             auth_service_module.auth_service.change_password(
                 db,
@@ -103,8 +100,7 @@ def test_change_password_rejects_wrong_current_password(monkeypatch):
             )
         )
 
-    assert exc.value.status_code == 400
-    assert exc.value.detail == "Current password is incorrect"
+    assert exc.value.detail == "Mật khẩu hiện tại không chính xác"
 
 
 def test_admin_reset_password_not_found(monkeypatch):
@@ -120,7 +116,7 @@ def test_admin_reset_password_not_found(monkeypatch):
 
     monkeypatch.setattr(auth_service_module, "AuthRepository", _FakeRepo)
 
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(NotFoundException) as exc:
         asyncio.run(
             auth_service_module.auth_service.admin_reset_password(
                 db,
@@ -130,8 +126,7 @@ def test_admin_reset_password_not_found(monkeypatch):
             )
         )
 
-    assert exc.value.status_code == 404
-    assert exc.value.detail == "User not found"
+    assert exc.value.detail == "Không tìm thấy người dùng"
 
 
 def test_admin_reset_password_success(monkeypatch):
