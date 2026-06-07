@@ -16,12 +16,6 @@ router = APIRouter()
 ALLOWED_REVIEWER_ROLES = ("SUPER_ADMIN", "REVIEWER")
 
 
-async def _commit_if_supported(db: AsyncSession) -> None:
-    commit = getattr(db, "commit", None)
-    if callable(commit):
-        await commit()
-
-
 @router.get("/pending", response_model=list[StagingResearchObjectOut])
 async def list_pending_review_records(
     limit: int = Query(default=20, ge=1, le=100),
@@ -49,7 +43,6 @@ async def request_revision(
         payload=payload,
         current_user=current_user,
     )
-    await _commit_if_supported(db)
     return result
 
 
@@ -66,5 +59,4 @@ async def forward_to_approval(
         payload=payload,
         current_user=current_user,
     )
-    await _commit_if_supported(db)
     return result

@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
 
-from app.models.enum import AccessLevel, AuthorRole, WorkflowStatus
+from app.models.enum import AccessLevel, AuthorRole, FileStatus, WorkflowStatus
 
 
 class StagingAuthorIn(BaseModel):
@@ -42,7 +42,6 @@ class StagingResearchObjectCreate(BaseModel):
     relation: str | None = None
     coverage: str | None = None
     rights: str | None = None
-    access_level: AccessLevel = AccessLevel.internal
     domain_ids: list[UUID] = Field(default_factory=list)
     keyword_ids: list[UUID] = Field(default_factory=list)
     authors: list[StagingAuthorIn] = Field(default_factory=list)
@@ -66,7 +65,6 @@ class StagingResearchObjectUpdate(BaseModel):
     relation: str | None = None
     coverage: str | None = None
     rights: str | None = None
-    access_level: AccessLevel | None = None
     domain_ids: list[UUID] | None = None
     keyword_ids: list[UUID] | None = None
     authors: list[StagingAuthorIn] | None = None
@@ -96,6 +94,23 @@ class SubmitForReviewRequest(BaseModel):
     note: str | None = Field(default=None, max_length=1000)
 
 
+class BulkSubmitForReviewRequest(BaseModel):
+    staging_ids: list[UUID] = Field(min_length=1, max_length=100)
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class BulkSubmitForReviewItemOut(BaseModel):
+    staging_id: UUID
+    success: bool
+    message: str
+
+
+class BulkSubmitForReviewOut(BaseModel):
+    submitted_count: int
+    failed_count: int
+    results: list[BulkSubmitForReviewItemOut]
+
+
 class CreateRevisionRequest(BaseModel):
     research_id: UUID
     update_reason: str = Field(min_length=1, max_length=1000)
@@ -109,7 +124,6 @@ class StagingFileCreate(BaseModel):
     file_extension: str | None = Field(default=None, max_length=20)
     file_size_bytes: int = Field(gt=0)
     checksum_sha256: str | None = Field(default=None, min_length=64, max_length=64)
-    access_level: AccessLevel = AccessLevel.internal
 
 
 class StagingFileOut(BaseModel):
@@ -124,6 +138,21 @@ class StagingFileOut(BaseModel):
     file_extension: str | None
     file_size_bytes: int
     checksum_sha256: str | None
+    file_status: FileStatus
     uploaded_by: UUID
     uploaded_at: datetime
     access_level: AccessLevel
+
+
+class WorkflowHistoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    workflow_id: UUID
+    staging_id: UUID | None
+    research_id: UUID | None
+    from_status: WorkflowStatus | None
+    to_status: WorkflowStatus
+    action_code: str
+    action_note: str | None
+    performed_by: UUID
+    performed_at: datetime

@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import HTTPException, status
+from app.core.exceptions import BadRequestException, NotFoundException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth.user import User
@@ -19,10 +19,7 @@ class StagingReviewService:
     @staticmethod
     def _assert_pending_review(staging_obj: StgResearchObject) -> None:
         if staging_obj.workflow_status != WorkflowStatus.pending_review:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only pending_review records can be reviewed",
-            )
+            raise BadRequestException("Chỉ bản ghi ở trạng thái pending_review mới có thể được xét duyệt")
 
     async def list_pending_review_records(
         self,
@@ -46,11 +43,11 @@ class StagingReviewService:
         repo = StagingReviewRepository(db)
         obj = await repo.get_by_id(staging_id)
         if obj is None or obj.deleted_at is not None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staging record not found")
+            raise NotFoundException("Không tìm thấy bản ghi tạm")
 
         self._assert_pending_review(obj)
         if not payload.note.strip():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Revision reason cannot be blank")
+            raise BadRequestException("Lý do yêu cầu chỉnh sửa không được để trống")
 
         old_status = obj.workflow_status
         obj.workflow_status = WorkflowStatus.revision_required
@@ -80,7 +77,7 @@ class StagingReviewService:
             new_value={"workflow_status": WorkflowStatus.revision_required.value, "revision_note": payload.note},
             message="Reviewer requested revision",
         )
-        return MessageResponse(message="Revision requested")
+        return MessageResponse(message="Yêu cầu chỉnh sửa thành công")
 
     async def forward_to_approval(
         self,
@@ -93,7 +90,7 @@ class StagingReviewService:
         repo = StagingReviewRepository(db)
         obj = await repo.get_by_id(staging_id)
         if obj is None or obj.deleted_at is not None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Staging record not found")
+            raise NotFoundException("Không tìm thấy bản ghi tạm")
 
         self._assert_pending_review(obj)
 
@@ -124,7 +121,7 @@ class StagingReviewService:
             new_value={"workflow_status": WorkflowStatus.pending_approval.value, "note": payload.note},
             message="Reviewer forwarded record to approval",
         )
-        return MessageResponse(message="Forwarded to approval")
+        return MessageResponse(message="Chuyển bản ghi sang bước phê duyệt thành công")
 
 
 staging_review_service = StagingReviewService()
