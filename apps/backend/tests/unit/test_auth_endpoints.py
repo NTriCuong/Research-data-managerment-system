@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.database.session import get_db
 from app.services.auth import deps as auth_deps
 from app.api.v1.endpoints import auth as auth_endpoint
+from app.core.exceptions import UnauthorizedException
 
 
 class _ExecuteResult:
@@ -30,17 +31,22 @@ def _fake_db_provider(user):
     return _override_get_db
 
 
+def _prepare_token_user(user):
+    user.role.role_name = getattr(user.role, "role_name", "Super Admin")
+    user.department = getattr(user, "department", None)
+    return user
+
+
 def test_auth_login_success_sets_refresh_cookie(client, sample_user, monkeypatch):
     async def _fake_login(*args, **kwargs):
-        return "access-token", "refresh-token"
+        return "access-token", "refresh-token", _prepare_token_user(sample_user)
 
     monkeypatch.setattr(auth_endpoint.auth_service, "login", _fake_login)
-    monkeypatch.setattr(auth_endpoint, "decode_access_token", lambda _token: {"sub": str(sample_user.user_id)})
     client.app.dependency_overrides[get_db] = _fake_db_provider(sample_user)
 
     response = client.post(
         f"{settings.API_V1_PREFIX}/auth/login",
-        json={"email": sample_user.email, "password": "Password123"},
+        json={"username": sample_user.username, "password": "Password123"},
     )
 
     assert response.status_code == 200
@@ -51,8 +57,30 @@ def test_auth_login_success_sets_refresh_cookie(client, sample_user, monkeypatch
     assert "refresh_token=" in response.headers.get("set-cookie", "")
 
 
+def test_auth_token_form_login_success_sets_refresh_cookie(client, sample_user, monkeypatch):
+    async def _fake_login(*args, **kwargs):
+        assert kwargs["username"] == sample_user.username
+        assert kwargs["password"] == "Password123"
+        return "form-access-token", "form-refresh-token", _prepare_token_user(sample_user)
+
+    monkeypatch.setattr(auth_endpoint.auth_service, "login", _fake_login)
+    client.app.dependency_overrides[get_db] = _fake_db_provider(sample_user)
+
+    response = client.post(
+        f"{settings.API_V1_PREFIX}/auth/token",
+        data={"username": sample_user.username, "password": "Password123"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["access_token"] == "form-access-token"
+    assert body["user"]["username"] == sample_user.username
+    assert "refresh_token=form-refresh-token" in response.headers.get("set-cookie", "")
+
+
 def test_auth_refresh_success_rotates_cookie(client, sample_user, monkeypatch):
     db_token = SimpleNamespace(revoked_at=None)
+    _prepare_token_user(sample_user)
 
     async def _override_valid_refresh_token():
         return db_token, sample_user
@@ -89,23 +117,22 @@ def test_auth_logout_success_clears_cookie(client, sample_user, monkeypatch):
     response = client.post(f"{settings.API_V1_PREFIX}/auth/logout")
 
     assert response.status_code == 200
-    assert response.json()["message"] == "Logged out"
+    assert response.json()["message"] == "Đăng xuất thành công"
     assert "refresh_token=" in response.headers.get("set-cookie", "")
 
 
 def test_auth_me_returns_current_user(client, sample_user, override_active_user):
-    response = client.get(f"{settings.API_V1_PREFIX}/auth/me")
+    response = client.get(f"{settings.API_V1_PREFIX}/users/me")
 
     assert response.status_code == 200
     assert response.json()["user_id"] == str(sample_user.user_id)
 
 
-def test_auth_login_500_when_token_missing_sub(client, sample_user, monkeypatch):
+def test_auth_login_rejects_missing_username(client, sample_user, monkeypatch):
     async def _fake_login(*args, **kwargs):
-        return "access-token", "refresh-token"
+        return "access-token", "refresh-token", _prepare_token_user(sample_user)
 
     monkeypatch.setattr(auth_endpoint.auth_service, "login", _fake_login)
-    monkeypatch.setattr(auth_endpoint, "decode_access_token", lambda _token: {})
     client.app.dependency_overrides[get_db] = _fake_db_provider(sample_user)
 
     response = client.post(
@@ -113,8 +140,23 @@ def test_auth_login_500_when_token_missing_sub(client, sample_user, monkeypatch)
         json={"email": sample_user.email, "password": "Password123"},
     )
 
-    assert response.status_code == 500
-    assert response.json()["detail"] == "Token missing subject"
+    assert response.status_code == 422
+
+
+def test_auth_login_propagates_invalid_credentials(client, sample_user, monkeypatch):
+    async def _fake_login(*args, **kwargs):
+        raise UnauthorizedException("Thông tin đăng nhập không hợp lệ")
+
+    monkeypatch.setattr(auth_endpoint.auth_service, "login", _fake_login)
+    client.app.dependency_overrides[get_db] = _fake_db_provider(sample_user)
+
+    response = client.post(
+        f"{settings.API_V1_PREFIX}/auth/login",
+        json={"username": sample_user.username, "password": "wrong"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Thông tin đăng nhập không hợp lệ"
 
 
 def test_auth_change_password_success(client, sample_user, monkeypatch, override_active_user):
@@ -130,7 +172,7 @@ def test_auth_change_password_success(client, sample_user, monkeypatch, override
     )
 
     assert response.status_code == 200
-    assert response.json()["message"] == "Password changed successfully"
+    assert response.json()["message"] == "Đổi mật khẩu thành công"
 
 
 def test_auth_admin_reset_password_requires_super_admin(client, sample_user, monkeypatch, override_active_user):
@@ -149,7 +191,7 @@ def test_auth_admin_reset_password_requires_super_admin(client, sample_user, mon
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "Not enough permissions"
+    assert response.json()["detail"] == "Bạn không có đủ quyền để thực hiện thao tác này"
 
 
 def test_auth_admin_reset_password_success(client, sample_user, monkeypatch, override_active_user):
@@ -168,4 +210,4 @@ def test_auth_admin_reset_password_success(client, sample_user, monkeypatch, ove
     )
 
     assert response.status_code == 200
-    assert response.json()["message"] == "Password reset successfully"
+    assert response.json()["message"] == "Đặt lại mật khẩu thành công"
