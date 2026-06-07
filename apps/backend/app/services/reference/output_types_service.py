@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import HTTPException, status
 from sqlalchemy import func, select
+from app.core.exceptions import BadRequestException, ConflictException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reference.output_type import OutputType
@@ -20,6 +21,10 @@ class OutputTypeService:
         )
         return list(result.scalars().all()), total
 
+    async def get_output_type(self, db: AsyncSession, *, output_type_id: UUID) -> OutputType | None:
+        result = await db.execute(select(OutputType).where(OutputType.output_type_id == output_type_id))
+        return result.scalar_one_or_none()
+
     async def get_output_type_by_code(self, db: AsyncSession, *, type_code: str) -> OutputType | None:
         result = await db.execute(select(OutputType).where(OutputType.type_code == type_code))
         return result.scalar_one_or_none()
@@ -35,10 +40,7 @@ class OutputTypeService:
         actor_user_id: UUID, # ai tạo record này 
     ) -> OutputType:
         if await self.get_output_type_by_code(db, type_code=type_code):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="type_code already exists",
-            )
+            raise ConflictException("type_code đã tồn tại")
 
         output_type = OutputType(
             type_code=type_code,
@@ -93,15 +95,15 @@ class OutputTypeService:
 
         if "type_code" in fields_set:
             if type_code is None:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="type_code cannot be null")
+                raise BadRequestException("type_code không được để trống")
             existing = await self.get_output_type_by_code(db, type_code=type_code)
             if existing and existing.output_type_id != output_type_id:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="type_code already exists")
+                raise ConflictException("type_code đã tồn tại")
             output_type.type_code = type_code
 
         if "type_name" in fields_set:
             if type_name is None:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="type_name cannot be null")
+                raise BadRequestException("type_name không được để trống")
             output_type.type_name = type_name
 
         if "description" in fields_set:

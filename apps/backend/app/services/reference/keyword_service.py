@@ -1,7 +1,7 @@
 from uuid import UUID
 
-from fastapi import HTTPException, status
 from sqlalchemy import func, select
+from app.core.exceptions import BadRequestException, ConflictException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reference.keyword import Keyword
@@ -36,7 +36,7 @@ class KeywordService:
         actor_user_id: UUID,
     ) -> Keyword:
         if await self.get_keyword_by_text(db, keyword_text=keyword_text):
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="keyword_text already exists")
+            raise ConflictException("keyword_text đã tồn tại")
 
         keyword = Keyword(
             keyword_text=keyword_text,
@@ -77,10 +77,10 @@ class KeywordService:
 
         if "keyword_text" in fields_set:
             if keyword_text is None:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="keyword_text cannot be null")
+                raise BadRequestException("keyword_text không được để trống")
             existing = await self.get_keyword_by_text(db, keyword_text=keyword_text)
             if existing and existing.keyword_id != keyword_id:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="keyword_text already exists")
+                raise ConflictException("keyword_text đã tồn tại")
             keyword.keyword_text = keyword_text
 
         if "normalized_text" in fields_set:
