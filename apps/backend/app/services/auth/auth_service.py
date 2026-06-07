@@ -1,7 +1,16 @@
 from datetime import datetime, timedelta, timezone
+from http.client import HTTPException
 from uuid import UUID
 
-from fastapi import HTTPException, status
+from app.core.exceptions import (
+    BadRequestException,
+    ConfigurationException,
+    ConflictException,
+    ForbiddenException,
+    NotFoundException,
+    TooManyRequestsException,
+    UnauthorizedException,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -24,15 +33,37 @@ class AuthService:
     @staticmethod
     def _validate_token_lifetime_policy() -> None:
         if settings.ACCESS_TOKEN_EXPIRE > 30:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="ACCESS_TOKEN_EXPIRE must be <= 30 minutes",
-            )
+            raise ConfigurationException("ACCESS_TOKEN_EXPIRE phải nhỏ hơn hoặc bằng 30 phút")
         if settings.REFRESH_TOKEN_EXPIRE > 7:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="REFRESH_TOKEN_EXPIRE must be <= 7 days",
-            )
+            raise ConfigurationException("REFRESH_TOKEN_EXPIRE phải nhỏ hơn hoặc bằng 7 ngày")
+
+    async def list_users(
+        self,
+        db: AsyncSession,
+        *,
+        limit: int,
+        offset: int,
+        q: str | None,
+        role_id: UUID | None,
+        user_status: UserStatus | None,
+    ) -> list[User]:
+        return await AuthRepository(db).list_users(
+            limit=limit,
+            offset=offset,
+            q=q,
+            role_id=role_id,
+            status=user_status.value if user_status else None,
+        )
+
+    async def get_user(self, db: AsyncSession, *, user_id: UUID) -> User:
+        user = await AuthRepository(db).find_user_by_id_with_role(user_id)
+        if user is None or user.deleted_at is not None:
+            raise NotFoundException("Không tìm thấy người dùng")
+        return user
+
+    async def _ensure_role_exists(self, db: AsyncSession, role_id: UUID) -> None:
+        if await AuthRepository(db).find_role_by_id(role_id) is None:
+            raise BadRequestException("Không tìm thấy vai trò")
 
     # ── login ─────────────────────────────────────────────────────────────────
 
@@ -65,24 +96,16 @@ class AuthService:
 
         if user is None: 
             await _log("failed", "user_not_found")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, #user không tồn tại
-                detail="Sai tên đăng nhập hoặc mật khẩu",
-            )
+            raise UnauthorizedException("Thông tin đăng nhập không hợp lệ")
 
         if user.deleted_at is not None:
             await _log("failed", "account_deleted")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, # user đã bị xoá
-                detail="Tài khoản đã bị xóa",
-            )
+            raise ForbiddenException("Tài khoản đã bị xóa")
 
         if user.status != UserStatus.active:
             await _log("failed", "account_disabled")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, # account bị disabled
-                detail="Tài khoản đã bị vô hiệu hóa",
-            )
+            raise ForbiddenException("Tài khoản đã bị vô hiệu hóa")
+
 
 
         # Brute-force lockout
@@ -90,17 +113,13 @@ class AuthService:
         fail_count = await repo.count_failed_logins_since(user_id=user.user_id, window_start=window_start)
         if fail_count >= settings.MAX_LOGIN_ATTEMPTS:
             await _log("failed", "account_locked")
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS, #login fail quá nhiều lần liên tiếp
-                detail=f"Quá nhiều lần thử không thành công. Hãy thử lại sau  {settings.LOCK_DURATION} phút.",
+            raise TooManyRequestsException(
+                f"Đăng nhập thất bại quá nhiều lần. Vui lòng thử lại sau {settings.LOCK_DURATION} phút."
             )
 
         if not verify_password(password, user.password_hash): #kiểm tra với password hash trong db
             await _log("failed", "wrong_password")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Sai tên đăng nhập hoặc mật khẩu",
-            )
+            raise UnauthorizedException("Thông tin đăng nhập không hợp lệ")
 
         # Issue tokens
         user.last_login_at = datetime.now(timezone.utc) # cập nhật thời gian đăng nhập cuối cùng
@@ -135,10 +154,7 @@ class AuthService:
         """Create a new user. Raises 409 if username or email is already taken."""
         repo = AuthRepository(db)
         if await repo.find_duplicate_user(username=username, email=email):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Username or email already exists",
-            )
+            raise ConflictException("Tên đăng nhập hoặc email đã tồn tại")
 
         user = User( # tạo user mới
             username=username,
@@ -234,10 +250,7 @@ class AuthService:
     ) -> None:
         """Verify mật khẩu cũ, cập nhật hash, revoke toàn bộ session."""
         if not verify_password(old_password, user.password_hash):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Current password is incorrect",
-            )
+            raise BadRequestException("Mật khẩu hiện tại không chính xác")
 
         user.password_hash = hash_password(new_password)
         user.updated_at = datetime.now(timezone.utc)
@@ -265,6 +278,7 @@ class AuthService:
         role_id: UUID,
         department_id: UUID | None = None,
     ) -> User:
+        await self._ensure_role_exists(db, role_id)
         user = await self.register(
             db,
             username=username,
@@ -302,21 +316,21 @@ class AuthService:
         repo = AuthRepository(db)
         user = await repo.find_user_by_id_with_role(user_id)
         if user is None or user.deleted_at is not None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            raise NotFoundException("Không tìm thấy người dùng")
         changed_old: dict = {}
         changed_new: dict = {}
 
         if username is not None and username != user.username:
             existing = await repo.find_user_by_username(username)
             if existing is not None and existing.user_id != user.user_id:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists")
+                raise ConflictException("Tên đăng nhập đã tồn tại")
             changed_old["username"] = user.username
             changed_new["username"] = username
             user.username = username
         if email is not None and email != user.email:
             existing = await repo.find_user_by_email(email)
             if existing is not None and existing.user_id != user.user_id:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
+                raise ConflictException("Email đã tồn tại")
             changed_old["email"] = user.email
             changed_new["email"] = email
             user.email = email
@@ -349,9 +363,9 @@ class AuthService:
         repo = AuthRepository(db)
         user = await repo.find_user_by_id_with_role(user_id)
         if user is None or user.deleted_at is not None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            raise NotFoundException("Không tìm thấy người dùng")
         if user.user_id == actor.user_id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete current user")
+            raise BadRequestException("Không thể xóa tài khoản đang đăng nhập")
         now = datetime.now(timezone.utc)
         user.deleted_at = now
         user.updated_at = now
@@ -370,10 +384,11 @@ class AuthService:
         )
 
     async def update_user_role(self, db: AsyncSession, *, actor: User, user_id: UUID, role_id: UUID) -> User:
+        await self._ensure_role_exists(db, role_id)
         repo = AuthRepository(db)
         user = await repo.find_user_by_id_with_role(user_id)
         if user is None or user.deleted_at is not None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            raise NotFoundException("Không tìm thấy người dùng")
         old_role_id = user.role_id
         user.role_id = role_id
         user.updated_at = datetime.now(timezone.utc)
@@ -396,7 +411,7 @@ class AuthService:
         repo = AuthRepository(db)
         user = await repo.find_user_by_id_with_role(user_id)
         if user is None or user.deleted_at is not None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            raise NotFoundException("Không tìm thấy người dùng")
         old_status = user.status
         user.status = new_status
         user.updated_at = datetime.now(timezone.utc)
@@ -427,7 +442,7 @@ class AuthService:
         repo = AuthRepository(db)
         user = await repo.find_user_by_id_with_role(user_id)
         if user is None or user.deleted_at is not None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            raise NotFoundException("Không tìm thấy người dùng")
         user.password_hash = hash_password(new_password)
         user.updated_at = datetime.now(timezone.utc)
         await self.revoke_all_sessions(db, user_id=user.user_id)
