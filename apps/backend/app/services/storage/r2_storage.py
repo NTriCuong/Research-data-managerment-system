@@ -58,3 +58,22 @@ def upload_bytes_to_r2(*, object_key: str, data: bytes, content_type: str) -> R2
         public_url = f"{base}/{object_key}"
 
     return R2UploadResult(storage_path=object_key, public_url=public_url)
+
+
+def upload_fileobj_to_r2(*, object_key: str, fileobj, content_type: str) -> R2UploadResult:
+    account_id, access_key_id, secret_access_key, bucket_name = _require_r2_settings()
+    s3_client = _build_s3_client(account_id, access_key_id, secret_access_key)
+    fileobj.seek(0)
+    s3_client.upload_fileobj(
+        fileobj,
+        bucket_name,
+        object_key,
+        ExtraArgs={"ContentType": content_type},
+    )
+
+    public_url: str | None = None
+    if settings.CLOUDFLARE_R2_PUBLIC_BASE_URL:
+        base = settings.CLOUDFLARE_R2_PUBLIC_BASE_URL.rstrip("/")
+        public_url = f"{base}/{object_key}"
+
+    return R2UploadResult(storage_path=object_key, public_url=public_url)

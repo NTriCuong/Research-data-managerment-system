@@ -106,7 +106,9 @@ async def test_super_admin_can_manage_all_reference_data(
             f"{api_prefix}/reference/{case['collection']}"
         )
         assert list_response.status_code == 200
-        assert any(row[case["id"]] == item_id for row in list_response.json())
+        list_payload = list_response.json()
+        rows = list_payload["items"] if isinstance(list_payload, dict) else list_payload
+        assert any(row[case["id"]] == item_id for row in rows)
 
         delete_response = await admin_api_client.delete(
             f"{api_prefix}/reference/{case['item']}/{item_id}"

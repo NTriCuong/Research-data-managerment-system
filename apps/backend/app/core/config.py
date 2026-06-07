@@ -18,10 +18,10 @@ class Settings(BaseSettings):
     DEBUG: bool 
     API_V1_PREFIX: str 
     CORS_ORIGINS: list[str] = Field(default_factory=lambda: ["*"], alias="cors_origins")
-    CLOUDFLARE_R2_ACCOUNT_ID: str | None = None
-    CLOUDFLARE_R2_ACCESS_KEY_ID: str | None = None
-    CLOUDFLARE_R2_SECRET_ACCESS_KEY: str | None = None
-    CLOUDFLARE_R2_BUCKET_NAME: str | None = None
+    CLOUDFLARE_R2_ACCOUNT_ID: str 
+    CLOUDFLARE_R2_ACCESS_KEY_ID: str 
+    CLOUDFLARE_R2_SECRET_ACCESS_KEY: str 
+    CLOUDFLARE_R2_BUCKET_NAME: str 
     CLOUDFLARE_R2_PUBLIC_BASE_URL: str | None = None
 
     password_min_length: int = 8
