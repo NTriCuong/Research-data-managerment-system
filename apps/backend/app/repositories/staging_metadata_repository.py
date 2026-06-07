@@ -133,6 +133,7 @@ class StagingRepository:
                 selectinload(CoreResearchObject.domains),
                 selectinload(CoreResearchObject.keywords),
                 selectinload(CoreResearchObject.authors),
+                selectinload(CoreResearchObject.file_attachments),
             )
             .where(CoreResearchObject.research_id == research_id)
             .where(CoreResearchObject.deleted_at.is_(None))

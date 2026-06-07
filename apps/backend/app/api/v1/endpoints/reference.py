@@ -1,9 +1,10 @@
 ﻿from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import require_roles
+from app.core.exceptions import NotFoundException
 from app.database.session import get_db
 from app.models.auth.user import User
 from app.schemas.reference import (
@@ -16,6 +17,7 @@ from app.schemas.reference import (
     OutputTypeCreate,
     OutputTypeOut,
     OutputTypeUpdate,
+    PaginatedResponse,
     ResearchDomainCreate,
     ResearchDomainOut,
     ResearchDomainUpdate,
@@ -34,18 +36,21 @@ router = APIRouter()
 ALLOWED_REFERENCE_READ_ROLES = ("SUPER_ADMIN", "REVIEWER", "DATA_ENTRY")
 
 
-async def _commit_if_supported(db: AsyncSession) -> None:
-    commit = getattr(db, "commit", None)
-    if callable(commit):
-        await commit()
-
-@router.get("/departments", response_model=list[DepartmentOut])
+@router.get("/departments", response_model=PaginatedResponse[DepartmentOut])
 async def list_departments(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
     db: AsyncSession = Depends(get_db),
-) -> list[DepartmentOut]:
-    departments = await department_service.list_departments(db)
-    return [DepartmentOut.model_validate(d) for d in departments]
+) -> PaginatedResponse[DepartmentOut]:
+    items, total = await department_service.list_departments(db, page=page, page_size=page_size)
+    return PaginatedResponse(
+        items=[DepartmentOut.model_validate(d) for d in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=-(-total // page_size),
+    )
 
 
 @router.get("/department/{department_id}", response_model=DepartmentOut)
@@ -56,7 +61,7 @@ async def get_department(
 ) -> DepartmentOut:
     department = await department_service.get_department(db, department_id=department_id)
     if department is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
+        raise NotFoundException("Không tìm thấy đơn vị")
     return DepartmentOut.model_validate(department)
 
 
@@ -67,13 +72,6 @@ async def create_department(
     current_user: User = Depends(require_roles("SUPER_ADMIN")),
     db: AsyncSession = Depends(get_db),
 ) -> DepartmentOut:
-    existing = await department_service.get_department_by_code(db, department_code=payload.department_code)
-    if existing is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Department code '{payload.department_code}' already exists",
-        )
-
     department = await department_service.create_department(
         db,
         department_code=payload.department_code,
@@ -85,7 +83,6 @@ async def create_department(
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
-    await _commit_if_supported(db)
     return DepartmentOut.model_validate(department)
 
 
@@ -97,14 +94,6 @@ async def update_department(
     current_user: User = Depends(require_roles("SUPER_ADMIN")),
     db: AsyncSession = Depends(get_db),
 ) -> DepartmentOut:
-    if payload.department_code is not None:
-        existing = await department_service.get_department_by_code(db, department_code=payload.department_code)
-        if existing is not None and existing.department_id != department_id:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Department code '{payload.department_code}' already exists",
-            )
-
     department = await department_service.update_department(
         db,
         department_id=department_id,
@@ -119,9 +108,8 @@ async def update_department(
         fields_set=payload.model_fields_set,
     )
     if department is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
+        raise NotFoundException("Không tìm thấy đơn vị")
 
-    await _commit_if_supported(db)
     return DepartmentOut.model_validate(department)
 
 
@@ -140,20 +128,25 @@ async def delete_department(
         user_agent=request.headers.get("user-agent"),
     )
     if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Department not found")
-
-    await _commit_if_supported(db)
-
+        raise NotFoundException("Không tìm thấy đơn vị")
 
 # ── OutputType ────────────────────────────────────────────────────────────────
 
-@router.get("/output-types/", response_model=list[OutputTypeOut])
+@router.get("/output-types/", response_model=PaginatedResponse[OutputTypeOut])
 async def list_output_types(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
     db: AsyncSession = Depends(get_db),
-) -> list[OutputTypeOut]:
-    output_types = await output_type_service.list_output_types(db)
-    return [OutputTypeOut.model_validate(o) for o in output_types]
+) -> PaginatedResponse[OutputTypeOut]:
+    items, total = await output_type_service.list_output_types(db, page=page, page_size=page_size)
+    return PaginatedResponse(
+        items=[OutputTypeOut.model_validate(o) for o in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=-(-total // page_size),
+    )
 
 
 @router.get("/output-types/{output_type_id}", response_model=OutputTypeOut)
@@ -164,7 +157,7 @@ async def get_output_type(
 ) -> OutputTypeOut:
     output_type = await output_type_service.get_output_type(db, output_type_id=output_type_id)
     if output_type is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Output type not found")
+        raise NotFoundException("Không tìm thấy loại sản phẩm")
     return OutputTypeOut.model_validate(output_type)
 
 
@@ -182,7 +175,6 @@ async def create_output_type(
         is_active=payload.is_active,
         actor_user_id=current_user.user_id,
     )
-    await _commit_if_supported(db)
     return OutputTypeOut.model_validate(output_type)
 
 
@@ -204,8 +196,7 @@ async def update_output_type(
         fields_set=payload.model_fields_set,
     )
     if output_type is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Output type not found")
-    await _commit_if_supported(db)
+        raise NotFoundException("Không tìm thấy loại sản phẩm")
     return OutputTypeOut.model_validate(output_type)
 
 
@@ -221,19 +212,24 @@ async def delete_output_type(
         actor_user_id=current_user.user_id,
     )
     if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Output type not found")
-    await _commit_if_supported(db)
-
-
+        raise NotFoundException("Không tìm thấy loại sản phẩm")
 # ── ResearchDomain ────────────────────────────────────────────────────────────
 
-@router.get("/research-domains/", response_model=list[ResearchDomainOut])
+@router.get("/research-domains/", response_model=PaginatedResponse[ResearchDomainOut])
 async def list_research_domains(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
     db: AsyncSession = Depends(get_db),
-) -> list[ResearchDomainOut]:
-    domains = await research_domain_service.list_research_domains(db)
-    return [ResearchDomainOut.model_validate(d) for d in domains]
+) -> PaginatedResponse[ResearchDomainOut]:
+    items, total = await research_domain_service.list_research_domains(db, page=page, page_size=page_size)
+    return PaginatedResponse(
+        items=[ResearchDomainOut.model_validate(d) for d in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=-(-total // page_size),
+    )
 
 
 @router.get("/research-domains/{domain_id}", response_model=ResearchDomainOut)
@@ -244,7 +240,7 @@ async def get_research_domain(
 ) -> ResearchDomainOut:
     domain = await research_domain_service.get_research_domain(db, domain_id=domain_id)
     if domain is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research domain not found")
+        raise NotFoundException("Không tìm thấy lĩnh vực nghiên cứu")
     return ResearchDomainOut.model_validate(domain)
 
 
@@ -263,7 +259,6 @@ async def create_research_domain(
         is_active=payload.is_active,
         actor_user_id=current_user.user_id,
     )
-    await _commit_if_supported(db)
     return ResearchDomainOut.model_validate(domain)
 
 
@@ -286,8 +281,7 @@ async def update_research_domain(
         fields_set=payload.model_fields_set,
     )
     if domain is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research domain not found")
-    await _commit_if_supported(db)
+        raise NotFoundException("Không tìm thấy lĩnh vực nghiên cứu")
     return ResearchDomainOut.model_validate(domain)
 
 
@@ -303,18 +297,24 @@ async def delete_research_domain(
         actor_user_id=current_user.user_id,
     )
     if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Research domain not found")
-    await _commit_if_supported(db)
-
-
+        raise NotFoundException("Không tìm thấy lĩnh vực nghiên cứu")
 # ── Researcher ────────────────────────────────────────────────────────────────
 
-@router.get("/researchers/", response_model=list[ResearcherOut])
+@router.get("/researchers/", response_model=PaginatedResponse[ResearcherOut])
 async def list_researchers(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
     db: AsyncSession = Depends(get_db),
-) -> list[ResearcherOut]:
-    return [ResearcherOut.model_validate(r) for r in await researcher_service.list_researchers(db)]
+) -> PaginatedResponse[ResearcherOut]:
+    items, total = await researcher_service.list_researchers(db, page=page, page_size=page_size)
+    return PaginatedResponse(
+        items=[ResearcherOut.model_validate(r) for r in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=-(-total // page_size),
+    )
 
 
 @router.get("/researchers/{researcher_id}", response_model=ResearcherOut)
@@ -325,7 +325,7 @@ async def get_researcher(
 ) -> ResearcherOut:
     researcher = await researcher_service.get_researcher(db, researcher_id=researcher_id)
     if researcher is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Researcher not found")
+        raise NotFoundException("Không tìm thấy nhà nghiên cứu")
     return ResearcherOut.model_validate(researcher)
 
 
@@ -346,7 +346,6 @@ async def create_researcher(
         is_internal=payload.is_internal,
         actor_user_id=current_user.user_id,
     )
-    await _commit_if_supported(db)
     return ResearcherOut.model_validate(researcher)
 
 
@@ -371,8 +370,7 @@ async def update_researcher(
         fields_set=payload.model_fields_set,
     )
     if researcher is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Researcher not found")
-    await _commit_if_supported(db)
+        raise NotFoundException("Không tìm thấy nhà nghiên cứu")
     return ResearcherOut.model_validate(researcher)
 
 
@@ -388,18 +386,24 @@ async def delete_researcher(
         actor_user_id=current_user.user_id,
     )
     if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Researcher not found")
-    await _commit_if_supported(db)
-
-
+        raise NotFoundException("Không tìm thấy nhà nghiên cứu")
 # ── Keyword ───────────────────────────────────────────────────────────────────
 
-@router.get("/keywords/", response_model=list[KeywordOut])
+@router.get("/keywords/", response_model=PaginatedResponse[KeywordOut])
 async def list_keywords(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
     db: AsyncSession = Depends(get_db),
-) -> list[KeywordOut]:
-    return [KeywordOut.model_validate(k) for k in await keyword_service.list_keywords(db)]
+) -> PaginatedResponse[KeywordOut]:
+    items, total = await keyword_service.list_keywords(db, page=page, page_size=page_size)
+    return PaginatedResponse(
+        items=[KeywordOut.model_validate(k) for k in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=-(-total // page_size),
+    )
 
 
 @router.get("/keywords/{keyword_id}", response_model=KeywordOut)
@@ -410,7 +414,7 @@ async def get_keyword(
 ) -> KeywordOut:
     keyword = await keyword_service.get_keyword(db, keyword_id=keyword_id)
     if keyword is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Keyword not found")
+        raise NotFoundException("Không tìm thấy từ khóa")
     return KeywordOut.model_validate(keyword)
 
 
@@ -426,7 +430,6 @@ async def create_keyword(
         normalized_text=payload.normalized_text,
         actor_user_id=current_user.user_id,
     )
-    await _commit_if_supported(db)
     return KeywordOut.model_validate(keyword)
 
 
@@ -446,8 +449,7 @@ async def update_keyword(
         fields_set=payload.model_fields_set,
     )
     if keyword is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Keyword not found")
-    await _commit_if_supported(db)
+        raise NotFoundException("Không tìm thấy từ khóa")
     return KeywordOut.model_validate(keyword)
 
 
@@ -463,5 +465,4 @@ async def delete_keyword(
         actor_user_id=current_user.user_id,
     )
     if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Keyword not found")
-    await _commit_if_supported(db)
+        raise NotFoundException("Không tìm thấy từ khóa")

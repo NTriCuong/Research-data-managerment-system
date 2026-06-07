@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import require_roles
@@ -8,6 +8,7 @@ from app.database.session import get_db
 from app.models.auth.user import User
 from app.models.enum import WorkflowStatus
 from app.schemas.auth import MessageResponse
+from app.schemas.files import IncomingFile
 from app.schemas.staging_metadata import (
     BulkSubmitForReviewOut,
     BulkSubmitForReviewRequest,
@@ -28,12 +29,6 @@ ALLOWED_ADMIN_MANAGER_ROLES = ("SUPER_ADMIN", "MANAGER")
 ALLOWED_STAGING_VIEWER_ROLES = ("SUPER_ADMIN", "MANAGER", "DATA_ENTRY")
 
 
-async def _commit_if_supported(db: AsyncSession) -> None:
-    commit = getattr(db, "commit", None)
-    if callable(commit):
-        await commit()
-
-
 @router.post("", response_model=StagingResearchObjectOut, status_code=status.HTTP_201_CREATED)
 async def create_staging_research_object(
     payload: StagingResearchObjectCreate,
@@ -45,7 +40,6 @@ async def create_staging_research_object(
         payload=payload,
         current_user=current_user,
     )
-    await _commit_if_supported(db)
     return result
 
 
@@ -109,7 +103,6 @@ async def bulk_submit_for_review(
         payload=payload,
         current_user=current_user,
     )
-    await _commit_if_supported(db)
     return result
 
 
@@ -139,7 +132,6 @@ async def update_staging_record(
         payload=payload,
         current_user=current_user,
     )
-    await _commit_if_supported(db)
     return result
 
 
@@ -154,7 +146,6 @@ async def delete_draft_staging_record(
         staging_id=staging_id,
         current_user=current_user,
     )
-    await _commit_if_supported(db)
     return result
 
 
@@ -171,7 +162,6 @@ async def submit_for_review(
         payload=payload,
         current_user=current_user,
     )
-    await _commit_if_supported(db)
     return result
 
 
@@ -203,7 +193,6 @@ async def create_revision_from_core(
         payload=payload,
         current_user=current_user,
     )
-    await _commit_if_supported(db)
     return result
 
 
@@ -224,18 +213,20 @@ async def list_staging_file_metadata(
 async def create_staging_file_metadata(
     staging_id: UUID,
     file: UploadFile = File(...),
-    access_level: str = Form("internal"),
     current_user: User = Depends(require_roles(*ALLOWED_EDITOR_ROLES)),
     db: AsyncSession = Depends(get_db),
 ) -> StagingFileOut:
+    incoming_file = IncomingFile(
+        filename=file.filename or "uploaded-file",
+        content_type=file.content_type or "application/octet-stream",
+        content=await file.read(),
+    )
     result = await staging_service.create_staging_file_metadata(
         db,
         staging_id=staging_id,
-        file=file,
-        access_level=access_level,
+        file=incoming_file,
         current_user=current_user,
     )
-    await _commit_if_supported(db)
     return result
 
 
@@ -252,5 +243,4 @@ async def delete_staging_file_metadata(
         file_id=file_id,
         current_user=current_user,
     )
-    await _commit_if_supported(db)
     return result

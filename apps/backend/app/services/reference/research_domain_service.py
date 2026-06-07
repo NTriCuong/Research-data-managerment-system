@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
+from app.core.exceptions import BadRequestException, ConflictException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reference.research_domain import ResearchDomain
@@ -10,9 +10,15 @@ from app.services.logs.audit_service import audit_service
 
 
 class ResearchDomainService:
-    async def list_research_domains(self, db: AsyncSession) -> list[ResearchDomain]:
-        result = await db.execute(select(ResearchDomain).order_by(ResearchDomain.domain_name.asc()))
-        return list(result.scalars().all())
+    async def list_research_domains(
+        self, db: AsyncSession, *, page: int = 1, page_size: int = 20
+    ) -> tuple[list[ResearchDomain], int]:
+        offset = (page - 1) * page_size
+        total = (await db.execute(select(func.count()).select_from(ResearchDomain))).scalar_one()
+        result = await db.execute(
+            select(ResearchDomain).order_by(ResearchDomain.domain_name.asc()).offset(offset).limit(page_size)
+        )
+        return list(result.scalars().all()), total
 
     async def get_research_domain(self, db: AsyncSession, *, domain_id: UUID) -> ResearchDomain | None:
         result = await db.execute(select(ResearchDomain).where(ResearchDomain.domain_id == domain_id))
@@ -34,11 +40,11 @@ class ResearchDomainService:
         actor_user_id: UUID,
     ) -> ResearchDomain:
         if await self.get_research_domain_by_code(db, domain_code=domain_code):
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="domain_code already exists")
+            raise ConflictException("domain_code đã tồn tại")
 
         if parent_domain_id is not None:
             if await self.get_research_domain(db, domain_id=parent_domain_id) is None:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Parent domain not found")
+                raise BadRequestException("Không tìm thấy lĩnh vực cấp trên")
 
         domain = ResearchDomain(
             domain_code=domain_code,
@@ -97,23 +103,23 @@ class ResearchDomainService:
 
         if "parent_domain_id" in fields_set:
             if parent_domain_id == domain_id:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Domain cannot be its own parent")
+                raise BadRequestException("Lĩnh vực không thể là cấp trên của chính nó")
             if parent_domain_id is not None:
                 if await self.get_research_domain(db, domain_id=parent_domain_id) is None:
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Parent domain not found")
+                    raise BadRequestException("Không tìm thấy lĩnh vực cấp trên")
             domain.parent_domain_id = parent_domain_id
 
         if "domain_code" in fields_set:
             if domain_code is None:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="domain_code cannot be null")
+                raise BadRequestException("domain_code không được để trống")
             existing = await self.get_research_domain_by_code(db, domain_code=domain_code)
             if existing and existing.domain_id != domain_id:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="domain_code already exists")
+                raise ConflictException("domain_code đã tồn tại")
             domain.domain_code = domain_code
 
         if "domain_name" in fields_set:
             if domain_name is None:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="domain_name cannot be null")
+                raise BadRequestException("domain_name không được để trống")
             domain.domain_name = domain_name
 
         if "description" in fields_set:

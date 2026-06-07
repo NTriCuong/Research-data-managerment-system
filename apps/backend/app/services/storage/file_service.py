@@ -1,18 +1,23 @@
 import asyncio
 import hashlib
-import tempfile
+from io import BytesIO
 from pathlib import Path
 from uuid import UUID
 from uuid import uuid4
 
-from fastapi import HTTPException, UploadFile, status
-
+from app.core.exceptions import (
+    AppException,
+    BadRequestException,
+    ExternalServiceException,
+    InternalServerException,
+    PayloadTooLargeException,
+)
 from app.models.enum import AccessLevel
+from app.schemas.files import IncomingFile
 from app.services.storage.r2_storage import upload_fileobj_to_r2
 
 
 MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024
-UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
 
 
 class FileService:
@@ -20,53 +25,40 @@ class FileService:
         self,
         *,
         staging_id: UUID,
-        file: UploadFile,
+        file: IncomingFile,
         access_level: str,
     ) -> dict:
-        original_filename = file.filename or "uploaded-file"
+        original_filename = file.filename
         file_extension = Path(original_filename).suffix.lower() or None
         stored_filename = f"{uuid4().hex}{file_extension or ''}"
         storage_key = f"staging/{staging_id}/{stored_filename}"
-        mime_type = file.content_type or "application/octet-stream"
+        mime_type = file.content_type
 
         try:
             access_level_enum = AccessLevel(access_level)
         except ValueError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid access_level") from exc
+            raise BadRequestException("access_level không hợp lệ") from exc
 
-        checksum = hashlib.sha256()
-        file_size_bytes = 0
-        temp_file = tempfile.TemporaryFile()
+        file_size_bytes = len(file.content)
+        if file_size_bytes > MAX_UPLOAD_SIZE_BYTES:
+            raise PayloadTooLargeException("Kích thước tệp vượt quá giới hạn 50MB")
+        if file_size_bytes == 0:
+            raise BadRequestException("Tệp không được để trống")
+
+        checksum = hashlib.sha256(file.content)
         try:
-            while chunk := await file.read(UPLOAD_CHUNK_SIZE_BYTES):
-                file_size_bytes += len(chunk)
-                if file_size_bytes > MAX_UPLOAD_SIZE_BYTES:
-                    raise HTTPException(
-                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                        detail="File size exceeds 50MB limit",
-                    )
-                checksum.update(chunk)
-                temp_file.write(chunk)
-
-            if file_size_bytes == 0:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File cannot be empty")
-
-            temp_file.seek(0)
             upload_result = await asyncio.to_thread(
                 upload_fileobj_to_r2,
                 object_key=storage_key,
-                fileobj=temp_file,
+                fileobj=BytesIO(file.content),
                 content_type=mime_type,
             )
-        except HTTPException:
+        except AppException:
             raise
         except RuntimeError as exc:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+            raise InternalServerException("Có lỗi xảy ra khi xử lý tệp") from exc
         except Exception as exc:
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to upload file to cloud storage") from exc
-        finally:
-            temp_file.close()
-
+            raise ExternalServiceException("Tải tệp lên kho lưu trữ đám mây thất bại") from exc
         return {
             "original_filename": original_filename,
             "stored_filename": stored_filename,

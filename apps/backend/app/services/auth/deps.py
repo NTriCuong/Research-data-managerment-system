@@ -1,13 +1,14 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import Cookie, Depends, HTTPException, Request, status
+from fastapi import Cookie, Depends, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.exceptions import ForbiddenException, UnauthorizedException
 from app.database.session import get_db
 from app.models.auth.user import User
 from app.models.auth.refresh_token import RefreshToken
@@ -15,6 +16,7 @@ from app.models.enum import UserStatus
 from app.services.auth.security import decode_access_token, hash_refresh_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
+optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token", auto_error=False)
 
 
 # ── RBAC permission map ───────────────────────────────────────────────────────
@@ -53,9 +55,8 @@ async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    credentials_exc = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid or expired token",
+    credentials_exc = UnauthorizedException(
+        "Token không hợp lệ hoặc đã hết hạn",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
@@ -82,10 +83,44 @@ async def get_current_active_user(
     current_user: User = Depends(get_current_user),
 ) -> User:
     if current_user.deleted_at is not None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account has been deleted")
+        raise ForbiddenException("Tài khoản đã bị xóa")
     if current_user.status != UserStatus.active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
+        raise ForbiddenException("Tài khoản đã bị vô hiệu hóa")
     return current_user
+
+
+async def get_optional_current_active_user(
+    request: Request,
+    token: str | None = Depends(optional_oauth2_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> User | None:
+    if token is None:
+        return None
+
+    credentials_exc = UnauthorizedException(
+        "Token không hợp lệ hoặc đã hết hạn",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = decode_access_token(token)
+        if payload.get("type") != "access":
+            raise credentials_exc
+        user_id: str | None = payload.get("sub")
+        if not user_id:
+            raise credentials_exc
+    except JWTError:
+        raise credentials_exc
+
+    user = await _load_user(db, user_id)
+    if user is None:
+        raise credentials_exc
+    if user.deleted_at is not None:
+        raise ForbiddenException("Tài khoản đã bị xóa")
+    if user.status != UserStatus.active:
+        raise ForbiddenException("Tài khoản đã bị vô hiệu hóa")
+
+    request.state.current_user_id = str(user.user_id)
+    return user
 
 
 # ── Refresh token from HttpOnly cookie ───────────────────────────────────────
@@ -98,10 +133,7 @@ async def get_valid_refresh_token(
     Trả về (RefreshToken record, User) nếu hợp lệ.
     """
     if not refresh_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing refresh token",
-        )
+        raise UnauthorizedException("Thiếu refresh token")
 
     token_hash = hash_refresh_token(refresh_token)
     result = await db.execute(
@@ -113,23 +145,14 @@ async def get_valid_refresh_token(
     db_token = result.scalar_one_or_none()
 
     if db_token is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or revoked refresh token",
-        )
+        raise UnauthorizedException("Refresh token không hợp lệ hoặc đã bị thu hồi")
 
     if db_token.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token expired",
-        )
+        raise UnauthorizedException("Refresh token đã hết hạn")
 
     user = db_token.user
     if user.deleted_at is not None or user.status != UserStatus.active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is inactive",
-        )
+        raise ForbiddenException("Tài khoản không hoạt động")
 
     return db_token, user
 
@@ -151,10 +174,7 @@ class RoleChecker:
             return current_user
 
         if self.permission not in allowed:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Role '{role_code}' does not have permission '{self.permission}'",
-            )
+            raise ForbiddenException(f"Vai trò '{role_code}' không có quyền '{self.permission}'")
         return current_user
 
 

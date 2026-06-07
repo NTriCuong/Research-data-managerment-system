@@ -42,7 +42,6 @@ class StagingResearchObjectCreate(BaseModel):
     relation: str | None = None
     coverage: str | None = None
     rights: str | None = None
-    access_level: AccessLevel = AccessLevel.internal
     domain_ids: list[UUID] = Field(default_factory=list)
     keyword_ids: list[UUID] = Field(default_factory=list)
     authors: list[StagingAuthorIn] = Field(default_factory=list)
@@ -66,7 +65,6 @@ class StagingResearchObjectUpdate(BaseModel):
     relation: str | None = None
     coverage: str | None = None
     rights: str | None = None
-    access_level: AccessLevel | None = None
     domain_ids: list[UUID] | None = None
     keyword_ids: list[UUID] | None = None
     authors: list[StagingAuthorIn] | None = None
@@ -126,7 +124,6 @@ class StagingFileCreate(BaseModel):
     file_extension: str | None = Field(default=None, max_length=20)
     file_size_bytes: int = Field(gt=0)
     checksum_sha256: str | None = Field(default=None, min_length=64, max_length=64)
-    access_level: AccessLevel = AccessLevel.internal
 
 
 class StagingFileOut(BaseModel):

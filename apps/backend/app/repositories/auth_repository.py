@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.auth.refresh_token import RefreshToken
+from app.models.auth.role import Role
 from app.models.auth.user import User
 from app.models.logs.login_log import LoginLog
 
@@ -104,6 +105,10 @@ class AuthRepository:
 
     async def find_user_by_email(self, email: str) -> User | None:
         result = await self.db.execute(select(User).where(User.email == email))
+        return result.scalar_one_or_none()
+
+    async def find_role_by_id(self, role_id: UUID) -> Role | None:
+        result = await self.db.execute(select(Role).where(Role.role_id == role_id))
         return result.scalar_one_or_none()
 
     async def list_users(
