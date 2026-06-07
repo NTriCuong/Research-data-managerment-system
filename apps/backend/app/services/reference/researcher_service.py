@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import HTTPException, status
 from sqlalchemy import func, select
+from app.core.exceptions import BadRequestException, ConflictException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reference.researcher import Researcher
@@ -42,7 +42,7 @@ class ResearcherService:
         actor_user_id: UUID,
     ) -> Researcher:
         if email is not None and await self.get_researcher_by_email(db, email=email):
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
+            raise ConflictException("Email đã tồn tại")
 
         researcher = Researcher(
             full_name=full_name,
@@ -109,14 +109,14 @@ class ResearcherService:
 
         if "full_name" in fields_set:
             if full_name is None:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="full_name cannot be null")
+                raise BadRequestException("full_name không được để trống")
             researcher.full_name = full_name
 
         if "email" in fields_set:
             if email is not None:
                 existing = await self.get_researcher_by_email(db, email=email)
                 if existing and existing.researcher_id != researcher_id:
-                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
+                    raise ConflictException("Email đã tồn tại")
             researcher.email = email
 
         if "orcid" in fields_set:
