@@ -1,7 +1,8 @@
 ﻿from collections.abc import Iterable
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 
+from app.core.exceptions import ForbiddenException
 from app.models.auth.user import User
 from app.services.auth.deps import get_current_active_user
 
@@ -16,10 +17,7 @@ def require_roles(*role_codes: str):
     async def dependency(current_user: User = Depends(get_current_active_user)) -> User:
         user_role_code = current_user.role.role_code if current_user.role else None
         if user_role_code not in allowed:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not enough permissions",
-            )
+            raise ForbiddenException("Bạn không có đủ quyền để thực hiện thao tác này")
         return current_user
 
     return dependency

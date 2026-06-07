@@ -1,27 +1,17 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.permissions import require_roles
 from app.database.session import get_db
-from app.models.auth.role import Role
 from app.models.auth.user import User
 from app.models.enum import UserStatus
-from app.repositories.auth_repository import AuthRepository
 from app.schemas.auth import MessageResponse
 from app.schemas.user import UserCreate, UserRead, UserRoleUpdate, UserStatusUpdate, UserUpdate
 from app.services.auth.auth_service import auth_service
 
 router = APIRouter()
-
-
-async def _commit_if_supported(db: AsyncSession) -> None:
-    commit = getattr(db, "commit", None)
-    if callable(commit):
-        await commit()
 
 
 @router.get("/me", response_model=UserRead)
@@ -39,13 +29,13 @@ async def list_users(
     _: User = Depends(require_roles("SUPER_ADMIN")),
     db: AsyncSession = Depends(get_db),
 ) -> list[UserRead]:
-    repo = AuthRepository(db)
-    users = await repo.list_users(
+    users = await auth_service.list_users(
+        db,
         limit=limit,
         offset=offset,
         q=q,
         role_id=role_id,
-        status=status_filter.value if status_filter else None,
+        user_status=status_filter,
     )
     return [UserRead.model_validate(user) for user in users]
 
@@ -56,15 +46,7 @@ async def get_user(
     _: User = Depends(require_roles("SUPER_ADMIN")),
     db: AsyncSession = Depends(get_db),
 ) -> UserRead:
-    result = await db.execute(
-        select(User)
-        .options(selectinload(User.role))
-        .where(User.user_id == user_id)
-        .where(User.deleted_at.is_(None))
-    )
-    user = result.scalar_one_or_none()
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user = await auth_service.get_user(db, user_id=user_id)
     return UserRead.model_validate(user)
 
 
@@ -74,10 +56,6 @@ async def create_user(
     current_user: User = Depends(require_roles("SUPER_ADMIN")),
     db: AsyncSession = Depends(get_db),
 ) -> UserRead:
-    role = await db.scalar(select(Role).where(Role.role_id == payload.role_id))
-    if role is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role not found")
-
     user = await auth_service.create_user(
         db,
         actor=current_user,
@@ -88,7 +66,6 @@ async def create_user(
         role_id=payload.role_id,
         department_id=payload.department_id,
     )
-    await _commit_if_supported(db)
     return UserRead.model_validate(user)
 
 
@@ -109,7 +86,6 @@ async def update_user(
         department_id=payload.department_id,
         fields_set=payload.model_fields_set,
     )
-    await _commit_if_supported(db)
     return UserRead.model_validate(user)
 
 
@@ -120,8 +96,7 @@ async def soft_delete_user(
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponse:
     await auth_service.soft_delete_user(db, actor=current_user, user_id=user_id)
-    await _commit_if_supported(db)
-    return MessageResponse(message="User soft-deleted")
+    return MessageResponse(message="Xóa người dùng thành công")
 
 
 @router.put("/{user_id}/status", response_model=UserRead)
@@ -137,7 +112,6 @@ async def update_user_status(
         user_id=user_id,
         new_status=payload.status,
     )
-    await _commit_if_supported(db)
     return UserRead.model_validate(user)
 
 
@@ -148,17 +122,11 @@ async def assign_role(
     current_user: User = Depends(require_roles("SUPER_ADMIN")),
     db: AsyncSession = Depends(get_db),
 ) -> UserRead:
-    role = await db.scalar(select(Role).where(Role.role_id == payload.role_id))
-    if role is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role not found")
-
     user = await auth_service.update_user_role(
         db,
         actor=current_user,
         user_id=user_id,
         role_id=payload.role_id,
     )
-    await _commit_if_supported(db)
-    await db.refresh(user)
     return UserRead.model_validate(user)
 

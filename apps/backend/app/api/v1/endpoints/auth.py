@@ -1,24 +1,18 @@
-from uuid import UUID
+﻿from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.database.session import get_db
 from app.models.auth.user import User
+from app.core.permissions import require_roles
 from app.schemas.auth import AdminResetPasswordRequest, ChangePasswordRequest, LoginRequest, MessageResponse, TokenResponse, UserTokenOut
-from app.schemas.user import UserRead
 from app.services.auth.auth_service import auth_service
 from app.services.auth.deps import get_current_active_user, get_valid_refresh_token
 
 router = APIRouter()
-
-
-async def _commit_if_supported(db: AsyncSession) -> None:
-    commit = getattr(db, "commit", None)
-    if callable(commit):
-        await commit()
 
 
 def _user_token_out(user: User) -> UserTokenOut:
@@ -55,8 +49,32 @@ async def login(
         samesite="lax",
         max_age=settings.REFRESH_TOKEN_EXPIRE * 24 * 60 * 60,
     )
-    await _commit_if_supported(db)
+    return TokenResponse(access_token=access_token, user=_user_token_out(user))
 
+
+@router.post("/token", response_model=TokenResponse)
+async def token(
+    request: Request,
+    response: Response,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    access_token, refresh_token, user = await auth_service.login(
+        db,
+        username=form_data.username,
+        password=form_data.password,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=settings.REFRESH_TOKEN_EXPIRE * 24 * 60 * 60,
+    )
     return TokenResponse(access_token=access_token, user=_user_token_out(user))
 
 
@@ -84,8 +102,6 @@ async def refresh_token(
         samesite="lax",
         max_age=settings.REFRESH_TOKEN_EXPIRE * 24 * 60 * 60,
     )
-    await _commit_if_supported(db)
-
     return TokenResponse(access_token=access_token, user=_user_token_out(user))
 
 
@@ -97,9 +113,8 @@ async def logout(
 ) -> MessageResponse:
     db_token, _ = token_and_user
     await auth_service.logout(db, db_token=db_token)
-    await _commit_if_supported(db)
     response.delete_cookie("refresh_token")
-    return MessageResponse(message="Logged out")
+    return MessageResponse(message="Đăng xuất thành công")
 
 
 @router.post("/change-password", response_model=MessageResponse)
@@ -114,24 +129,20 @@ async def change_password(
         old_password=payload.current_password,
         new_password=payload.new_password,
     )
-    await _commit_if_supported(db)
-    return MessageResponse(message="Password changed successfully")
+    return MessageResponse(message="Đổi mật khẩu thành công")
 
 
 @router.post("/admin/reset-password/{user_id}", response_model=MessageResponse)
 async def admin_reset_password(
     user_id: UUID,
     payload: AdminResetPasswordRequest,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_roles("SUPER_ADMIN")),
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponse:
-    if current_user.role.role_code != "SUPER_ADMIN":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions")
     await auth_service.admin_reset_password(
         db,
         actor=current_user,
         user_id=user_id,
         new_password=payload.new_password,
     )
-    await _commit_if_supported(db)
-    return MessageResponse(message="Password reset successfully")
+    return MessageResponse(message="Đặt lại mật khẩu thành công")
