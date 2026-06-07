@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from uuid import uuid4
+from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -21,7 +22,7 @@ class DummyRole:
 
 
 @pytest.fixture
-def client() -> TestClient:
+def client() -> Generator[TestClient, None, None]:
     app.dependency_overrides = {}
     with TestClient(app) as test_client:
         yield test_client
