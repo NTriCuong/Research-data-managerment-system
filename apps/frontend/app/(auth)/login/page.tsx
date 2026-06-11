@@ -4,6 +4,7 @@ import { authService } from '@/services/auth/auth.service'
 import { setCredentials } from '@/store/slice/auth.slice'
 import { useAppDispatch } from '@/store/hooks'
 import { parseAxiosError } from '@/lib/axios/error-paser'
+import { getRoleHomePath } from '@/lib/auth/routes'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -24,7 +25,7 @@ export default function LoginPage() {
     try {
       const data = await authService.login(username, password)
       dispatch(setCredentials({ user: data.user, accessToken: data.access_token }))
-      router.push('/dashboard')
+      router.push(getRoleHomePath(data.user.role_name))
     } catch (err) {
       const appError = parseAxiosError(err)
       console.log(appError);
