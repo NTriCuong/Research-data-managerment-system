@@ -1,0 +1,9 @@
+
+export enum Role {
+    SUPER_ADMIN = "SUPER_ADMIN",
+    DATA_ENTRY = "DATA_ENTRY",
+    REVIEWER = "REVIEWER",
+    APPROVER = "APPROVER",
+    MANAGER = "MANAGER",
+    PUBLIC_USER = "PUBLIC_USER"
+}
