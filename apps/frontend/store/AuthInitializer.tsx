@@ -1,6 +1,6 @@
 'use client'
 
-import { setCredentials } from '@/store/slice/auth.slice'
+import { clearCredentials, setCredentials } from '@/store/slice/auth.slice'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { authService } from '@/services/auth/auth.service'
@@ -15,13 +15,18 @@ export default function AuthInitializer() {
 
     useEffect(() => {
         if (isAuthenticated) return
-        if (PUBLIC_ROUTES.includes(pathname)) return
+
+        if (PUBLIC_ROUTES.includes(pathname)) {
+            dispatch(clearCredentials())
+            return
+        }
 
         authService.refreshToken()
             .then((data) => {
                 dispatch(setCredentials({ user: data.user, accessToken: data.access_token }))
             })
             .catch(() => {
+                dispatch(clearCredentials())
                 router.replace('/login')
             })
     }, [pathname])

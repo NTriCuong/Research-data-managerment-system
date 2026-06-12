@@ -2,7 +2,9 @@ export const PUBLIC_ROUTES = [
     "/",
     "/login",
     "/register",
-    "/about"
+    "/about",
+    "/change-password",
+    "/verify-otp",
 ];
 
 export const PROTECTED_ROUTES = [
@@ -20,11 +22,11 @@ export const ROLE_ROUTES = {
 
 const ROLE_HOME_MAP: Record<string, string> = {
     "Super Administrator": "/dashboard/superadmin",
-    "Data Entry User":     "/dashboard/data-entry",
-    "Metadata Reviewer":   "/dashboard/review",
-    "Metadata Approver":   "/dashboard/approval",
-    "Research Manager":    "/dashboard/reports",
-    "Public User":         "/",
+    "Data Entry User": "/dashboard/data-entry",
+    "Metadata Reviewer": "/dashboard/review",
+    "Metadata Approver": "/dashboard/approval",
+    "Research Manager": "/dashboard/reports",
+    "Public User": "/",
 };
 
 export function getRoleHomePath(roleName: string): string {
