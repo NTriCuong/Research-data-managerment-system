@@ -16,7 +16,6 @@ export default function ForbiddenPage() {
             router.replace("/login");
         }
     };
-
     return (
         <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 text-center">
             <h1 className="text-3xl font-bold text-red-600">
