@@ -50,9 +50,17 @@ class StagingResearchObjectCreate(BaseModel):
     rights: str | None = None
     domain_ids: list[UUID] = Field(default_factory=list)
     keyword_ids: list[UUID] = Field(default_factory=list)
-    domain_name: list[str] = Field(default_factory=list)
-    keyword_name: list[str] = Field(default_factory=list)
     authors: list[StagingAuthorIn] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_name_based_references(cls, data):
+        if isinstance(data, dict):
+            unsupported = {"domain_name", "keyword_name"} & set(data)
+            if unsupported:
+                fields = ", ".join(sorted(unsupported))
+                raise ValueError(f"{fields} không được hỗ trợ; hãy dùng domain_ids/keyword_ids đã tồn tại")
+        return data
 
 
 class StagingResearchObjectUpdate(BaseModel):
@@ -75,9 +83,17 @@ class StagingResearchObjectUpdate(BaseModel):
     rights: str | None = None
     domain_ids: list[UUID] | None = None
     keyword_ids: list[UUID] | None = None
-    domain_name: list[str] | None = None
-    keyword_name: list[str] | None = None
     authors: list[StagingAuthorIn] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_name_based_references(cls, data):
+        if isinstance(data, dict):
+            unsupported = {"domain_name", "keyword_name"} & set(data)
+            if unsupported:
+                fields = ", ".join(sorted(unsupported))
+                raise ValueError(f"{fields} không được hỗ trợ; hãy dùng domain_ids/keyword_ids đã tồn tại")
+        return data
 
 
 class StagingResearchObjectOut(BaseModel):

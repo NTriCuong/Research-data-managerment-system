@@ -116,6 +116,31 @@ def test_data_entry_can_create_staging_record(client, sample_user, monkeypatch):
     assert db.commit_count == 0
 
 
+def test_staging_create_rejects_keyword_name_payload(client, sample_user, monkeypatch):
+    _override_user_with_role(client, sample_user, "DATA_ENTRY")
+    db = _FakeDbSession()
+    client.app.dependency_overrides[get_db] = _fake_db_provider(db)
+
+    async def _fake_create(*args, **kwargs):
+        raise AssertionError("staging service should not receive keyword_name payloads")
+
+    monkeypatch.setattr(metadata_endpoint.staging_service, "create_staging_research_object", _fake_create)
+
+    response = client.post(
+        f"{settings.API_V1_PREFIX}/staging-metadata",
+        json={
+            "title": "Endpoint coverage record",
+            "output_type_id": str(uuid4()),
+            "department_id": str(uuid4()),
+            "year": 2026,
+            "keyword_name": ["machine learning"],
+        },
+    )
+
+    assert response.status_code == 422
+    assert db.commit_count == 0
+
+
 def test_manager_can_list_all_staging_records_with_filters(client, sample_user, monkeypatch):
     _override_user_with_role(client, sample_user, "MANAGER")
     client.app.dependency_overrides[get_db] = _fake_db_provider()
