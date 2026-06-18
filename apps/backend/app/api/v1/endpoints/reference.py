@@ -34,6 +34,7 @@ from app.services.reference.researcher_service import researcher_service
 router = APIRouter()
 
 ALLOWED_REFERENCE_READ_ROLES = ("SUPER_ADMIN", "REVIEWER", "DATA_ENTRY")
+ALLOWED_REFERENCE_CREATE_ROLES = ("SUPER_ADMIN", "DATA_ENTRY")
 
 
 @router.get("/departments", response_model=PaginatedResponse[DepartmentOut])
@@ -232,6 +233,17 @@ async def list_research_domains(
     )
 
 
+@router.get("/research-domains/suggestions", response_model=list[ResearchDomainOut])
+async def suggest_research_domains(
+    q: str | None = Query(default=None, max_length=255),
+    limit: int = Query(default=10, ge=1, le=50),
+    _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
+    db: AsyncSession = Depends(get_db),
+) -> list[ResearchDomainOut]:
+    domains = await research_domain_service.suggest_research_domains(db, q=q, limit=limit)
+    return [ResearchDomainOut.model_validate(domain) for domain in domains]
+
+
 @router.get("/research-domains/{domain_id}", response_model=ResearchDomainOut)
 async def get_research_domain(
     domain_id: UUID,
@@ -247,7 +259,7 @@ async def get_research_domain(
 @router.post("/research-domains/", response_model=ResearchDomainOut, status_code=status.HTTP_201_CREATED)
 async def create_research_domain(
     payload: ResearchDomainCreate,
-    current_user: User = Depends(require_roles("SUPER_ADMIN")),
+    current_user: User = Depends(require_roles(*ALLOWED_REFERENCE_CREATE_ROLES)),
     db: AsyncSession = Depends(get_db),
 ) -> ResearchDomainOut:
     domain = await research_domain_service.create_research_domain(
@@ -317,6 +329,17 @@ async def list_researchers(
     )
 
 
+@router.get("/researchers/suggestions", response_model=list[ResearcherOut])
+async def suggest_researchers(
+    q: str | None = Query(default=None, max_length=255),
+    limit: int = Query(default=10, ge=1, le=50),
+    _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
+    db: AsyncSession = Depends(get_db),
+) -> list[ResearcherOut]:
+    researchers = await researcher_service.suggest_researchers(db, q=q, limit=limit)
+    return [ResearcherOut.model_validate(researcher) for researcher in researchers]
+
+
 @router.get("/researchers/{researcher_id}", response_model=ResearcherOut)
 async def get_researcher(
     researcher_id: UUID,
@@ -332,7 +355,7 @@ async def get_researcher(
 @router.post("/researchers/", response_model=ResearcherOut, status_code=status.HTTP_201_CREATED)
 async def create_researcher(
     payload: ResearcherCreate,
-    current_user: User = Depends(require_roles("SUPER_ADMIN")),
+    current_user: User = Depends(require_roles(*ALLOWED_REFERENCE_CREATE_ROLES)),
     db: AsyncSession = Depends(get_db),
 ) -> ResearcherOut:
     researcher = await researcher_service.create_researcher(
@@ -404,6 +427,17 @@ async def list_keywords(
         page_size=page_size,
         total_pages=-(-total // page_size),
     )
+
+
+@router.get("/keywords/suggestions", response_model=list[KeywordOut])
+async def suggest_keywords(
+    q: str | None = Query(default=None, max_length=255),
+    limit: int = Query(default=10, ge=1, le=50),
+    _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
+    db: AsyncSession = Depends(get_db),
+) -> list[KeywordOut]:
+    keywords = await keyword_service.suggest_keywords(db, q=q, limit=limit)
+    return [KeywordOut.model_validate(keyword) for keyword in keywords]
 
 
 @router.get("/keywords/{keyword_id}", response_model=KeywordOut)

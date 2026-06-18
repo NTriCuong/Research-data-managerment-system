@@ -19,6 +19,24 @@ class KeywordService:
         )
         return list(result.scalars().all()), total
 
+    async def suggest_keywords(
+        self,
+        db: AsyncSession,
+        *,
+        q: str | None,
+        limit: int,
+    ) -> list[Keyword]:
+        stmt = select(Keyword)
+        query_text = q.strip() if q else ""
+        if query_text:
+            pattern = f"%{query_text.lower()}%"
+            stmt = stmt.where(
+                func.lower(Keyword.keyword_text).like(pattern)
+                | func.lower(Keyword.normalized_text).like(pattern)
+            )
+        result = await db.execute(stmt.order_by(Keyword.keyword_text.asc()).limit(limit))
+        return list(result.scalars().all())
+
     async def get_keyword(self, db: AsyncSession, *, keyword_id: UUID) -> Keyword | None:
         result = await db.execute(select(Keyword).where(Keyword.keyword_id == keyword_id))
         return result.scalar_one_or_none()

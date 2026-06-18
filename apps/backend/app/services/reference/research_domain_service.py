@@ -20,6 +20,24 @@ class ResearchDomainService:
         )
         return list(result.scalars().all()), total
 
+    async def suggest_research_domains(
+        self,
+        db: AsyncSession,
+        *,
+        q: str | None,
+        limit: int,
+    ) -> list[ResearchDomain]:
+        stmt = select(ResearchDomain).where(ResearchDomain.is_active.is_(True))
+        query_text = q.strip() if q else ""
+        if query_text:
+            pattern = f"%{query_text.lower()}%"
+            stmt = stmt.where(
+                func.lower(ResearchDomain.domain_name).like(pattern)
+                | func.lower(ResearchDomain.domain_code).like(pattern)
+            )
+        result = await db.execute(stmt.order_by(ResearchDomain.domain_name.asc()).limit(limit))
+        return list(result.scalars().all())
+
     async def get_research_domain(self, db: AsyncSession, *, domain_id: UUID) -> ResearchDomain | None:
         result = await db.execute(select(ResearchDomain).where(ResearchDomain.domain_id == domain_id))
         return result.scalar_one_or_none()

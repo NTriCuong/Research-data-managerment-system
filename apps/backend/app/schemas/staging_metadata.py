@@ -2,18 +2,24 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, model_validator
 
 from app.models.enum import AccessLevel, AuthorRole, FileStatus, WorkflowStatus
 
 
 class StagingAuthorIn(BaseModel):
     researcher_id: UUID | None = None
-    full_name: str = Field(min_length=1, max_length=255)
+    full_name: str | None = Field(default=None, min_length=1, max_length=255)
     email: EmailStr | None = None
     affiliation: str | None = Field(default=None, max_length=255)
     author_order: int = Field(default=1, ge=1)
     author_role: AuthorRole = AuthorRole.creator
+
+    @model_validator(mode="after")
+    def require_identifier_or_name(self) -> "StagingAuthorIn":
+        if self.researcher_id is None and not self.full_name:
+            raise ValueError("author requires researcher_id or full_name")
+        return self
 
 
 class StagingAuthorOut(StagingAuthorIn):
@@ -44,6 +50,8 @@ class StagingResearchObjectCreate(BaseModel):
     rights: str | None = None
     domain_ids: list[UUID] = Field(default_factory=list)
     keyword_ids: list[UUID] = Field(default_factory=list)
+    domain_name: list[str] = Field(default_factory=list)
+    keyword_name: list[str] = Field(default_factory=list)
     authors: list[StagingAuthorIn] = Field(default_factory=list)
 
 
@@ -67,6 +75,8 @@ class StagingResearchObjectUpdate(BaseModel):
     rights: str | None = None
     domain_ids: list[UUID] | None = None
     keyword_ids: list[UUID] | None = None
+    domain_name: list[str] | None = None
+    keyword_name: list[str] | None = None
     authors: list[StagingAuthorIn] | None = None
 
 

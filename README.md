@@ -1,375 +1,129 @@
 # Research Data Management System
 
-Research Data Management System (RDMS) is a monorepo for managing research metadata, review workflows, approved research records, audit logs, and future search indexing with Elasticsearch.
+Research Data Management System (RDMS) là đồ án xây dựng hệ thống hỗ trợ quản lý dữ liệu nghiên cứu thuộc phạm vi trường đại học.
 
-The project currently contains a Next.js frontend, a FastAPI backend, SQLAlchemy models, Alembic migrations, PostgreSQL schema design, and Docker Compose services for PostgreSQL, Elasticsearch, and Kibana.
+> **Lưu ý:** Dự án đang trong quá trình phát triển. Kiến trúc, tính năng, API, cấu trúc dữ liệu và cách cài đặt có thể tiếp tục thay đổi. Nội dung README này chỉ mô tả trạng thái hiện có trong mã nguồn, không đại diện cho một phiên bản hoàn chỉnh hoặc sẵn sàng triển khai thực tế.
 
-## Tech Stack
+## Thành phần hiện có
+
+Repository được tổ chức theo mô hình monorepo và hiện gồm:
+
+- frontend sử dụng Next.js, React, TypeScript và Tailwind CSS;
+- backend sử dụng FastAPI, SQLAlchemy và Alembic;
+- các model và migration dành cho PostgreSQL;
+- cấu hình Docker Compose cho một số dịch vụ hỗ trợ;
+- các thư mục kiểm thử backend.
+
+Một số nhóm API và giao diện đã có mã nguồn ban đầu, nhưng mức độ hoàn thiện và tính ổn định của từng phần chưa được đảm bảo.
+
+## Cấu trúc dự án
+
+```text
+Research-data-managerment-system/
+├── apps/
+│   ├── backend/
+│   ├── frontend/
+├── package.json
+└── README.md
+```
+
+## Công nghệ đang sử dụng
+
+| Thành phần | Công nghệ |
+| --- | --- |
+| Frontend | Next.js, React, TypeScript, Tailwind CSS |
+| Backend | Python, FastAPI, SQLAlchemy, Alembic |
+| Cơ sở dữ liệu | PostgreSQL |
+| Dịch vụ hỗ trợ | Elasticsearch, RabbitMQ |
+| Kiểm thử backend | Pytest |
+
+Danh sách trên phản ánh các dependency và cấu hình hiện có, không khẳng định mọi thành phần đã được tích hợp hoàn chỉnh.
+
+## Chạy dự án để phát triển
+
+### Yêu cầu
+
+- Node.js và npm;
+- Python;
+- PostgreSQL hoặc Docker.
+
+Phiên bản công cụ cụ thể chưa được chuẩn hóa cho toàn bộ dự án.
 
 ### Frontend
 
-- Next.js
-- React
-- TypeScript
-- Tailwind CSS
-
-### Backend
-
-- Python
-- FastAPI
-- SQLAlchemy 2.x
-- Alembic
-- PostgreSQL
-- JWT authentication utilities
-- Elasticsearch client support
-
-### Infrastructure
-
-- npm workspaces
-- Docker Compose
-- PostgreSQL 16
-- Elasticsearch 8
-- Kibana 8
-
-## Project Structure
-
-```txt
-Research-data-managerment-system/
-+-- apps/
-|   +-- backend/
-|   |   +-- alembic/
-|   |   |   +-- env.py
-|   |   |   +-- script.py.mako
-|   |   |   +-- versions/
-|   |   +-- app/
-|   |   |   +-- core/
-|   |   |   +-- database/
-|   |   |   +-- models/
-|   |   |   |   +-- core/
-|   |   |   |   +-- logs/
-|   |   |   |   +-- stagging/
-|   |   |   |   +-- system/
-|   |   |   +-- main.py
-|   |   +-- .env.example
-|   |   +-- alembic.ini
-|   +-- frontend/
-|   |   +-- app/
-|   |   +-- public/
-|   |   +-- package.json
-|   |   +-- next.config.ts
-|   +-- docker-compose.yml
-+-- package.json
-+-- package-lock.json
-+-- README.md
-```
-
-## Main Backend Modules
-
-### System Module
-
-The `system` module stores shared system entities in the `public` schema:
-
-- `users`
-- `roles`
-- `departments`
-- `authors`
-- `refresh_tokens`
-
-It is used as the base for authentication, authorization, user ownership, reviewers, and audit relationships.
-
-### Staging Module
-
-The `stagging` module stores draft and review data in the `staging` schema:
-
-- `stg_projects`
-- `stg_files`
-- `stg_keywords`
-- `stg_research_authors`
-- `stg_reviews`
-- `stg_field_comments`
-
-This is the working area for research projects before they are approved into the official dataset.
-
-### Core Module
-
-The `core` module stores approved research data in the `core` schema:
-
-- `core_projects`
-- `core_files`
-- `core_keywords`
-- `core_research_authors`
-- `core_edit_logs`
-- `core_citations`
-
-This schema represents the official approved data. It is the best source for future Elasticsearch indexing.
-
-### Logs Module
-
-The `logs` module stores operational logs in the `log` schema:
-
-- `audit_logs`
-- `login_logs`
-
-These tables are used for tracking user actions, login history, and security/audit events.
-
-## Database Design
-
-The database is organized into four PostgreSQL schemas:
-
-```txt
-public   -> users, roles, departments, authors, refresh tokens
-staging  -> draft/review research data
-core     -> approved research data
-log      -> audit and login logs
-```
-
-Alembic reads SQLAlchemy metadata from `apps/backend/app/database/config.py`. The migration environment automatically tracks only these schemas:
-
-```txt
-public, staging, core, log
-```
-
-The initial migration is located at:
-
-```txt
-apps/backend/alembic/versions/bc84167c6a36_init_all_schemas.py
-```
-
-## Prerequisites
-
-Install these before running the project:
-
-- Node.js 20 or newer
-- npm
-- Python 3.11 or newer
-- PostgreSQL, or Docker Desktop
-
-Docker is recommended because the repository already includes PostgreSQL, Elasticsearch, and Kibana services.
-
-## Install Dependencies
-
-### Frontend and Monorepo Dependencies
-
-From the repository root:
+Từ thư mục gốc của repository:
 
 ```bash
 npm install
+npm run dev:frontend
 ```
 
-### Backend Dependencies
+Frontend mặc định chạy tại `http://localhost:3000`.
 
-From `apps/backend`, create and activate a virtual environment:
+### Backend
+
+Từ thư mục `apps/backend`, tạo môi trường ảo và cài dependency:
 
 ```bash
-python -m venv venv
-venv\Scripts\activate
+python -m venv .venv
 ```
 
-Install the backend libraries:
+Kích hoạt môi trường ảo trên Windows:
 
-```bash
-pip install fastapi uvicorn sqlalchemy alembic asyncpg psycopg2-binary python-dotenv pydantic-settings python-jose passlib bcrypt elasticsearch
+```powershell
+.venv\Scripts\Activate.ps1
 ```
 
-Recommended: save them into a `requirements.txt` file later so the backend can be installed with:
+Cài dependency và tạo file cấu hình môi trường:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Environment Variables
+```powershell
+Copy-Item .env.example .env
+```
 
-Create a backend environment file:
+Cập nhật các giá trị cần thiết trong `.env`, sau đó chạy migration và backend:
 
 ```bash
-cd apps/backend
-copy .env.example .env
-```
-
-Minimum variables:
-
-```env
-FRONTEND_URL=http://localhost:3000
-DATABASE_URL=postgresql+asyncpg://postgres:<password>@localhost:5432/<database-name>
-SECRET_KEY=change-me
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE=30
-REFRESH_TOKEN_EXPIRE=7
-MAX_LOGIN_ATTEMPTS=5
-LOCK_DURATION=15
-```
-
-For local Docker Compose, match `DATABASE_URL` with the PostgreSQL service defined in `apps/docker-compose.yml`.
-
-## Run Infrastructure
-
-From the `apps` folder:
-
-```bash
-docker compose up -d
-```
-
-Services:
-
-```txt
-PostgreSQL     http://localhost:5432
-Elasticsearch  http://localhost:9200
-Kibana         http://localhost:5601
-```
-
-## Run Database Migrations
-
-From `apps/backend`:
-
-```bash
-venv\Scripts\activate
 alembic upgrade head
-```
-
-Create a new migration after changing SQLAlchemy models:
-
-```bash
-alembic revision --autogenerate -m "describe change"
-```
-
-Generate SQL from migrations without applying them:
-
-```bash
-alembic upgrade head --sql > design.sql
-```
-
-## Run the Backend
-
-From `apps/backend`:
-
-```bash
-venv\Scripts\activate
 uvicorn app.main:app --reload --port 8000
 ```
 
-Backend URL:
+Backend mặc định chạy tại `http://localhost:8000`. Có thể kiểm tra bằng:
 
-```txt
-http://localhost:8000
-```
+- `GET /`
+- `GET /health`
+- OpenAPI JSON tại `GET /api/v1/openapi.json`
 
-Current root endpoint:
+### Docker Compose
 
-```txt
-GET /
-```
+Repository có file `apps/docker-compose.yml` dành cho môi trường phát triển. Cấu hình Docker và các biến môi trường liên quan vẫn đang được điều chỉnh, vì vậy cần kiểm tra lại đường dẫn, file `.env` và giá trị cấu hình trước khi sử dụng.
 
-Response:
+## Cơ sở dữ liệu
 
-```json
-{
-  "message": "FastAPI backend is running"
-}
-```
+Backend hiện có SQLAlchemy model và Alembic migration. Các schema PostgreSQL xuất hiện trong mã nguồn gồm:
 
-## Run the Frontend
+- `public`;
+- `staging`;
+- `core`;
+- `log`.
 
-From the repository root:
+Thiết kế bảng và quy trình xử lý dữ liệu vẫn có thể thay đổi trong quá trình phát triển.
 
-```bash
-npm run dev:frontend
-```
+## Kiểm thử
 
-Frontend URL:
-
-```txt
-http://localhost:3000
-```
-
-## Run Full Development Mode
-
-From the repository root:
+Các bài kiểm thử backend được đặt trong `apps/backend/tests`. Sau khi cài dependency backend, có thể chạy từ thư mục `apps/backend`:
 
 ```bash
-npm run dev
+pytest
 ```
 
-This command starts:
+Việc có test trong repository không đồng nghĩa toàn bộ luồng nghiệp vụ đã được bao phủ hoặc hoạt động ổn định.
 
-- frontend on port `3000`
-- backend on port `8000`
+## Trạng thái dự án
 
-If your backend virtual environment is named `venv`, adjust the root `package.json` backend script if needed.
+Dự án hiện là sản phẩm đang phát triển phục vụ đồ án tốt nghiệp. Chưa có bản phát hành ổn định, tài liệu API chính thức hoặc cam kết về tính tương thích giữa các phiên bản.
 
-## Elasticsearch Plan
-
-Elasticsearch is included in Docker Compose, but search indexing should be added after the database flow is stable.
-
-Recommended indexing source:
-
-```txt
-core.core_projects
-```
-
-Suggested searchable fields:
-
-- `identifier`
-- `dc_title`
-- `dc_creator`
-- `dc_description`
-- `dc_subject`
-- `dc_type`
-- `dc_language`
-- `status`
-- `approved_at`
-
-Recommended sync events:
-
-- index when a project is approved or published
-- update when a core project is edited
-- hide or delete from index when a project is hidden or retracted
-
-## Current Status
-
-Implemented:
-
-- monorepo setup
-- Next.js frontend scaffold
-- FastAPI backend scaffold
-- SQLAlchemy database config
-- PostgreSQL schemas and models
-- Alembic migration setup
-- initial database migration
-- Docker Compose services for PostgreSQL, Elasticsearch, and Kibana
-- JWT/password utility files started
-
-Still in progress:
-
-- auth routes and services
-- user CRUD
-- staging project CRUD
-- review and approval workflow
-- copying approved staging data into core
-- Elasticsearch indexing and search APIs
-- production-ready frontend screens
-
-## Useful Commands
-
-```bash
-# install frontend dependencies
-npm install
-
-# run frontend only
-npm run dev:frontend
-
-# run backend only
-cd apps/backend
-venv\Scripts\activate
-uvicorn app.main:app --reload --port 8000
-
-# start database/search services
-cd apps
-docker compose up -d
-
-# run migrations
-cd apps/backend
-alembic upgrade head
-
-# create migration
-alembic revision --autogenerate -m "describe change"
-```
+Các chức năng chỉ nên được xem là hoàn thành sau khi đã được kiểm thử và xác nhận trong phạm vi yêu cầu của đồ án.

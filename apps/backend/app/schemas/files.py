@@ -1,7 +1,9 @@
-from pydantic import BaseModel
+from dataclasses import dataclass
+from typing import BinaryIO
 
 
-class IncomingFile(BaseModel):
+@dataclass(slots=True)
+class IncomingFile:
     filename: str
     content_type: str
-    content: bytes
+    fileobj: BinaryIO
