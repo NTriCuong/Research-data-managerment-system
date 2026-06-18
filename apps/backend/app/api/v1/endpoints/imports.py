@@ -22,10 +22,10 @@ async def import_staging_excel(
     incoming_file = IncomingFile(
         filename=file.filename or "import.xlsx",
         content_type=file.content_type or "application/octet-stream",
-        content=await file.read(),
+        fileobj=file.file,
     )
     return await staging_excel_import_service.import_workbook(
         db,
         file=incoming_file,
         current_user=current_user,
-    )
+)

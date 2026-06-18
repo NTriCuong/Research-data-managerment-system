@@ -1,5 +1,7 @@
 ﻿from functools import lru_cache
 
+from pathlib import Path
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -31,6 +33,8 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE: int
     MAX_LOGIN_ATTEMPTS: int
     LOCK_DURATION: int
+    BACKUP_DIRECTORY: Path = Path("backups")
+    PG_DUMP_PATH: str = "pg_dump"
 
     @field_validator("DEBUG", mode="before")
     @classmethod

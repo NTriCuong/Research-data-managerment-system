@@ -81,7 +81,7 @@ class AuthService:
         """
         self._validate_token_lifetime_policy()
         repo = AuthRepository(db)
-        user = await repo.find_user_by_username_with_role(username)
+        user = await repo.find_user_by_email_or_username_with_role(username)
 
         async def _log(login_result: str, reason: str | None = None) -> None:
             await login_log_service.write_log(

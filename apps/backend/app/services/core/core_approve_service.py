@@ -22,36 +22,7 @@ from app.services.logs.workflow_service import workflow_service
 
 class CoreApproveService:
     _REFRESH_SEARCH_VECTOR_SQL = text(
-        """
-        UPDATE core.research_objects AS ro
-        SET search_vector =
-            setweight(to_tsvector('simple', unaccent(coalesce(ro.title, ''))), 'A') ||
-            setweight(to_tsvector('simple', unaccent(coalesce(ro.identifier, ''))), 'A') ||
-            setweight(to_tsvector('simple', unaccent(coalesce(ro.abstract, ''))), 'B') ||
-            setweight(to_tsvector('simple', unaccent(coalesce((
-                SELECT string_agg(
-                    concat_ws(' ', a.full_name, a.email, a.affiliation),
-                    ' '
-                    ORDER BY a.author_order
-                )
-                FROM core.research_object_authors AS a
-                WHERE a.research_id = ro.research_id
-            ), ''))), 'B') ||
-            setweight(to_tsvector('simple', unaccent(coalesce((
-                SELECT string_agg(concat_ws(' ', k.keyword_text, k.normalized_text), ' ' ORDER BY k.keyword_text)
-                FROM core.research_object_keywords AS rok
-                JOIN reference.keywords AS k ON k.keyword_id = rok.keyword_id
-                WHERE rok.research_id = ro.research_id
-            ), ''))), 'B') ||
-            setweight(to_tsvector('simple', unaccent(coalesce((
-                SELECT string_agg(concat_ws(' ', d.domain_code, d.domain_name, d.description), ' ' ORDER BY d.domain_name)
-                FROM core.research_object_domains AS rod
-                JOIN reference.research_domains AS d ON d.domain_id = rod.domain_id
-                WHERE rod.research_id = ro.research_id
-            ), ''))), 'B') ||
-            setweight(to_tsvector('simple', unaccent(coalesce(ro.description, ''))), 'C')
-        WHERE ro.research_id = CAST(:research_id AS uuid)
-        """
+        "SELECT app.refresh_core_search_vector(CAST(:research_id AS uuid))"
     )
 
     @staticmethod

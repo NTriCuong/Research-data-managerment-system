@@ -5,9 +5,9 @@ import { clearCredentials } from "@/store/slice/auth.slice"
 import type { AppDispatch } from "@/store/store"
 
 export const authService = {
-    async login(username: string, password: string) {
+    async login(identifier: string, password: string) {
         const response = await axiosInstance.post(API_ENDPOINT.AUTH.LOGIN, {
-            username,
+            username: identifier,
             password,
         })
         return response.data

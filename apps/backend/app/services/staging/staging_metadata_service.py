@@ -4,10 +4,14 @@ from uuid import UUID
 
 from app.core.exceptions import AppException, BadRequestException, ForbiddenException, NotFoundException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 
 from app.models.auth.user import User
 from app.models.enum import AccessLevel, FileStatus, WorkflowStatus
 from app.models.staging.stg_file_attachment import StgFileAttachment
+from app.models.reference.research_domain import ResearchDomain
+from app.models.reference.keyword import Keyword
+from app.models.reference.researcher import Researcher
 from app.models.staging.stg_research_object import StgResearchObject
 from app.models.staging.stg_research_object_author import StgResearchObjectAuthor
 from app.models.staging.stg_research_object_domain import StgResearchObjectDomain
@@ -34,6 +38,122 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import AnyUrl
 
 class StagingService:
+    def _clean_unique_names(self, values: list[str] | None) -> list[str]:
+        names: list[str] = []
+        seen: set[str] = set()
+        for value in values or []:
+            name = value.strip()
+            key = name.lower()
+            if name and key not in seen:
+                names.append(name)
+                seen.add(key)
+        return names
+
+    def _dedupe_ids(self, values: list[UUID]) -> list[UUID]:
+        ids: list[UUID] = []
+        seen: set[UUID] = set()
+        for value in values:
+            if value not in seen:
+                ids.append(value)
+                seen.add(value)
+        return ids
+
+    async def _resolve_domain_ids(
+        self,
+        db: AsyncSession,
+        *,
+        domain_ids: list[UUID] | None,
+        domain_names: list[str] | None,
+    ) -> list[UUID]:
+        resolved_ids = list(domain_ids or [])
+        if domain_ids:
+            existing_ids = set(
+                (
+                    await db.execute(
+                        select(ResearchDomain.domain_id).where(ResearchDomain.domain_id.in_(domain_ids))
+                    )
+                ).scalars().all()
+            )
+            missing_ids = [str(item) for item in domain_ids if item not in existing_ids]
+            if missing_ids:
+                raise BadRequestException(f"domain_ids không tồn tại: {', '.join(missing_ids)}")
+
+        names = self._clean_unique_names(domain_names)
+        if names:
+            raise BadRequestException("domain phải được chọn bằng domain_id; nếu chưa có hãy tạo research domain trước")
+
+        return self._dedupe_ids(resolved_ids)
+
+    async def _resolve_keyword_ids(
+        self,
+        db: AsyncSession,
+        *,
+        keyword_ids: list[UUID] | None,
+        keyword_names: list[str] | None,
+    ) -> list[UUID]:
+        resolved_ids = list(keyword_ids or [])
+        if keyword_ids:
+            existing_ids = set(
+                (
+                    await db.execute(
+                        select(Keyword.keyword_id).where(Keyword.keyword_id.in_(keyword_ids))
+                    )
+                ).scalars().all()
+            )
+            missing_ids = [str(item) for item in keyword_ids if item not in existing_ids]
+            if missing_ids:
+                raise BadRequestException(f"keyword_ids không tồn tại: {', '.join(missing_ids)}")
+
+        names = self._clean_unique_names(keyword_names)
+        if names:
+            normalized_names = [name.lower() for name in names]
+            existing_keywords = (
+                await db.execute(
+                    select(Keyword).where(func.lower(Keyword.keyword_text).in_(normalized_names))
+                )
+            ).scalars().all()
+            by_text = {item.keyword_text.lower(): item for item in existing_keywords}
+
+            for name in names:
+                keyword = by_text.get(name.lower())
+                if keyword is None:
+                    keyword = Keyword(keyword_text=name, normalized_text=name.lower())
+                    db.add(keyword)
+                    await db.flush()
+                    by_text[name.lower()] = keyword
+                resolved_ids.append(keyword.keyword_id)
+
+        return self._dedupe_ids(resolved_ids)
+
+    async def _resolve_authors(self, db: AsyncSession, authors):
+        if not authors:
+            return []
+
+        researcher_ids = [author.researcher_id for author in authors if author.researcher_id]
+        if len(researcher_ids) != len(authors):
+            raise BadRequestException("authors phải được chọn bằng researcher_id; nếu chưa có hãy tạo researcher trước")
+
+        researchers_by_id: dict[UUID, Researcher] = {}
+        if researcher_ids:
+            existing_researchers = (
+                await db.execute(select(Researcher).where(Researcher.researcher_id.in_(researcher_ids)))
+            ).scalars().all()
+            researchers_by_id = {item.researcher_id: item for item in existing_researchers}
+            missing_ids = [str(item) for item in researcher_ids if item not in researchers_by_id]
+            if missing_ids:
+                raise BadRequestException(f"researcher_id không tồn tại: {', '.join(missing_ids)}")
+
+        resolved = []
+        for author in authors:
+            researcher = researchers_by_id[author.researcher_id]
+
+            author.researcher_id = researcher.researcher_id
+            author.full_name = researcher.full_name
+            author.email = researcher.email
+            resolved.append(author)
+
+        return resolved
+
     def _recalculate_metadata_quality(self, staging_obj: StgResearchObject) -> None:
         checks: dict[str, bool] = {
             "title": bool(staging_obj.title and staging_obj.title.strip()),
@@ -156,8 +276,20 @@ class StagingService:
         )
         await repo.create(obj)
 
-        db.add_all([StgResearchObjectDomain(staging_id=obj.staging_id, domain_id=domain_id) for domain_id in payload.domain_ids])
-        db.add_all([StgResearchObjectKeyword(staging_id=obj.staging_id, keyword_id=keyword_id) for keyword_id in payload.keyword_ids])
+        authors = await self._resolve_authors(db, payload.authors)
+        domain_ids = await self._resolve_domain_ids(
+            db,
+            domain_ids=payload.domain_ids,
+            domain_names=payload.domain_name,
+        )
+        keyword_ids = await self._resolve_keyword_ids(
+            db,
+            keyword_ids=payload.keyword_ids,
+            keyword_names=payload.keyword_name,
+        )
+
+        db.add_all([StgResearchObjectDomain(staging_id=obj.staging_id, domain_id=domain_id) for domain_id in domain_ids])
+        db.add_all([StgResearchObjectKeyword(staging_id=obj.staging_id, keyword_id=keyword_id) for keyword_id in keyword_ids])
         db.add_all(
             [
                 StgResearchObjectAuthor(
@@ -169,7 +301,7 @@ class StagingService:
                     author_order=author.author_order,
                     author_role=author.author_role,
                 )
-                for author in payload.authors
+                for author in authors
             ]
         )
         await workflow_service.write_history(
@@ -259,7 +391,7 @@ class StagingService:
         changed_new: dict = {}
         
         for field, value in payload_data.items():
-            if field in {"domain_ids", "keyword_ids", "authors"}:
+            if field in {"domain_ids", "keyword_ids", "domain_name", "keyword_name", "authors"}:
                 continue    
             if isinstance(value, AnyUrl):
                 value = str(value)
@@ -271,9 +403,14 @@ class StagingService:
                 setattr(obj, field, value)
 
         # 2. Update domains
-        if payload.domain_ids is not None:
+        if payload.domain_ids is not None or payload.domain_name is not None:
+            new_domain_ids = await self._resolve_domain_ids(
+                db,
+                domain_ids=payload.domain_ids,
+                domain_names=payload.domain_name,
+            )
+
             old_domain_ids = [x.domain_id for x in obj.domains]
-            new_domain_ids = payload.domain_ids
 
             if set(old_domain_ids) != set(new_domain_ids):
                 changed_old["domain_ids"] = [str(x) for x in old_domain_ids]
@@ -292,9 +429,14 @@ class StagingService:
                 )
 
         # 3. Update keywords
-        if payload.keyword_ids is not None:
+        if payload.keyword_ids is not None or payload.keyword_name is not None:
+            new_keyword_ids = await self._resolve_keyword_ids(
+                db,
+                keyword_ids=payload.keyword_ids,
+                keyword_names=payload.keyword_name,
+            )
+
             old_keyword_ids = [x.keyword_id for x in obj.keywords]
-            new_keyword_ids = payload.keyword_ids
 
             if set(old_keyword_ids) != set(new_keyword_ids):
                 changed_old["keyword_ids"] = [str(x) for x in old_keyword_ids]
@@ -314,6 +456,8 @@ class StagingService:
 
         # 4. Update authors
         if payload.authors is not None:
+            authors = await self._resolve_authors(db, payload.authors)
+
             old_authors = [
                 {
                     "researcher_id": str(x.researcher_id) if x.researcher_id else None,
@@ -335,7 +479,7 @@ class StagingService:
                     "author_order": author.author_order,
                     "author_role": author.author_role.value if hasattr(author.author_role, "value") else author.author_role,
                 }
-                for author in payload.authors
+                for author in authors
             ]
 
             if old_authors != new_authors:
@@ -355,7 +499,7 @@ class StagingService:
                             author_order=author.author_order,
                             author_role=author.author_role,
                         )
-                        for author in payload.authors
+                        for author in authors
                     ]
                 )
 

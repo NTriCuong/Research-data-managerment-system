@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, core_approve, core_repository, imports, logs, reference, reports, search, staging_metadata, staging_review, users
+from app.api.v1.endpoints import backup, auth, core_approve, core_repository, imports, logs, reference, reports, search, staging_metadata, staging_review, users
 
 
 
@@ -16,3 +16,4 @@ api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
 api_router.include_router(core_repository.router, prefix="/core-repository", tags=["Core Repository"])
 api_router.include_router(search.router, prefix="/search", tags=["Search"])
 api_router.include_router(logs.router, prefix="/logs", tags=["Logs"])
+api_router.include_router(backup.router, prefix="/backup", tags=["Backup"])

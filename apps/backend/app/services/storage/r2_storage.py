@@ -3,9 +3,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import boto3
+from boto3.s3.transfer import TransferConfig
 from botocore.client import BaseClient
 
 from app.core.config import settings
+
+
+MULTIPART_THRESHOLD_BYTES = 8 * 1024 * 1024
+MULTIPART_CHUNK_SIZE_BYTES = 8 * 1024 * 1024
+R2_TRANSFER_CONFIG = TransferConfig(
+    multipart_threshold=MULTIPART_THRESHOLD_BYTES,
+    multipart_chunksize=MULTIPART_CHUNK_SIZE_BYTES,
+    use_threads=True,
+)
 
 
 @dataclass(frozen=True)
@@ -69,6 +79,7 @@ def upload_fileobj_to_r2(*, object_key: str, fileobj, content_type: str) -> R2Up
         bucket_name,
         object_key,
         ExtraArgs={"ContentType": content_type},
+        Config=R2_TRANSFER_CONFIG,
     )
 
     public_url: str | None = None

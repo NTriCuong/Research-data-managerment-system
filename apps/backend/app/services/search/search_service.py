@@ -2,15 +2,10 @@ from sqlalchemy import Float, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.core.core_research_object import CoreResearchObject
-from app.models.core.core_research_object_author import CoreResearchObjectAuthor
-from app.models.core.core_research_object_domain import CoreResearchObjectDomain
-from app.models.core.core_research_object_keyword import CoreResearchObjectKeyword
 from app.models.auth.user import User
 from app.models.enum import AccessLevel, WorkflowStatus
-from app.models.reference.keyword import Keyword
-from app.models.reference.research_domain import ResearchDomain
 from app.models.staging.stg_research_object import StgResearchObject
-from app.schemas.core_approve import CoreSearchResultOut
+from app.schemas.core_approve import CoreSearchResponseOut, CoreSearchResultOut
 
 
 class SearchService:
@@ -66,53 +61,30 @@ class SearchService:
         limit: int,
         offset: int,
         current_user: User | None = None,
-    ) -> list[CoreSearchResultOut]:
+    ) -> CoreSearchResponseOut:
         normalized_query = query.strip()
         if not normalized_query:
-            return []
+            return CoreSearchResponseOut(items=[], total=0, limit=limit, offset=offset)
 
         ts_query = func.websearch_to_tsquery("simple", func.unaccent(normalized_query))
         search_vector = func.coalesce(CoreResearchObject.search_vector, func.to_tsvector("simple", ""))
         rank = cast(func.ts_rank_cd(search_vector, ts_query), Float)
         ilike_pattern = func.unaccent(f"%{normalized_query}%")
 
+        filters = [
+            CoreResearchObject.deleted_at.is_(None),
+            self._access_filter(current_user),
+            or_(
+                search_vector.op("@@")(ts_query),
+                self._unaccent_ilike(CoreResearchObject.identifier, ilike_pattern),
+            ),
+        ]
+        total_stmt = select(func.count()).select_from(CoreResearchObject).where(*filters)
+        total = int((await db.execute(total_stmt)).scalar_one())
+
         stmt = (
             select(CoreResearchObject, rank.label("rank"))
-            .where(CoreResearchObject.deleted_at.is_(None))
-            .where(self._access_filter(current_user))
-            .where(
-                or_(
-                    search_vector.op("@@")(ts_query),
-                    self._unaccent_ilike(CoreResearchObject.title, ilike_pattern),
-                    self._unaccent_ilike(CoreResearchObject.abstract, ilike_pattern),
-                    self._unaccent_ilike(CoreResearchObject.description, ilike_pattern),
-                    self._unaccent_ilike(CoreResearchObject.identifier, ilike_pattern),
-                    CoreResearchObject.authors.any(
-                        or_(
-                            self._unaccent_ilike(CoreResearchObjectAuthor.full_name, ilike_pattern),
-                            self._unaccent_ilike(CoreResearchObjectAuthor.email, ilike_pattern),
-                            self._unaccent_ilike(CoreResearchObjectAuthor.affiliation, ilike_pattern),
-                        )
-                    ),
-                    CoreResearchObject.keywords.any(
-                        CoreResearchObjectKeyword.keyword.has(
-                            or_(
-                                self._unaccent_ilike(Keyword.keyword_text, ilike_pattern),
-                                self._unaccent_ilike(Keyword.normalized_text, ilike_pattern),
-                            )
-                        )
-                    ),
-                    CoreResearchObject.domains.any(
-                        CoreResearchObjectDomain.domain.has(
-                            or_(
-                                self._unaccent_ilike(ResearchDomain.domain_code, ilike_pattern),
-                                self._unaccent_ilike(ResearchDomain.domain_name, ilike_pattern),
-                                self._unaccent_ilike(ResearchDomain.description, ilike_pattern),
-                            )
-                        )
-                    ),
-                )
-            )
+            .where(*filters)
             .order_by(rank.desc(), CoreResearchObject.created_at.desc())
             .offset(offset)
             .limit(limit)
@@ -132,7 +104,7 @@ class SearchService:
                     rank=float(score or 0.0),
                 )
             )
-        return rows
+        return CoreSearchResponseOut(items=rows, total=total, limit=limit, offset=offset)
 
 
 search_service = SearchService()

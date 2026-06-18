@@ -1,1 +1,18 @@
-Generic single-database configuration.
+# Generic single-database configuration.
+# Chạy migration để cập nhật DB lên version mới nhất
+alembic upgrade head
+
+# Xem migration hiện tại của DB
+alembic current
+
+# Xem lịch sử migration
+alembic history
+
+# Tạo migration mới tự động từ model SQLAlchemy
+alembic revision --autogenerate -m "message_ngan_gon"
+
+# Chạy lên version mới nhất
+alembic upgrade head
+
+# Rollback 1 migration
+alembic downgrade -1

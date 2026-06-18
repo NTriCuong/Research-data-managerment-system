@@ -77,6 +77,9 @@ def test_data_entry_can_create_staging_record(client, sample_user, monkeypatch):
     db = _FakeDbSession()
     client.app.dependency_overrides[get_db] = _fake_db_provider(db)
     staging_id = uuid4()
+    domain_id = uuid4()
+    keyword_id = uuid4()
+    researcher_id = uuid4()
     captured = {}
 
     async def _fake_create(db_arg, *, payload, current_user):
@@ -95,6 +98,9 @@ def test_data_entry_can_create_staging_record(client, sample_user, monkeypatch):
             "department_id": str(uuid4()),
             "year": 2026,
             "access_level": "internal",
+            "domain_ids": [str(domain_id)],
+            "keyword_ids": [str(keyword_id)],
+            "authors": [{"researcher_id": str(researcher_id), "author_order": 1}],
         },
     )
 
@@ -102,6 +108,10 @@ def test_data_entry_can_create_staging_record(client, sample_user, monkeypatch):
     assert response.json()["staging_id"] == str(staging_id)
     assert captured["db"] is db
     assert captured["payload"].title == "Endpoint coverage record"
+    assert captured["payload"].domain_ids == [domain_id]
+    assert captured["payload"].keyword_ids == [keyword_id]
+    assert captured["payload"].authors[0].researcher_id == researcher_id
+    assert captured["payload"].authors[0].full_name is None
     assert captured["current_user"] is sample_user
     assert db.commit_count == 0
 
@@ -201,7 +211,8 @@ def test_upload_endpoint_passes_file_without_access_level_to_service(client, sam
 
     async def _fake_upload(*args, **kwargs):
         captured.update(kwargs)
-        captured["file_bytes"] = kwargs["file"].content
+        captured["file_bytes"] = kwargs["file"].fileobj.read()
+        kwargs["file"].fileobj.seek(0)
         return _file_payload(staging_id, sample_user)
 
     monkeypatch.setattr(metadata_endpoint.staging_service, "create_staging_file_metadata", _fake_upload)
