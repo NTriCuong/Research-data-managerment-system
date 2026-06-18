@@ -24,6 +24,7 @@ export const API_ENDPOINT = {
         POST: 'api/v1/reference/keywords',
     },
     DOMAIN: {
-        GET: 'api/v1/reference/domains',
+        GET: 'api/v1/reference/research-domains',
+        POST: 'api/v1/reference/research-domains',
     }
 } 
