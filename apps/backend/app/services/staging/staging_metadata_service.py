@@ -316,7 +316,7 @@ class StagingService:
         obj = await repo.get_by_id(staging_id, with_relations=True)
         if obj is None or obj.deleted_at is not None:
             raise NotFoundException("Không tìm thấy bản ghi tạm")
-        if obj.created_by != current_user.user_id and current_user.role.role_code not in {"SUPER_ADMIN", "MANAGER", "REVIEWER"}:
+        if obj.created_by != current_user.user_id and current_user.role.role_code not in {"SUPER_ADMIN", "MANAGER", "REVIEWER", "APPROVER"}:
             raise ForbiddenException("Bạn không có quyền xem bản ghi tạm này")
         return StagingResearchObjectDetailOut(
             staging_id=obj.staging_id,

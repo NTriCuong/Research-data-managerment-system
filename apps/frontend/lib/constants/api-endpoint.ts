@@ -19,6 +19,11 @@ export const API_ENDPOINT = {
         FORWARD: (stagingId: string) => `/api/v1/staging-review/${stagingId}/forward`,
         REQUEST_REVISION: (stagingId: string) => `/api/v1/staging-review/${stagingId}/request-revision`,
     },
+    APPROVER: {
+        GET_RESEARCH_DATA: '/api/v1/core-approve/pending',
+        APPROVE: (stagingId: string) => `/api/v1/core-approve/${stagingId}/approve`,
+        REJECT: (stagingId: string) => `/api/v1/core-approve/${stagingId}/reject`,
+    },
     // reference dùng chung 
     OUTPUT_TYPE: {
         GET: 'api/v1/reference/output-types/',

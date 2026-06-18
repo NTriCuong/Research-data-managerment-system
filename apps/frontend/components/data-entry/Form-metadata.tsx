@@ -10,13 +10,14 @@ import { toast } from 'sonner';
 import AddKeywordModal from "./add-keyword-modal";
 import AddDomainModal from "./add-research-domain-modal";
 import AsyncSelect from "react-select/async";
+import { FileText, CalendarRange, Tags, Users, Paperclip, type LucideIcon } from "lucide-react";
 
 const AUTHOR_ROLES = [
-    { value: "creator", label: "Creator" },
-    { value: "contributor", label: "Contributor" },
-    { value: "supervisor", label: "Supervisor" },
-    { value: "student_member", label: "Student member" },
-    { value: "corresponding_author", label: "Corresponding author" },
+    { value: "creator", label: "Người tạo (tác giả chính)" },
+    { value: "contributor", label: "Người đóng góp" },
+    { value: "supervisor", label: "Người hướng dẫn" },
+    { value: "student_member", label: "Thành viên (sinh viên)" },
+    { value: "corresponding_author", label: "Tác giả liên hệ" },
 ];
 
 type AuthorForm = {
@@ -56,6 +57,34 @@ type MetadataFormState = {
     authors: AuthorForm[];
 };
 
+function RequiredMark() {
+    return <span className="text-red-500"> *</span>;
+}
+
+function FormSectionCard({
+    icon: Icon,
+    title,
+    action,
+    children,
+}: {
+    icon: LucideIcon;
+    title: string;
+    action?: React.ReactNode;
+    children: React.ReactNode;
+}) {
+    return (
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="mb-6 flex items-center justify-between">
+                <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+                    <Icon size={18} className="text-gray-400" />
+                    {title}
+                </h2>
+                {action}
+            </div>
+            {children}
+        </div>
+    );
+}
 
 type FormMetadataProps = {
     stagingId?: string;
@@ -371,7 +400,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
         try {
             await referenceService.submitForReview(stagingId ?? "", submitNote);
 
-            toast.success("Gửi phê duyệt thành công");
+            toast.success("Gửi chờ kiểm duyệt thành công");
             setOpenSubmitModal(false);
             setSubmitNote("");
 
@@ -384,7 +413,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
         }
     };
     return (
-        <div className="mx-auto max-w-7xl space-y-8 p-6">
+        <div className="bg-gray-50">
             <AddDomainModal
                 open={openDomainModal}
                 onClose={() => setOpenDomainModal(false)}
@@ -396,679 +425,667 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                 onClose={() => setOpenKeywordModal(false)}
                 onSubmit={handleCreateKeyword}
             />
-            <div className="rounded-xl border bg-white p-6 shadow-sm">
-                <h2 className="mb-6 text-xl font-semibold">
-                    Metadata Research
-                </h2>
 
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                    <div className="md:col-span-2">
-                        <label className="mb-2 block text-sm font-medium">
-                            Tiêu đề
-                        </label>
-                        <input
-                            className="w-full rounded-lg border px-3 py-2"
-                            placeholder="Research title"
-                            value={formData.title}
-                            onChange={(e) =>
-                                setFormData(prev => ({
-                                    ...prev,
-                                    title: e.target.value,
-                                }))
-                            }
-                        />
+            <div className="mx-auto max-w-5xl space-y-6 p-6">
+                <p className="text-sm text-gray-500">
+                    Các trường có dấu<span className="font-medium text-red-500"> *</span> là bắt buộc.
+                </p>
+
+                <FormSectionCard icon={FileText} title="Thông tin metadata (Metadata Information)">
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                        <div className="md:col-span-2">
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Tiêu đề (Title)<RequiredMark />
+                            </label>
+                            <input
+                                className="w-full rounded-lg border px-3 py-2"
+                                placeholder="Nhập tiêu đề nghiên cứu"
+                                value={formData.title}
+                                onChange={(e) =>
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        title: e.target.value,
+                                    }))
+                                }
+                            />
+                        </div>
+
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Loại sản phẩm (Output Type)<RequiredMark />
+                            </label>
+
+                            <select
+                                className="w-full rounded-lg border px-3 py-2"
+                                value={formData.output_type_id}
+                                onChange={(e) =>
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        output_type_id: e.target.value,
+                                    }))
+                                }
+                            >
+                                <option value="">Chọn loại sản phẩm</option>
+
+                                {outputTypes.map((item) => (
+                                    <option
+                                        key={item.output_type_id}
+                                        value={item.output_type_id}
+                                    >
+                                        {item.type_name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Đơn vị (Department)<RequiredMark />
+                            </label>
+
+                            <select
+                                className="w-full rounded-lg border px-3 py-2"
+                                value={formData.department_id}
+                                onChange={(e) =>
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        department_id: e.target.value,
+                                    }))
+                                }
+                            >
+                                <option value="">Chọn đơn vị</option>
+
+                                {departments.map((item) => (
+                                    <option
+                                        key={item.department_id}
+                                        value={item.department_id}
+                                    >
+                                        {item.department_name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Năm (Year)
+                            </label>
+
+                            <input
+                                type="number"
+                                className="w-full rounded-lg border px-3 py-2"
+                                value={formData.year ?? ""}
+                                onChange={(e) =>
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        year: e.target.value ? Number(e.target.value) : null,
+                                    }))
+                                }
+                            />
+                        </div>
+
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Ngôn ngữ (Language)
+                            </label>
+
+                            <select
+                                className="w-full rounded-lg border px-3 py-2"
+                                value={formData.language}
+                                onChange={(e) =>
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        language: e.target.value,
+                                    }))
+                                }
+                            >
+                                <option value="vi">vi</option>
+                                <option value="en">en</option>
+                            </select>
+                        </div>
+
+                        <div className="md:col-span-2">
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Mô tả (Description)
+                            </label>
+
+                            <textarea
+                                rows={3}
+                                className="w-full rounded-lg border px-3 py-2"
+                                value={formData.description}
+                                onChange={(e) =>
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        description: e.target.value,
+                                    }))
+                                }
+                            />
+                        </div>
+
+                        <div className="md:col-span-2">
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Tóm tắt (Abstract)
+                            </label>
+                            <textarea
+                                rows={6}
+                                className="w-full rounded-lg border px-3 py-2"
+                                value={formData.abstract}
+                                onChange={(e) =>
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        abstract: e.target.value,
+                                    }))
+                                }
+                            />
+                        </div>
                     </div>
+                </FormSectionCard>
 
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            Loại sản phẩm
-                        </label>
+                <FormSectionCard icon={CalendarRange} title="Thông tin xuất bản (Publication Information)">
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
 
-                        <select
-                            className="w-full rounded-lg border px-3 py-2"
-                            value={formData.output_type_id}
-                            onChange={(e) =>
-                                setFormData((prev) => ({
-                                    ...prev,
-                                    output_type_id: e.target.value,
-                                }))
-                            }
-                        >
-                            <option value="">Chọn loại sản phẩm</option>
+                        {/* START DATE */}
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Ngày bắt đầu (Start Date)
+                            </label>
+                            <input
+                                type="date"
+                                className="w-full rounded-lg border px-3 py-2"
+                                value={formData.start_date}
+                                onChange={(e) =>
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        start_date: e.target.value
+                                    }))
+                                }
+                            />
+                        </div>
 
-                            {outputTypes.map((item) => (
-                                <option
-                                    key={item.output_type_id}
-                                    value={item.output_type_id}
-                                >
-                                    {item.type_name}
-                                </option>
-                            ))}
-                        </select>
+                        {/* END DATE */}
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Ngày kết thúc (End Date)
+                            </label>
+                            <input
+                                type="date"
+                                className="w-full rounded-lg border px-3 py-2"
+                                value={formData.end_date}
+                                onChange={(e) =>
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        end_date: e.target.value
+                                    }))
+                                }
+                            />
+                        </div>
+
+                        {/* DATE ISSUED */}
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Ngày phát hành (Date Issued)
+                            </label>
+                            <input
+                                type="date"
+                                className="w-full rounded-lg border px-3 py-2"
+                                value={formData.date_issued}
+                                onChange={(e) =>
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        date_issued: e.target.value
+                                    }))
+                                }
+                            />
+                        </div>
+
+                        {/* PUBLISHER */}
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Nhà xuất bản (Publisher)
+                            </label>
+                            <input
+                                className="w-full rounded-lg border px-3 py-2"
+                                placeholder="Tên nhà xuất bản"
+                                value={formData.publisher}
+                                onChange={(e) =>
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        publisher: e.target.value
+                                    }))
+                                }
+                            />
+                        </div>
+
+                        {/* IDENTIFIER */}
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Mã định danh (Identifier)
+                            </label>
+                            <input
+                                className="w-full rounded-lg border px-3 py-2"
+                                placeholder="ISBN / DOI / Mã số"
+                                value={formData.identifier}
+                                onChange={(e) =>
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        identifier: e.target.value
+                                    }))
+                                }
+                            />
+                        </div>
+
+                        {/* EXTERNAL URL */}
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Đường dẫn ngoài (External URL)
+                            </label>
+                            <input
+                                className="w-full rounded-lg border px-3 py-2"
+                                placeholder="https://example.com"
+                                value={formData.external_url}
+                                onChange={(e) =>
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        external_url: e.target.value
+                                    }))
+                                }
+                            />
+                        </div>
+
+                        {/* SOURCE */}
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Nguồn (Source)
+                            </label>
+                            <input
+                                className="w-full rounded-lg border px-3 py-2"
+                                placeholder="Nguồn tài liệu"
+                                value={formData.source}
+                                onChange={(e) =>
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        source: e.target.value
+                                    }))
+                                }
+                            />
+                        </div>
+
+                        {/* RELATION */}
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Liên quan (Relation)
+                            </label>
+                            <input
+                                className="w-full rounded-lg border px-3 py-2"
+                                value={formData.relation}
+                                onChange={(e) =>
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        relation: e.target.value
+                                    }))
+                                }
+                            />
+                        </div>
+
+                        {/* COVERAGE */}
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Phạm vi áp dụng (Coverage)
+                            </label>
+                            <input
+                                className="w-full rounded-lg border px-3 py-2"
+                                value={formData.coverage}
+                                onChange={(e) =>
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        coverage: e.target.value
+                                    }))
+                                }
+                            />
+                        </div>
+
+                        {/* RIGHTS */}
+                        <div className="md:col-span-2">
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Bản quyền (Rights)
+                            </label>
+                            <input
+                                className="w-full rounded-lg border px-3 py-2"
+                                value={formData.rights}
+                                onChange={(e) =>
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        rights: e.target.value
+                                    }))
+                                }
+                            />
+                        </div>
+
                     </div>
+                </FormSectionCard>
 
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            Đơn vị
-                        </label>
+                <FormSectionCard icon={Tags} title="Phân loại (Classification)">
+                    <div className="space-y-6">
 
-                        <select
-                            className="w-full rounded-lg border px-3 py-2"
-                            value={formData.department_id}
-                            onChange={(e) =>
-                                setFormData((prev) => ({
-                                    ...prev,
-                                    department_id: e.target.value,
-                                }))
-                            }
-                        >
-                            <option value="">Chọn đơn vị</option>
+                        {/* Domain */}
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Phạm vi (Domain)
+                            </label>
 
-                            {departments.map((item) => (
-                                <option
-                                    key={item.department_id}
-                                    value={item.department_id}
-                                >
-                                    {item.department_name}
-                                </option>
-                            ))}
-                        </select>
+                            <AsyncSelect
+                                isMulti
+                                cacheOptions
+                                defaultOptions
+                                value={selectedDomains}
+                                loadOptions={async (inputValue) => {
+                                    const res = await referenceService.suggestDomains(inputValue, 20);
+
+                                    return res.map((d: any) => ({
+                                        value: d.domain_id,
+                                        label: d.domain_name,
+                                    }));
+                                }}
+                                onChange={(selected: any) => {
+                                    setSelectedDomains(selected || []);
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        domain_ids: selected?.map((x: any) => x.value) || [],
+                                    }));
+                                }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setOpenDomainModal(true)}
+                                className="cursor-pointer mt-2 text-sm text-blue-600"
+                            >
+                                + Thêm domain mới
+                            </button>
+                        </div>
+
+                        {/* Keyword */}
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Từ khóa (Keyword)
+                            </label>
+
+                            <AsyncSelect
+                                isMulti
+                                cacheOptions
+                                defaultOptions
+                                value={selectedKeywords}
+                                loadOptions={async (inputValue) => {
+                                    const res = await referenceService.suggestKeywords(inputValue, 20);
+
+                                    return res.map((k: any) => ({
+                                        value: k.keyword_id,
+                                        label: k.keyword_text,
+                                    }));
+                                }}
+                                onChange={(selected: any) => {
+                                    setSelectedKeywords(selected || []);
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        keyword_ids: selected?.map((x: any) => x.value) || [],
+                                    }));
+                                }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setOpenKeywordModal(true)}
+                                className="cursor-pointer mt-2 text-sm text-blue-600"
+                            >
+                                + Thêm keyword mới
+                            </button>
+
+                        </div>
                     </div>
+                </FormSectionCard>
 
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            Năm
-                        </label>
-
-                        <input
-                            type="number"
-                            className="w-full rounded-lg border px-3 py-2"
-                            value={formData.year ?? ""}
-                            onChange={(e) =>
-                                setFormData(prev => ({
-                                    ...prev,
-                                    year: e.target.value ? Number(e.target.value) : null,
-                                }))
-                            }
-                        />
-                    </div>
-
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            Ngôn ngữ
-                        </label>
-
-                        <select
-                            className="w-full rounded-lg border px-3 py-2"
-                            value={formData.language}
-                            onChange={(e) =>
-                                setFormData(prev => ({
-                                    ...prev,
-                                    language: e.target.value,
-                                }))
-                            }
-                        >
-                            <option value="vi">vi</option>
-                            <option value="en">en</option>
-                        </select>
-                    </div>
-
-                    <div className="md:col-span-2">
-                        <label className="mb-2 block text-sm font-medium">
-                            Mô tả
-                        </label>
-
-                        <textarea
-                            rows={3}
-                            className="w-full rounded-lg border px-3 py-2"
-                            value={formData.description}
-                            onChange={(e) =>
-                                setFormData(prev => ({
-                                    ...prev,
-                                    description: e.target.value,
-                                }))
-                            }
-                        />
-                    </div>
-
-                    <div className="md:col-span-2">
-                        <label className="mb-2 block text-sm font-medium">
-                            Tóm tắt
-                        </label>
-                        <textarea
-                            rows={6}
-                            className="w-full rounded-lg border px-3 py-2"
-                            value={formData.abstract}
-                            onChange={(e) =>
-                                setFormData(prev => ({
-                                    ...prev,
-                                    abstract: e.target.value,
-                                }))
-                            }
-                        />
-                    </div>
-                </div>
-            </div>
-
-            {/* Publication Information */}
-            <div className="rounded-xl border bg-white p-6 shadow-sm">
-                <h2 className="mb-6 text-xl font-semibold">
-                    Publication Information
-                </h2>
-
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-
-                    {/* START DATE */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            Start Date
-                        </label>
-                        <input
-                            type="date"
-                            className="w-full rounded-lg border px-3 py-2"
-                            value={formData.start_date}
-                            onChange={(e) =>
-                                setFormData(prev => ({
-                                    ...prev,
-                                    start_date: e.target.value
-                                }))
-                            }
-                        />
-                    </div>
-
-                    {/* END DATE */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            End Date
-                        </label>
-                        <input
-                            type="date"
-                            className="w-full rounded-lg border px-3 py-2"
-                            value={formData.end_date}
-                            onChange={(e) =>
-                                setFormData(prev => ({
-                                    ...prev,
-                                    end_date: e.target.value
-                                }))
-                            }
-                        />
-                    </div>
-
-                    {/* DATE ISSUED */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            Date Issued
-                        </label>
-                        <input
-                            type="date"
-                            className="w-full rounded-lg border px-3 py-2"
-                            value={formData.date_issued}
-                            onChange={(e) =>
-                                setFormData(prev => ({
-                                    ...prev,
-                                    date_issued: e.target.value
-                                }))
-                            }
-                        />
-                    </div>
-
-                    {/* PUBLISHER */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            Publisher
-                        </label>
-                        <input
-                            className="w-full rounded-lg border px-3 py-2"
-                            placeholder="Publisher name"
-                            value={formData.publisher}
-                            onChange={(e) =>
-                                setFormData(prev => ({
-                                    ...prev,
-                                    publisher: e.target.value
-                                }))
-                            }
-                        />
-                    </div>
-
-                    {/* IDENTIFIER */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            Identifier
-                        </label>
-                        <input
-                            className="w-full rounded-lg border px-3 py-2"
-                            placeholder="ISBN / DOI / Code"
-                            value={formData.identifier}
-                            onChange={(e) =>
-                                setFormData(prev => ({
-                                    ...prev,
-                                    identifier: e.target.value
-                                }))
-                            }
-                        />
-                    </div>
-
-                    {/* EXTERNAL URL */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            External URL
-                        </label>
-                        <input
-                            className="w-full rounded-lg border px-3 py-2"
-                            placeholder="https://example.com"
-                            value={formData.external_url}
-                            onChange={(e) =>
-                                setFormData(prev => ({
-                                    ...prev,
-                                    external_url: e.target.value
-                                }))
-                            }
-                        />
-                    </div>
-
-                    {/* SOURCE */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            Source
-                        </label>
-                        <input
-                            className="w-full rounded-lg border px-3 py-2"
-                            placeholder="Source"
-                            value={formData.source}
-                            onChange={(e) =>
-                                setFormData(prev => ({
-                                    ...prev,
-                                    source: e.target.value
-                                }))
-                            }
-                        />
-                    </div>
-
-                    {/* RELATION */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            Relation
-                        </label>
-                        <input
-                            className="w-full rounded-lg border px-3 py-2"
-                            value={formData.relation}
-                            onChange={(e) =>
-                                setFormData(prev => ({
-                                    ...prev,
-                                    relation: e.target.value
-                                }))
-                            }
-                        />
-                    </div>
-
-                    {/* COVERAGE */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            Coverage
-                        </label>
-                        <input
-                            className="w-full rounded-lg border px-3 py-2"
-                            value={formData.coverage}
-                            onChange={(e) =>
-                                setFormData(prev => ({
-                                    ...prev,
-                                    coverage: e.target.value
-                                }))
-                            }
-                        />
-                    </div>
-
-                    {/* RIGHTS */}
-                    <div className="md:col-span-2">
-                        <label className="mb-2 block text-sm font-medium">
-                            Rights
-                        </label>
-                        <input
-                            className="w-full rounded-lg border px-3 py-2"
-                            value={formData.rights}
-                            onChange={(e) =>
-                                setFormData(prev => ({
-                                    ...prev,
-                                    rights: e.target.value
-                                }))
-                            }
-                        />
-                    </div>
-
-                </div>
-            </div>
-
-            <div className="rounded-xl border bg-white p-6 shadow-sm">
-                <h2 className="mb-6 text-xl font-semibold">
-                    Classification
-                </h2>
-
-                <div className="space-y-6">
-
-                    {/* Domain */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            Phạm vi
-                        </label>
-
-                        <AsyncSelect
-                            isMulti
-                            cacheOptions
-                            defaultOptions
-                            value={selectedDomains}
-                            loadOptions={async (inputValue) => {
-                                const res = await referenceService.suggestDomains(inputValue, 20);
-
-                                return res.map((d: any) => ({
-                                    value: d.domain_id,
-                                    label: d.domain_name,
-                                }));
-                            }}
-                            onChange={(selected: any) => {
-                                setSelectedDomains(selected || []);
-                                setFormData(prev => ({
-                                    ...prev,
-                                    domain_ids: selected?.map((x: any) => x.value) || [],
-                                }));
-                            }}
-                        />
+                <FormSectionCard
+                    icon={Users}
+                    title="Tác giả (Authors)"
+                    action={
                         <button
                             type="button"
-                            onClick={() => setOpenDomainModal(true)}
-                            className="cursor-pointer mt-2 text-sm text-blue-600"
+                            onClick={handleAddAuthor}
+                            className="cursor-pointer rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
                         >
-                            + Thêm domain mới
+                            + Thêm tác giả
+                        </button>
+                    }
+                >
+                    <div className="space-y-6">
+                        {authors.length === 0 && (
+                            <p className="text-sm text-gray-400">Chưa có tác giả nào, bấm &quot;+ Thêm tác giả&quot; để bắt đầu.</p>
+                        )}
+                        {authors.map((author, index) => (
+                            <div key={index} className="rounded-lg border border-gray-200 p-5">
+
+                                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+
+                                    {/* ===================== RESEARCHER ===================== */}
+                                    <div>
+                                        <label className="mb-2 block text-sm font-medium text-gray-700">
+                                            Nhà nghiên cứu (Researcher)
+                                        </label>
+
+                                        <Select
+                                            options={researchers.map(r => ({
+                                                value: r.researcher_id,
+                                                label: r.full_name,
+                                            }))}
+                                            isSearchable
+                                            value={
+                                                author.researcher_id
+                                                    ? {
+                                                        value: author.researcher_id,
+                                                        label: author.full_name,
+                                                    }
+                                                    : null
+                                            }
+                                            onChange={(selected: any) => {
+                                                const r = researchers.find(
+                                                    x => x.researcher_id === selected?.value
+                                                );
+
+                                                if (!r) return;
+
+                                                setAuthors(prev => {
+                                                    const updated = [...prev];
+
+                                                    updated[index] = {
+                                                        ...updated[index],
+                                                        researcher_id: r.researcher_id,
+                                                        full_name: r.full_name,
+                                                        email: r.email, // AUTO FILL EMAIL
+                                                    };
+
+                                                    return updated;
+                                                });
+                                            }}
+                                        />
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setOpenResearcherModal(true)}
+                                            className="mt-2 text-sm text-blue-600 hover:underline"
+                                        >
+                                            + Thêm nhà nghiên cứu mới
+                                        </button>
+
+                                        <AddResearcherModal
+                                            open={openResearcherModal}
+                                            departments={departments}
+                                            onClose={() => setOpenResearcherModal(false)}
+                                            onSubmit={handleCreateResearcher}
+                                        />
+                                    </div>
+
+                                    {/* ===================== ROLE ===================== */}
+                                    <div>
+                                        <label className="mb-2 block text-sm font-medium text-gray-700">
+                                            Vai trò (Role)
+                                        </label>
+
+                                        <select
+                                            className="w-full rounded-lg border px-3 py-2"
+                                            value={author.author_role}
+                                            onChange={(e) => {
+                                                const value = e.target.value;
+
+                                                setAuthors(prev => {
+                                                    const updated = [...prev];
+
+                                                    updated[index] = {
+                                                        ...updated[index],
+                                                        author_role: value,
+                                                    };
+
+                                                    return updated;
+                                                });
+                                            }}
+                                        >
+                                            <option value="">Chọn vai trò</option>
+                                            {AUTHOR_ROLES.map((role) => (
+                                                <option key={role.value} value={role.value}>
+                                                    {role.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* ===================== EMAIL ===================== */}
+                                    <div>
+                                        <label className="mb-2 block text-sm font-medium text-gray-700">
+                                            Email
+                                        </label>
+
+                                        <input
+                                            className="w-full rounded-lg border px-3 py-2"
+                                            value={author.email}
+                                            onChange={(e) => {
+                                                const value = e.target.value;
+
+                                                setAuthors(prev => {
+                                                    const updated = [...prev];
+
+                                                    updated[index] = {
+                                                        ...updated[index],
+                                                        email: value,
+                                                    };
+
+                                                    return updated;
+                                                });
+                                            }}
+                                        />
+                                    </div>
+
+                                    {/* ===================== AFFILIATION ===================== */}
+                                    <div>
+                                        <label className="mb-2 block text-sm font-medium text-gray-700">
+                                            Đơn vị công tác (Affiliation)
+                                        </label>
+
+                                        <input
+                                            className="w-full rounded-lg border px-3 py-2"
+                                            value={author.affiliation}
+                                            onChange={(e) => {
+                                                const value = e.target.value;
+
+                                                setAuthors(prev => {
+                                                    const updated = [...prev];
+
+                                                    updated[index] = {
+                                                        ...updated[index],
+                                                        affiliation: value,
+                                                    };
+
+                                                    return updated;
+                                                });
+                                            }}
+                                        />
+                                    </div>
+
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </FormSectionCard>
+
+                <FormSectionCard icon={Paperclip} title="Tệp đính kèm (Attachments)">
+                    {!stagingId && (
+                        <p className="mb-4 text-sm text-gray-500">
+                            Lưu bản nháp trước khi đính kèm tệp.
+                        </p>
+                    )}
+
+                    <div className="flex items-center gap-3">
+                        <input
+                            type="file"
+                            disabled={!stagingId || uploadingFile}
+                            onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+                            className="block rounded-lg border px-3 py-2 text-sm"
+                        />
+
+                        <button
+                            type="button"
+                            disabled={!stagingId || !selectedFile || uploadingFile}
+                            onClick={handleUploadFile}
+                            className="cursor-pointer rounded-lg bg-blue-600 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:bg-gray-300"
+                        >
+                            {uploadingFile ? "Đang tải lên..." : "Tải lên"}
                         </button>
                     </div>
 
-                    {/* Keyword */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            Từ khóa
-                        </label>
+                    {stagingId && !selectedFile && (
+                        <p className="mt-2 text-xs text-gray-400">
+                            Chọn một tệp ở trên để bật nút Tải lên.
+                        </p>
+                    )}
 
-                        <AsyncSelect
-                            isMulti
-                            cacheOptions
-                            defaultOptions
-                            value={selectedKeywords}
-                            loadOptions={async (inputValue) => {
-                                const res = await referenceService.suggestKeywords(inputValue, 20);
-
-                                return res.map((k: any) => ({
-                                    value: k.keyword_id,
-                                    label: k.keyword_text,
-                                }));
-                            }}
-                            onChange={(selected: any) => {
-                                setSelectedKeywords(selected || []);
-                                setFormData(prev => ({
-                                    ...prev,
-                                    keyword_ids: selected?.map((x: any) => x.value) || [],
-                                }));
-                            }}
-                        />
-                        <button
-                            type="button"
-                            onClick={() => setOpenKeywordModal(true)}
-                            className="cursor-pointer mt-2 text-sm text-blue-600"
-                        >
-                            + Thêm keyword mới
-                        </button>
-
-                    </div>
-                </div>
-            </div>
-
-            <div className="rounded-xl border bg-white p-6 shadow-sm">
-                {/* HEADER */}
-                <div className="mb-6 flex items-center justify-between">
-                    <h2 className="text-xl font-semibold">Authors</h2>
-
-                    <button
-                        type="button"
-                        onClick={handleAddAuthor}
-                        className="cursor-pointer rounded-lg bg-blue-600 px-4 py-2 text-white"
-                    >
-                        + Add Author
-                    </button>
-                </div>
-
-                {/* LIST AUTHORS */}
-                <div className="space-y-6">
-                    {authors.map((author, index) => (
-                        <div key={index} className="rounded-lg border p-5">
-
-                            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-
-                                {/* ===================== RESEARCHER ===================== */}
-                                <div>
-                                    <label className="mb-2 block text-sm font-medium">
-                                        Researcher
-                                    </label>
-
-                                    <Select
-                                        options={researchers.map(r => ({
-                                            value: r.researcher_id,
-                                            label: r.full_name,
-                                        }))}
-                                        isSearchable
-                                        value={
-                                            author.researcher_id
-                                                ? {
-                                                    value: author.researcher_id,
-                                                    label: author.full_name,
-                                                }
-                                                : null
-                                        }
-                                        onChange={(selected: any) => {
-                                            const r = researchers.find(
-                                                x => x.researcher_id === selected?.value
-                                            );
-
-                                            if (!r) return;
-
-                                            setAuthors(prev => {
-                                                const updated = [...prev];
-
-                                                updated[index] = {
-                                                    ...updated[index],
-                                                    researcher_id: r.researcher_id,
-                                                    full_name: r.full_name,
-                                                    email: r.email, // AUTO FILL EMAIL
-                                                };
-
-                                                return updated;
-                                            });
-                                        }}
-                                    />
+                    {files.length > 0 && (
+                        <ul className="mt-5 divide-y divide-gray-100 rounded-lg border border-gray-100">
+                            {files.map((file) => (
+                                <li
+                                    key={file.file_id}
+                                    className="flex items-center justify-between px-4 py-3 text-sm"
+                                >
+                                    <span className="truncate">{file.original_filename}</span>
 
                                     <button
                                         type="button"
-                                        onClick={() => setOpenResearcherModal(true)}
-                                        className="mt-2 text-sm text-blue-600 hover:underline"
+                                        onClick={() => handleDeleteFile(file.file_id)}
+                                        className="cursor-pointer text-red-600 hover:underline"
                                     >
-                                        + Add new researcher
+                                        Xoá
                                     </button>
-
-                                    <AddResearcherModal
-                                        open={openResearcherModal}
-                                        departments={departments}
-                                        onClose={() => setOpenResearcherModal(false)}
-                                        onSubmit={handleCreateResearcher}
-                                    />
-                                </div>
-
-                                {/* ===================== ROLE ===================== */}
-                                <div>
-                                    <label className="mb-2 block text-sm font-medium">
-                                        Role
-                                    </label>
-
-                                    <select
-                                        className="w-full rounded-lg border px-3 py-2"
-                                        value={author.author_role}
-                                        onChange={(e) => {
-                                            const value = e.target.value;
-
-                                            setAuthors(prev => {
-                                                const updated = [...prev];
-
-                                                updated[index] = {
-                                                    ...updated[index],
-                                                    author_role: value,
-                                                };
-
-                                                return updated;
-                                            });
-                                        }}
-                                    >
-                                        <option value="">Select role</option>
-                                        <option value="creator">creator</option>
-                                        <option value="contributor">contributor</option>
-                                        <option value="supervisor">supervisor</option>
-                                        <option value="student_member">student_member</option>
-                                        <option value="corresponding_author">
-                                            corresponding_author
-                                        </option>
-                                    </select>
-                                </div>
-
-                                {/* ===================== EMAIL ===================== */}
-                                <div>
-                                    <label className="mb-2 block text-sm font-medium">
-                                        Email
-                                    </label>
-
-                                    <input
-                                        className="w-full rounded-lg border px-3 py-2"
-                                        value={author.email}
-                                        onChange={(e) => {
-                                            const value = e.target.value;
-
-                                            setAuthors(prev => {
-                                                const updated = [...prev];
-
-                                                updated[index] = {
-                                                    ...updated[index],
-                                                    email: value,
-                                                };
-
-                                                return updated;
-                                            });
-                                        }}
-                                    />
-                                </div>
-
-                                {/* ===================== AFFILIATION ===================== */}
-                                <div>
-                                    <label className="mb-2 block text-sm font-medium">
-                                        Affiliation
-                                    </label>
-
-                                    <input
-                                        className="w-full rounded-lg border px-3 py-2"
-                                        value={author.affiliation}
-                                        onChange={(e) => {
-                                            const value = e.target.value;
-
-                                            setAuthors(prev => {
-                                                const updated = [...prev];
-
-                                                updated[index] = {
-                                                    ...updated[index],
-                                                    affiliation: value,
-                                                };
-
-                                                return updated;
-                                            });
-                                        }}
-                                    />
-                                </div>
-
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </FormSectionCard>
             </div>
-            <div className="rounded-xl border bg-white p-6 shadow-sm">
-                <h2 className="mb-6 text-xl font-semibold">
-                    Tệp đính kèm
-                </h2>
 
-                {!stagingId && (
-                    <p className="mb-4 text-sm text-gray-500">
-                        Lưu bản nháp trước khi đính kèm tệp.
-                    </p>
-                )}
-
-                <div className="flex items-center gap-3">
-                    <input
-                        type="file"
-                        disabled={!stagingId || uploadingFile}
-                        onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
-                        className="block rounded-lg border px-3 py-2 text-sm"
-                    />
+            <div className="sticky bottom-0 border-t border-gray-200 bg-white px-6 py-4 shadow-[0_-2px_8px_rgba(0,0,0,0.04)]">
+                <div className="mx-auto flex max-w-5xl justify-end gap-3">
+                    <button
+                        type="button"
+                        onClick={handleSaveDraft}
+                        className="cursor-pointer rounded-lg border px-5 py-2 text-sm font-medium hover:bg-gray-50"
+                    >
+                        {isEditMode ? "Lưu thay đổi" : "Lưu bản nháp"}
+                    </button>
 
                     <button
                         type="button"
-                        disabled={!stagingId || !selectedFile || uploadingFile}
-                        onClick={handleUploadFile}
-                        className="cursor-pointer rounded-lg bg-blue-600 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:bg-gray-300"
+                        onClick={handleSubmit}
+                        disabled={!isDraftSaved}
+                        className="cursor-pointer rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
                     >
-                        {uploadingFile ? "Đang tải lên..." : "Tải lên"}
+                        Gửi yêu cầu kiểm duyệt
                     </button>
                 </div>
-
-                {stagingId && !selectedFile && (
-                    <p className="mt-2 text-xs text-gray-400">
-                        Chọn một tệp ở trên để bật nút Tải lên.
-                    </p>
-                )}
-
-                {files.length > 0 && (
-                    <ul className="mt-5 divide-y divide-gray-100 rounded-lg border">
-                        {files.map((file) => (
-                            <li
-                                key={file.file_id}
-                                className="flex items-center justify-between px-4 py-3 text-sm"
-                            >
-                                <span className="truncate">{file.original_filename}</span>
-
-                                <button
-                                    type="button"
-                                    onClick={() => handleDeleteFile(file.file_id)}
-                                    className="cursor-pointer text-red-600 hover:underline"
-                                >
-                                    Xoá
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </div>
-
-            <div className="flex justify-end gap-4">
-                <button
-                    type="button"
-                    onClick={handleSaveDraft}
-                    className="rounded-lg border px-5 py-2"
-                >
-                    {isEditMode ? "Lưu thay đổi" : "Lưu bản Draft"}
-                </button>
-
-                <button
-                    type="button"
-                    onClick={handleSubmit}
-                    className={`rounded-lg px-5 py-2 text-white transition
-        ${isDraftSaved
-                            ? "bg-blue-600 hover:bg-blue-700 cursor-pointer"
-                            : "bg-gray-300 cursor-not-allowed"
-                        }
-    `}
-                >
-                    Gửi yêu cầu kiểm duyệt
-                </button>
             </div>
 
             {openSubmitModal && (
@@ -1085,19 +1102,19 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                             rows={4}
                             value={submitNote}
                             onChange={(e) => setSubmitNote(e.target.value)}
-                            placeholder="Enter your note..."
+                            placeholder="Nhập ghi chú..."
                         />
 
                         <div className="mt-5 flex justify-end gap-3">
                             <button
-                                className="rounded-lg border px-4 py-2"
+                                className="cursor-pointer rounded-lg border px-4 py-2"
                                 onClick={() => setOpenSubmitModal(false)}
                             >
                                 Huỷ
                             </button>
 
                             <button
-                                className="rounded-lg bg-blue-600 px-4 py-2 text-white"
+                                className="cursor-pointer rounded-lg bg-blue-600 px-4 py-2 text-white"
                                 onClick={handleConfirmSubmit}
                             >
                                 Xác nhận

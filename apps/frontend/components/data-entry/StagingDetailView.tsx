@@ -22,9 +22,9 @@ function SectionCard({ title, children }: { title: string; children: React.React
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
     return (
-        <div>
+        <div className="min-w-0">
             <p className="text-xs font-medium tracking-wide text-gray-400 uppercase">{label}</p>
-            <p className="mt-1 text-sm text-gray-800">{value}</p>
+            <p className="mt-1 wrap-break-word text-sm text-gray-800">{value}</p>
         </div>
     )
 }
