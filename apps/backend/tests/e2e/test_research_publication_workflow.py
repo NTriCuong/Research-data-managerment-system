@@ -21,6 +21,7 @@ from app.models.reference.department import Department
 from app.models.reference.keyword import Keyword
 from app.models.reference.output_type import OutputType
 from app.models.reference.research_domain import ResearchDomain
+from app.models.reference.researcher import Researcher
 from app.services.auth.deps import get_current_active_user
 
 
@@ -60,7 +61,13 @@ async def workflow_context():
             keyword_text=f"e2e-keyword-{suffix}",
             normalized_text=f"e2e keyword {suffix}",
         )
-        session.add_all([department, output_type, domain, keyword])
+        researcher = Researcher(
+            full_name="Nguyen Van Hai",
+            email=f"researcher_{suffix}@example.com",
+            researcher_code=f"E2E_RES_{suffix}",
+            is_internal=True,
+        )
+        session.add_all([department, output_type, domain, keyword, researcher])
         await session.flush()
         user = User(
             username=f"e2e_admin_{suffix}",
@@ -98,6 +105,7 @@ async def workflow_context():
                 output_type=output_type,
                 domain=domain,
                 keyword=keyword,
+                researcher=researcher,
                 suffix=suffix,
             )
 
@@ -135,7 +143,7 @@ async def test_full_publication_and_approved_revision_workflow(workflow_context,
             "keyword_ids": [str(context.keyword.keyword_id)],
             "authors": [
                 {
-                    "full_name": "Nguyễn Văn Hải",
+                    "researcher_id": str(context.researcher.researcher_id),
                     "author_order": 1,
                 }
             ],
@@ -189,7 +197,13 @@ async def test_full_publication_and_approved_revision_workflow(workflow_context,
         params={"q": f"du lieu bien {context.suffix}"},
     )
     assert search_response.status_code == 200
-    assert any(row["research_id"] == research_id for row in search_response.json())
+    assert search_response.json()["total"] >= 1
+    assert any(row["research_id"] == research_id for row in search_response.json()["items"])
+
+    for query in ("Nguyen Van Hai", context.keyword.keyword_text, context.domain.domain_name):
+        fts_response = await client.get(f"{prefix}/search/core", params={"q": query})
+        assert fts_response.status_code == 200
+        assert any(row["research_id"] == research_id for row in fts_response.json()["items"])
 
     workflow_response = await client.get(
         f"{prefix}/logs/workflow",
@@ -269,5 +283,5 @@ async def test_full_publication_and_approved_revision_workflow(workflow_context,
     assert revised_search_response.status_code == 200
     assert any(
         row["research_id"] == research_id and row["version_no"] == 2
-        for row in revised_search_response.json()
+        for row in revised_search_response.json()["items"]
     )

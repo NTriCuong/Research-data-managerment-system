@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from io import BytesIO
 from pathlib import Path
 from uuid import UUID
 import re
@@ -270,11 +269,13 @@ class StagingExcelImportService:
         )
 
     async def _read_workbook(self, file: IncomingFile) -> ParsedWorkbook:
-        content = file.content
-        if not content:
+        file.fileobj.seek(0, 2)
+        file_size = file.fileobj.tell()
+        file.fileobj.seek(0)
+        if file_size == 0:
             raise BadRequestException("Tệp Excel tải lên đang trống")
         try:
-            workbook = load_workbook(BytesIO(content), read_only=True, data_only=True)
+            workbook = load_workbook(file.fileobj, read_only=True, data_only=True)
         except (InvalidFileException, OSError, ValueError) as exc:
             raise BadRequestException("Tệp .xlsx không hợp lệ") from exc
 

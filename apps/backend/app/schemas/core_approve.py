@@ -33,6 +33,13 @@ class CoreSearchResultOut(BaseModel):
     rank: float
 
 
+class CoreSearchResponseOut(BaseModel):
+    items: list[CoreSearchResultOut]
+    total: int
+    limit: int
+    offset: int
+
+
 class PendingApprovalOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

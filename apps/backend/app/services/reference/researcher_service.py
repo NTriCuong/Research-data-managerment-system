@@ -20,6 +20,26 @@ class ResearcherService:
         )
         return list(result.scalars().all()), total
 
+    async def suggest_researchers(
+        self,
+        db: AsyncSession,
+        *,
+        q: str | None,
+        limit: int,
+    ) -> list[Researcher]:
+        stmt = select(Researcher)
+        query_text = q.strip() if q else ""
+        if query_text:
+            pattern = f"%{query_text.lower()}%"
+            stmt = stmt.where(
+                func.lower(Researcher.full_name).like(pattern)
+                | func.lower(Researcher.email).like(pattern)
+                | func.lower(Researcher.researcher_code).like(pattern)
+                | func.lower(Researcher.orcid).like(pattern)
+            )
+        result = await db.execute(stmt.order_by(Researcher.full_name.asc()).limit(limit))
+        return list(result.scalars().all())
+
     async def get_researcher(self, db: AsyncSession, *, researcher_id: UUID) -> Researcher | None:
         result = await db.execute(select(Researcher).where(Researcher.researcher_id == researcher_id))
         return result.scalar_one_or_none()

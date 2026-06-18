@@ -19,6 +19,9 @@ class _FakeDbSession:
 
 
 class _FakeSearchResult:
+    def scalar_one(self):
+        return 0
+
     def all(self):
         return []
 
@@ -26,9 +29,11 @@ class _FakeSearchResult:
 class _CaptureSearchDbSession:
     def __init__(self):
         self.statement = None
+        self.statements = []
 
     async def execute(self, statement):
         self.statement = statement
+        self.statements.append(statement)
         return _FakeSearchResult()
 
 
@@ -134,25 +139,30 @@ def test_postgres_search_accessible_for_reviewer(client, sample_user, monkeypatc
     research_id = uuid4()
 
     async def _fake_search(*_args, **_kwargs):
-        return [
-            {
-                "research_id": research_id,
-                "title": "PostgreSQL Search Benchmark",
-                "year": 2026,
-                "access_level": "public",
-                "version_no": 2,
-                "approved_at": "2026-05-26T00:00:00Z",
-                "rank": 0.75,
-            }
-        ]
+        return {
+            "items": [
+                {
+                    "research_id": research_id,
+                    "title": "PostgreSQL Search Benchmark",
+                    "year": 2026,
+                    "access_level": "public",
+                    "version_no": 2,
+                    "approved_at": "2026-05-26T00:00:00Z",
+                    "rank": 0.75,
+                }
+            ],
+            "total": 1,
+            "limit": 20,
+            "offset": 0,
+        }
 
     monkeypatch.setattr(search_endpoint.search_service, "search_core_postgres", _fake_search)
 
     response = client.get(f"{settings.API_V1_PREFIX}/search/core?q=benchmark")
     assert response.status_code == 200
     body = response.json()
-    assert len(body) == 1
-    assert body[0]["research_id"] == str(research_id)
+    assert body["total"] == 1
+    assert body["items"][0]["research_id"] == str(research_id)
 
 
 def test_postgres_search_strips_query_and_passes_pagination(client, sample_user, monkeypatch):
@@ -162,7 +172,7 @@ def test_postgres_search_strips_query_and_passes_pagination(client, sample_user,
 
     async def _fake_search(*args, **kwargs):
         captured.update(kwargs)
-        return []
+        return {"items": [], "total": 0, "limit": kwargs["limit"], "offset": kwargs["offset"]}
 
     monkeypatch.setattr(search_endpoint.search_service, "search_core_postgres", _fake_search)
 
@@ -172,7 +182,7 @@ def test_postgres_search_strips_query_and_passes_pagination(client, sample_user,
     )
 
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json() == {"items": [], "total": 0, "limit": 5, "offset": 2}
     assert captured["query"] == "trí tuệ"
     assert captured["limit"] == 5
     assert captured["offset"] == 2
@@ -182,14 +192,14 @@ def test_unauthenticated_user_can_search_core_records(client, monkeypatch):
     client.app.dependency_overrides[get_db] = _fake_db_provider()
 
     async def _fake_search(*_args, **_kwargs):
-        return []
+        return {"items": [], "total": 0, "limit": 20, "offset": 0}
 
     monkeypatch.setattr(search_endpoint.search_service, "search_core_postgres", _fake_search)
 
     response = client.get(f"{settings.API_V1_PREFIX}/search/core?q=benchmark")
 
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json() == {"items": [], "total": 0, "limit": 20, "offset": 0}
 
 
 def test_reject_record_requires_non_empty_reason(client, sample_user):
@@ -208,9 +218,10 @@ def test_reject_record_requires_non_empty_reason(client, sample_user):
 async def test_postgres_search_query_matches_srs_fields():
     db = _CaptureSearchDbSession()
 
-    rows = await search_service.search_core_postgres(db, query="tri tue nhan tao", limit=10, offset=0)
+    response = await search_service.search_core_postgres(db, query="tri tue nhan tao", limit=10, offset=0)
 
-    assert rows == []
+    assert response.items == []
+    assert response.total == 0
     compiled_sql = str(
         db.statement.compile(
             dialect=postgresql.dialect(),
@@ -221,13 +232,11 @@ async def test_postgres_search_query_matches_srs_fields():
     assert "unaccent" in compiled_sql
     assert "search_vector" in compiled_sql
     assert "research_objects.access_level =" in compiled_sql
-    assert "description" in compiled_sql
     assert "identifier" in compiled_sql
-    assert "research_object_authors" in compiled_sql
-    assert "research_object_keywords" in compiled_sql
-    assert "keywords" in compiled_sql
-    assert "research_object_domains" in compiled_sql
-    assert "research_domains" in compiled_sql
+    assert compiled_sql.count(" ilike ") == 1
+    assert "research_object_authors" not in compiled_sql
+    assert "research_object_keywords" not in compiled_sql
+    assert "research_object_domains" not in compiled_sql
 
 
 @pytest.mark.anyio

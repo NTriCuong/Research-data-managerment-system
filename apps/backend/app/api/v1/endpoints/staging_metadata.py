@@ -219,7 +219,7 @@ async def create_staging_file_metadata(
     incoming_file = IncomingFile(
         filename=file.filename or "uploaded-file",
         content_type=file.content_type or "application/octet-stream",
-        content=await file.read(),
+        fileobj=file.file,
     )
     result = await staging_service.create_staging_file_metadata(
         db,
@@ -242,5 +242,5 @@ async def delete_staging_file_metadata(
         staging_id=staging_id,
         file_id=file_id,
         current_user=current_user,
-    )
+)
     return result
