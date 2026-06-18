@@ -455,7 +455,7 @@ async def get_keyword(
 @router.post("/keywords/", response_model=KeywordOut, status_code=status.HTTP_201_CREATED)
 async def create_keyword(
     payload: KeywordCreate,
-    current_user: User = Depends(require_roles("SUPER_ADMIN")),
+    current_user: User = Depends(require_roles(*ALLOWED_REFERENCE_CREATE_ROLES)),
     db: AsyncSession = Depends(get_db),
 ) -> KeywordOut:
     keyword = await keyword_service.create_keyword(
