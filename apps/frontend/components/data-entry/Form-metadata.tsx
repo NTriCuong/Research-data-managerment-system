@@ -1,15 +1,15 @@
 "use client";
 
-import { CreateDomainRequest, CreateKeywordRequest, CreateResearcherRequest, referenceService } from "@/services/reference/reference.service";
+import { CreateDomainRequest, CreateKeywordRequest, CreateResearcherRequest, referenceService, type StagingFile, type StagingResearchObjectDetail } from "@/services/reference/reference.service";
+import { parseAxiosError } from "@/lib/axios/error-paser";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Select from "react-select";
-import ReactSelect from "react-select";
 import AddResearcherModal from "./add-researcher-modal";
 import { toast } from 'sonner';
 import AddKeywordModal from "./add-keyword-modal";
 import AddDomainModal from "./add-research-domain-modal";
 import AsyncSelect from "react-select/async";
-
 
 const AUTHOR_ROLES = [
     { value: "creator", label: "Creator" },
@@ -57,32 +57,48 @@ type MetadataFormState = {
 };
 
 
-export default function FormMetadata() {
+type FormMetadataProps = {
+    stagingId?: string;
+    initialDetail?: StagingResearchObjectDetail;
+};
+
+export default function FormMetadata({ stagingId: editStagingId, initialDetail }: FormMetadataProps) {
+    const router = useRouter();
+    const isEditMode = !!editStagingId;
+
     const [openDomainModal, setOpenDomainModal] = useState(false);
     const [openKeywordModal, setOpenKeywordModal] = useState(false);
     const [openResearcherModal, setOpenResearcherModal] = useState(false);
+    const [openSubmitModal, setOpenSubmitModal] = useState(false);
+    const [isDraftSaved, setIsDraftSaved] = useState(isEditMode);
+    const [submitNote, setSubmitNote] = useState("");
+
+    const [stagingId, setStagingId] = useState<string | null>(editStagingId ?? null);
+    const [files, setFiles] = useState<StagingFile[]>(initialDetail?.files ?? []);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [uploadingFile, setUploadingFile] = useState(false);
 
     const [formData, setFormData] = useState<MetadataFormState>({
-        title: "",
-        output_type_id: "",
-        department_id: "",
-        year: null,
-        description: "",
-        abstract: "",
-        start_date: "",
-        end_date: "",
-        date_issued: "",
-        publisher: "",
-        language: "vi",
-        identifier: "",
-        external_url: "",
-        source: "",
-        relation: "",
-        coverage: "",
-        rights: "",
+        title: initialDetail?.title ?? "",
+        output_type_id: initialDetail?.output_type_id ?? "",
+        department_id: initialDetail?.department_id ?? "",
+        year: initialDetail?.year ?? null,
+        description: initialDetail?.description ?? "",
+        abstract: initialDetail?.abstract ?? "",
+        start_date: initialDetail?.start_date ?? "",
+        end_date: initialDetail?.end_date ?? "",
+        date_issued: initialDetail?.date_issued ?? "",
+        publisher: initialDetail?.publisher ?? "",
+        language: initialDetail?.language ?? "vi",
+        identifier: initialDetail?.identifier ?? "",
+        external_url: initialDetail?.external_url ?? "",
+        source: initialDetail?.source ?? "",
+        relation: initialDetail?.relation ?? "",
+        coverage: initialDetail?.coverage ?? "",
+        rights: initialDetail?.rights ?? "",
 
-        domain_ids: [],
-        keyword_ids: [],
+        domain_ids: initialDetail?.domains.map(d => d.domain_id) ?? [],
+        keyword_ids: initialDetail?.keywords.map(k => k.keyword_id) ?? [],
 
         domain_name: [],
         keyword_name: [],
@@ -93,10 +109,25 @@ export default function FormMetadata() {
     const [departments, setDepartments] = useState<any[]>([]);
     const [outputTypes, setOutputTypes] = useState<any[]>([]);
     const [researchers, setResearchers] = useState<any[]>([]);
-    const [authors, setAuthors] = useState<AuthorForm[]>([]);
+    const [authors, setAuthors] = useState<AuthorForm[]>(
+        initialDetail?.authors.map(a => ({
+            researcher_id: a.researcher_id,
+            full_name: a.full_name,
+            email: a.email ?? "",
+            affiliation: a.affiliation ?? "",
+            author_order: a.author_order,
+            author_role: a.author_role,
+        })) ?? []
+    );
 
     const [domains, setDomains] = useState<{ value: string; label: string }[]>([]);
     const [keywords, setKeywords] = useState<{ value: string; label: string }[]>([]);
+    const [selectedDomains, setSelectedDomains] = useState<{ value: string; label: string }[]>(
+        initialDetail?.domains.map(d => ({ value: d.domain_id, label: d.domain_name })) ?? []
+    );
+    const [selectedKeywords, setSelectedKeywords] = useState<{ value: string; label: string }[]>(
+        initialDetail?.keywords.map(k => ({ value: k.keyword_id, label: k.keyword_text })) ?? []
+    );
 
 
 
@@ -232,29 +263,125 @@ export default function FormMetadata() {
         ]);
     };
 
+    const fetchFiles = async (id: string) => {
+        try {
+            const res = await referenceService.getStagingFiles(id);
+            setFiles(res);
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
     useEffect(() => {
         fetchDepartments();
         fetchOutputTypes();
         fetchResearchers();
         fetchDomains();
         fetchKeywords();
-    }, []);
-    const handleSaveDraft = () => {
-        console.log("🟡 SAVE DRAFT DATA:");
 
-        console.log({
-            ...formData,
-            authors,
-        });
+        if (stagingId) {
+            fetchFiles(stagingId);
+        }
+    }, []);
+
+    const handleUploadFile = async () => {
+        if (!stagingId) {
+            toast.error("Vui lòng lưu bản nháp trước khi đính kèm tệp");
+            return;
+        }
+        if (!selectedFile) {
+            toast.error("Vui lòng chọn tệp cần đính kèm");
+            return;
+        }
+
+        setUploadingFile(true);
+        try {
+            const uploaded = await referenceService.uploadStagingFile(stagingId, selectedFile);
+            setFiles(prev => [...prev, uploaded]);
+            setSelectedFile(null);
+            toast.success("Tải tệp lên thành công");
+        } catch (error) {
+            toast.error(parseAxiosError(error).message);
+        } finally {
+            setUploadingFile(false);
+        }
+    };
+
+    const handleDeleteFile = async (fileId: string) => {
+        if (!stagingId) return;
+
+        try {
+            await referenceService.deleteStagingFile(stagingId, fileId);
+            setFiles(prev => prev.filter(f => f.file_id !== fileId));
+            toast.success("Xoá tệp thành công");
+        } catch (error) {
+            toast.error(parseAxiosError(error).message);
+        }
+    };
+    const handleSaveDraft = async () => {
+        try {
+            const payload = {
+                title: formData.title,
+                output_type_id: formData.output_type_id,
+                department_id: formData.department_id,
+                year: formData.year,
+                description: formData.description,
+                abstract: formData.abstract,
+                start_date: formData.start_date || null,
+                end_date: formData.end_date || null,
+                date_issued: formData.date_issued || null,
+                publisher: formData.publisher,
+                language: formData.language,
+                identifier: formData.identifier,
+                external_url: formData.external_url || null,
+                source: formData.source,
+                relation: formData.relation,
+                coverage: formData.coverage,
+                rights: formData.rights,
+
+                domain_ids: formData.domain_ids,
+                keyword_ids: formData.keyword_ids,
+
+                authors: authors,
+            };
+
+            if (stagingId) {
+                await referenceService.updateMetadata(stagingId, payload);
+                toast.success("Lưu thay đổi thành công");
+            } else {
+                const res = await referenceService.createMetadata(payload);
+                setStagingId(res.staging_id);
+                toast.success("Save draft thành công");
+            }
+            setIsDraftSaved(true);
+        } catch (error) {
+            console.error(error);
+            toast.error(parseAxiosError(error).message);
+        }
     };
 
     const handleSubmit = () => {
-        console.log("🟢 SUBMIT DATA:");
+        if (files.length === 0) {
+            toast.error("Cần đính kèm ít nhất một tệp trước khi gửi");
+            return;
+        }
+        setOpenSubmitModal(true);
+    };
+    const handleConfirmSubmit = async () => {
+        try {
+            await referenceService.submitForReview(stagingId ?? "", submitNote);
 
-        console.log({
-            ...formData,
-            authors,
-        });
+            toast.success("Gửi phê duyệt thành công");
+            setOpenSubmitModal(false);
+            setSubmitNote("");
+
+            if (isEditMode) {
+                router.push("/dashboard/data-entry/researches");
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error(parseAxiosError(error).message);
+        }
     };
     return (
         <div className="mx-auto max-w-7xl space-y-8 p-6">
@@ -432,127 +559,181 @@ export default function FormMetadata() {
                 <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
 
                     {/* START DATE */}
-                    <input
-                        type="date"
-                        className="w-full rounded-lg border px-3 py-2"
-                        value={formData.start_date}
-                        onChange={(e) =>
-                            setFormData(prev => ({
-                                ...prev,
-                                start_date: e.target.value
-                            }))
-                        }
-                    />
+                    <div>
+                        <label className="mb-2 block text-sm font-medium">
+                            Start Date
+                        </label>
+                        <input
+                            type="date"
+                            className="w-full rounded-lg border px-3 py-2"
+                            value={formData.start_date}
+                            onChange={(e) =>
+                                setFormData(prev => ({
+                                    ...prev,
+                                    start_date: e.target.value
+                                }))
+                            }
+                        />
+                    </div>
 
                     {/* END DATE */}
-                    <input
-                        type="date"
-                        className="w-full rounded-lg border px-3 py-2"
-                        value={formData.end_date}
-                        onChange={(e) =>
-                            setFormData(prev => ({
-                                ...prev,
-                                end_date: e.target.value
-                            }))
-                        }
-                    />
+                    <div>
+                        <label className="mb-2 block text-sm font-medium">
+                            End Date
+                        </label>
+                        <input
+                            type="date"
+                            className="w-full rounded-lg border px-3 py-2"
+                            value={formData.end_date}
+                            onChange={(e) =>
+                                setFormData(prev => ({
+                                    ...prev,
+                                    end_date: e.target.value
+                                }))
+                            }
+                        />
+                    </div>
 
                     {/* DATE ISSUED */}
-                    <input
-                        type="date"
-                        className="w-full rounded-lg border px-3 py-2"
-                        value={formData.date_issued}
-                        onChange={(e) =>
-                            setFormData(prev => ({
-                                ...prev,
-                                date_issued: e.target.value
-                            }))
-                        }
-                    />
+                    <div>
+                        <label className="mb-2 block text-sm font-medium">
+                            Date Issued
+                        </label>
+                        <input
+                            type="date"
+                            className="w-full rounded-lg border px-3 py-2"
+                            value={formData.date_issued}
+                            onChange={(e) =>
+                                setFormData(prev => ({
+                                    ...prev,
+                                    date_issued: e.target.value
+                                }))
+                            }
+                        />
+                    </div>
 
                     {/* PUBLISHER */}
-                    <input
-                        className="w-full rounded-lg border px-3 py-2"
-                        value={formData.publisher}
-                        onChange={(e) =>
-                            setFormData(prev => ({
-                                ...prev,
-                                publisher: e.target.value
-                            }))
-                        }
-                    />
+                    <div>
+                        <label className="mb-2 block text-sm font-medium">
+                            Publisher
+                        </label>
+                        <input
+                            className="w-full rounded-lg border px-3 py-2"
+                            placeholder="Publisher name"
+                            value={formData.publisher}
+                            onChange={(e) =>
+                                setFormData(prev => ({
+                                    ...prev,
+                                    publisher: e.target.value
+                                }))
+                            }
+                        />
+                    </div>
 
                     {/* IDENTIFIER */}
-                    <input
-                        className="w-full rounded-lg border px-3 py-2"
-                        value={formData.identifier}
-                        onChange={(e) =>
-                            setFormData(prev => ({
-                                ...prev,
-                                identifier: e.target.value
-                            }))
-                        }
-                    />
+                    <div>
+                        <label className="mb-2 block text-sm font-medium">
+                            Identifier
+                        </label>
+                        <input
+                            className="w-full rounded-lg border px-3 py-2"
+                            placeholder="ISBN / DOI / Code"
+                            value={formData.identifier}
+                            onChange={(e) =>
+                                setFormData(prev => ({
+                                    ...prev,
+                                    identifier: e.target.value
+                                }))
+                            }
+                        />
+                    </div>
 
                     {/* EXTERNAL URL */}
-                    <input
-                        className="w-full rounded-lg border px-3 py-2"
-                        value={formData.external_url}
-                        onChange={(e) =>
-                            setFormData(prev => ({
-                                ...prev,
-                                external_url: e.target.value
-                            }))
-                        }
-                    />
+                    <div>
+                        <label className="mb-2 block text-sm font-medium">
+                            External URL
+                        </label>
+                        <input
+                            className="w-full rounded-lg border px-3 py-2"
+                            placeholder="https://example.com"
+                            value={formData.external_url}
+                            onChange={(e) =>
+                                setFormData(prev => ({
+                                    ...prev,
+                                    external_url: e.target.value
+                                }))
+                            }
+                        />
+                    </div>
 
                     {/* SOURCE */}
-                    <input
-                        className="w-full rounded-lg border px-3 py-2"
-                        value={formData.source}
-                        onChange={(e) =>
-                            setFormData(prev => ({
-                                ...prev,
-                                source: e.target.value
-                            }))
-                        }
-                    />
+                    <div>
+                        <label className="mb-2 block text-sm font-medium">
+                            Source
+                        </label>
+                        <input
+                            className="w-full rounded-lg border px-3 py-2"
+                            placeholder="Source"
+                            value={formData.source}
+                            onChange={(e) =>
+                                setFormData(prev => ({
+                                    ...prev,
+                                    source: e.target.value
+                                }))
+                            }
+                        />
+                    </div>
 
                     {/* RELATION */}
-                    <input
-                        className="w-full rounded-lg border px-3 py-2"
-                        value={formData.relation}
-                        onChange={(e) =>
-                            setFormData(prev => ({
-                                ...prev,
-                                relation: e.target.value
-                            }))
-                        }
-                    />
+                    <div>
+                        <label className="mb-2 block text-sm font-medium">
+                            Relation
+                        </label>
+                        <input
+                            className="w-full rounded-lg border px-3 py-2"
+                            value={formData.relation}
+                            onChange={(e) =>
+                                setFormData(prev => ({
+                                    ...prev,
+                                    relation: e.target.value
+                                }))
+                            }
+                        />
+                    </div>
 
                     {/* COVERAGE */}
-                    <input
-                        className="w-full rounded-lg border px-3 py-2"
-                        value={formData.coverage}
-                        onChange={(e) =>
-                            setFormData(prev => ({
-                                ...prev,
-                                coverage: e.target.value
-                            }))
-                        }
-                    />
+                    <div>
+                        <label className="mb-2 block text-sm font-medium">
+                            Coverage
+                        </label>
+                        <input
+                            className="w-full rounded-lg border px-3 py-2"
+                            value={formData.coverage}
+                            onChange={(e) =>
+                                setFormData(prev => ({
+                                    ...prev,
+                                    coverage: e.target.value
+                                }))
+                            }
+                        />
+                    </div>
 
                     {/* RIGHTS */}
-                    <input
-                        className="w-full rounded-lg border px-3 py-2"
-                        value={formData.rights}
-                        onChange={(e) =>
-                            setFormData(prev => ({
-                                ...prev,
-                                rights: e.target.value
-                            }))
-                        }
-                    />
+                    <div className="md:col-span-2">
+                        <label className="mb-2 block text-sm font-medium">
+                            Rights
+                        </label>
+                        <input
+                            className="w-full rounded-lg border px-3 py-2"
+                            value={formData.rights}
+                            onChange={(e) =>
+                                setFormData(prev => ({
+                                    ...prev,
+                                    rights: e.target.value
+                                }))
+                            }
+                        />
+                    </div>
 
                 </div>
             </div>
@@ -574,6 +755,7 @@ export default function FormMetadata() {
                             isMulti
                             cacheOptions
                             defaultOptions
+                            value={selectedDomains}
                             loadOptions={async (inputValue) => {
                                 const res = await referenceService.suggestDomains(inputValue, 20);
 
@@ -583,6 +765,7 @@ export default function FormMetadata() {
                                 }));
                             }}
                             onChange={(selected: any) => {
+                                setSelectedDomains(selected || []);
                                 setFormData(prev => ({
                                     ...prev,
                                     domain_ids: selected?.map((x: any) => x.value) || [],
@@ -608,6 +791,7 @@ export default function FormMetadata() {
                             isMulti
                             cacheOptions
                             defaultOptions
+                            value={selectedKeywords}
                             loadOptions={async (inputValue) => {
                                 const res = await referenceService.suggestKeywords(inputValue, 20);
 
@@ -617,6 +801,7 @@ export default function FormMetadata() {
                                 }));
                             }}
                             onChange={(selected: any) => {
+                                setSelectedKeywords(selected || []);
                                 setFormData(prev => ({
                                     ...prev,
                                     keyword_ids: selected?.map((x: any) => x.value) || [],
@@ -806,24 +991,121 @@ export default function FormMetadata() {
                     ))}
                 </div>
             </div>
+            <div className="rounded-xl border bg-white p-6 shadow-sm">
+                <h2 className="mb-6 text-xl font-semibold">
+                    Tệp đính kèm
+                </h2>
+
+                {!stagingId && (
+                    <p className="mb-4 text-sm text-gray-500">
+                        Lưu bản nháp trước khi đính kèm tệp.
+                    </p>
+                )}
+
+                <div className="flex items-center gap-3">
+                    <input
+                        type="file"
+                        disabled={!stagingId || uploadingFile}
+                        onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+                        className="block rounded-lg border px-3 py-2 text-sm"
+                    />
+
+                    <button
+                        type="button"
+                        disabled={!stagingId || !selectedFile || uploadingFile}
+                        onClick={handleUploadFile}
+                        className="cursor-pointer rounded-lg bg-blue-600 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:bg-gray-300"
+                    >
+                        {uploadingFile ? "Đang tải lên..." : "Tải lên"}
+                    </button>
+                </div>
+
+                {stagingId && !selectedFile && (
+                    <p className="mt-2 text-xs text-gray-400">
+                        Chọn một tệp ở trên để bật nút Tải lên.
+                    </p>
+                )}
+
+                {files.length > 0 && (
+                    <ul className="mt-5 divide-y divide-gray-100 rounded-lg border">
+                        {files.map((file) => (
+                            <li
+                                key={file.file_id}
+                                className="flex items-center justify-between px-4 py-3 text-sm"
+                            >
+                                <span className="truncate">{file.original_filename}</span>
+
+                                <button
+                                    type="button"
+                                    onClick={() => handleDeleteFile(file.file_id)}
+                                    className="cursor-pointer text-red-600 hover:underline"
+                                >
+                                    Xoá
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+
             <div className="flex justify-end gap-4">
                 <button
                     type="button"
                     onClick={handleSaveDraft}
                     className="rounded-lg border px-5 py-2"
                 >
-                    Save Draft
+                    {isEditMode ? "Lưu thay đổi" : "Lưu bản Draft"}
                 </button>
 
                 <button
                     type="button"
                     onClick={handleSubmit}
-                    className="rounded-lg bg-blue-600 px-5 py-2 text-white"
+                    className={`rounded-lg px-5 py-2 text-white transition
+        ${isDraftSaved
+                            ? "bg-blue-600 hover:bg-blue-700 cursor-pointer"
+                            : "bg-gray-300 cursor-not-allowed"
+                        }
+    `}
                 >
-                    Submit
+                    Gửi yêu cầu kiểm duyệt
                 </button>
             </div>
 
+            {openSubmitModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                    <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+                        <h2 className="text-lg font-semibold">Gửi yêu cầu phê duyệt đến review</h2>
+
+                        <p className="mt-2 text-sm text-gray-500">
+                            Ghi chú gửi kèm
+                        </p>
+
+                        <textarea
+                            className="mt-4 w-full rounded-lg border p-2"
+                            rows={4}
+                            value={submitNote}
+                            onChange={(e) => setSubmitNote(e.target.value)}
+                            placeholder="Enter your note..."
+                        />
+
+                        <div className="mt-5 flex justify-end gap-3">
+                            <button
+                                className="rounded-lg border px-4 py-2"
+                                onClick={() => setOpenSubmitModal(false)}
+                            >
+                                Huỷ
+                            </button>
+
+                            <button
+                                className="rounded-lg bg-blue-600 px-4 py-2 text-white"
+                                onClick={handleConfirmSubmit}
+                            >
+                                Xác nhận
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

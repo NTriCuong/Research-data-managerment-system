@@ -117,11 +117,12 @@ def test_reviewer_can_read_keyword_suggestions(client, sample_user, monkeypatch)
     assert response.json() == []
 
 
-def test_data_entry_can_create_domain_and_researcher_for_autocomplete_flow(client, sample_user, monkeypatch):
+def test_data_entry_can_create_domain_keyword_and_researcher_for_autocomplete_flow(client, sample_user, monkeypatch):
     _override_user_with_role(client, sample_user, "DATA_ENTRY")
     client.app.dependency_overrides[get_db] = _fake_db_provider()
 
     domain_id = uuid4()
+    keyword_id = uuid4()
     researcher_id = uuid4()
     captured = {}
 
@@ -134,6 +135,14 @@ def test_data_entry_can_create_domain_and_researcher_for_autocomplete_flow(clien
             parent_domain_id=kwargs["parent_domain_id"],
             description=kwargs["description"],
             is_active=kwargs["is_active"],
+        )
+
+    async def _fake_create_keyword(*args, **kwargs):
+        captured["keyword"] = kwargs
+        return SimpleNamespace(
+            keyword_id=keyword_id,
+            keyword_text=kwargs["keyword_text"],
+            normalized_text=kwargs["normalized_text"],
         )
 
     async def _fake_create_researcher(*args, **kwargs):
@@ -150,12 +159,17 @@ def test_data_entry_can_create_domain_and_researcher_for_autocomplete_flow(clien
         )
 
     monkeypatch.setattr(reference_endpoint.research_domain_service, "create_research_domain", _fake_create_domain)
+    monkeypatch.setattr(reference_endpoint.keyword_service, "create_keyword", _fake_create_keyword)
     monkeypatch.setattr(reference_endpoint.researcher_service, "create_researcher", _fake_create_researcher)
 
     prefix = settings.API_V1_PREFIX
     domain_response = client.post(
         f"{prefix}/reference/research-domains/",
         json={"domain_code": "NEW_AI", "domain_name": "New AI Domain"},
+    )
+    keyword_response = client.post(
+        f"{prefix}/reference/keywords/",
+        json={"keyword_text": "new keyword", "normalized_text": "new keyword"},
     )
     researcher_response = client.post(
         f"{prefix}/reference/researchers/",
@@ -165,6 +179,10 @@ def test_data_entry_can_create_domain_and_researcher_for_autocomplete_flow(clien
     assert domain_response.status_code == 201
     assert domain_response.json()["domain_id"] == str(domain_id)
     assert captured["domain"]["actor_user_id"] == sample_user.user_id
+
+    assert keyword_response.status_code == 201
+    assert keyword_response.json()["keyword_id"] == str(keyword_id)
+    assert captured["keyword"]["actor_user_id"] == sample_user.user_id
 
     assert researcher_response.status_code == 201
     assert researcher_response.json()["researcher_id"] == str(researcher_id)

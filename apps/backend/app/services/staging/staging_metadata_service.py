@@ -4,7 +4,7 @@ from uuid import UUID
 
 from app.core.exceptions import AppException, BadRequestException, ForbiddenException, NotFoundException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app.models.auth.user import User
 from app.models.enum import AccessLevel, FileStatus, WorkflowStatus
@@ -24,8 +24,12 @@ from app.schemas.staging_metadata import (
     BulkSubmitForReviewOut,
     BulkSubmitForReviewRequest,
     CreateRevisionRequest,
+    StagingAuthorOut,
+    StagingDomainOut,
     StagingFileOut,
+    StagingKeywordOut,
     StagingResearchObjectCreate,
+    StagingResearchObjectDetailOut,
     StagingResearchObjectOut,
     StagingResearchObjectUpdate,
     SubmitForReviewRequest,
@@ -38,17 +42,6 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import AnyUrl
 
 class StagingService:
-    def _clean_unique_names(self, values: list[str] | None) -> list[str]:
-        names: list[str] = []
-        seen: set[str] = set()
-        for value in values or []:
-            name = value.strip()
-            key = name.lower()
-            if name and key not in seen:
-                names.append(name)
-                seen.add(key)
-        return names
-
     def _dedupe_ids(self, values: list[UUID]) -> list[UUID]:
         ids: list[UUID] = []
         seen: set[UUID] = set()
@@ -63,7 +56,6 @@ class StagingService:
         db: AsyncSession,
         *,
         domain_ids: list[UUID] | None,
-        domain_names: list[str] | None,
     ) -> list[UUID]:
         resolved_ids = list(domain_ids or [])
         if domain_ids:
@@ -78,10 +70,6 @@ class StagingService:
             if missing_ids:
                 raise BadRequestException(f"domain_ids không tồn tại: {', '.join(missing_ids)}")
 
-        names = self._clean_unique_names(domain_names)
-        if names:
-            raise BadRequestException("domain phải được chọn bằng domain_id; nếu chưa có hãy tạo research domain trước")
-
         return self._dedupe_ids(resolved_ids)
 
     async def _resolve_keyword_ids(
@@ -89,7 +77,6 @@ class StagingService:
         db: AsyncSession,
         *,
         keyword_ids: list[UUID] | None,
-        keyword_names: list[str] | None,
     ) -> list[UUID]:
         resolved_ids = list(keyword_ids or [])
         if keyword_ids:
@@ -103,25 +90,6 @@ class StagingService:
             missing_ids = [str(item) for item in keyword_ids if item not in existing_ids]
             if missing_ids:
                 raise BadRequestException(f"keyword_ids không tồn tại: {', '.join(missing_ids)}")
-
-        names = self._clean_unique_names(keyword_names)
-        if names:
-            normalized_names = [name.lower() for name in names]
-            existing_keywords = (
-                await db.execute(
-                    select(Keyword).where(func.lower(Keyword.keyword_text).in_(normalized_names))
-                )
-            ).scalars().all()
-            by_text = {item.keyword_text.lower(): item for item in existing_keywords}
-
-            for name in names:
-                keyword = by_text.get(name.lower())
-                if keyword is None:
-                    keyword = Keyword(keyword_text=name, normalized_text=name.lower())
-                    db.add(keyword)
-                    await db.flush()
-                    by_text[name.lower()] = keyword
-                resolved_ids.append(keyword.keyword_id)
 
         return self._dedupe_ids(resolved_ids)
 
@@ -280,12 +248,10 @@ class StagingService:
         domain_ids = await self._resolve_domain_ids(
             db,
             domain_ids=payload.domain_ids,
-            domain_names=payload.domain_name,
         )
         keyword_ids = await self._resolve_keyword_ids(
             db,
             keyword_ids=payload.keyword_ids,
-            keyword_names=payload.keyword_name,
         )
 
         db.add_all([StgResearchObjectDomain(staging_id=obj.staging_id, domain_id=domain_id) for domain_id in domain_ids])
@@ -345,14 +311,51 @@ class StagingService:
         )
         return [StagingResearchObjectOut.model_validate(x) for x in rows]
 
-    async def get_staging_record(self, db: AsyncSession, *, staging_id: UUID, current_user: User) -> StagingResearchObjectOut:
+    async def get_staging_record(self, db: AsyncSession, *, staging_id: UUID, current_user: User) -> StagingResearchObjectDetailOut:
         repo = StagingRepository(db)
-        obj = await repo.get_by_id(staging_id)
+        obj = await repo.get_by_id(staging_id, with_relations=True)
         if obj is None or obj.deleted_at is not None:
             raise NotFoundException("Không tìm thấy bản ghi tạm")
-        if obj.created_by != current_user.user_id and current_user.role.role_code != "SUPER_ADMIN":
+        if obj.created_by != current_user.user_id and current_user.role.role_code not in {"SUPER_ADMIN", "MANAGER", "REVIEWER"}:
             raise ForbiddenException("Bạn không có quyền xem bản ghi tạm này")
-        return StagingResearchObjectOut.model_validate(obj)
+        return StagingResearchObjectDetailOut(
+            staging_id=obj.staging_id,
+            title=obj.title,
+            output_type_id=obj.output_type_id,
+            department_id=obj.department_id,
+            year=obj.year,
+            workflow_status=obj.workflow_status,
+            access_level=obj.access_level,
+            source_core_research_id=obj.source_core_research_id,
+            update_reason=obj.update_reason,
+            metadata_quality_score=obj.metadata_quality_score,
+            created_by=obj.created_by,
+            submitted_by=obj.submitted_by,
+            submitted_at=obj.submitted_at,
+            created_at=obj.created_at,
+            updated_at=obj.updated_at,
+            description=obj.description,
+            abstract=obj.abstract,
+            start_date=obj.start_date,
+            end_date=obj.end_date,
+            date_issued=obj.date_issued,
+            publisher=obj.publisher,
+            language=obj.language,
+            identifier=obj.identifier,
+            external_url=obj.external_url,
+            source=obj.source,
+            relation=obj.relation,
+            coverage=obj.coverage,
+            rights=obj.rights,
+            reviewed_by=obj.reviewed_by,
+            reviewed_at=obj.reviewed_at,
+            revision_note=obj.revision_note,
+            rejection_reason=obj.rejection_reason,
+            domains=[StagingDomainOut(domain_id=d.domain_id, domain_name=d.domain.domain_name) for d in obj.domains],
+            keywords=[StagingKeywordOut(keyword_id=k.keyword_id, keyword_text=k.keyword.keyword_text) for k in obj.keywords],
+            authors=[StagingAuthorOut.model_validate(a) for a in obj.authors],
+            files=[StagingFileOut.model_validate(f) for f in obj.file_attachments if f.file_status != FileStatus.deleted],
+        )
 
     async def list_all_staging_records(
         self,
@@ -403,11 +406,10 @@ class StagingService:
                 setattr(obj, field, value)
 
         # 2. Update domains
-        if payload.domain_ids is not None or payload.domain_name is not None:
+        if payload.domain_ids is not None:
             new_domain_ids = await self._resolve_domain_ids(
                 db,
                 domain_ids=payload.domain_ids,
-                domain_names=payload.domain_name,
             )
 
             old_domain_ids = [x.domain_id for x in obj.domains]
@@ -429,11 +431,10 @@ class StagingService:
                 )
 
         # 3. Update keywords
-        if payload.keyword_ids is not None or payload.keyword_name is not None:
+        if payload.keyword_ids is not None:
             new_keyword_ids = await self._resolve_keyword_ids(
                 db,
                 keyword_ids=payload.keyword_ids,
-                keyword_names=payload.keyword_name,
             )
 
             old_keyword_ids = [x.keyword_id for x in obj.keywords]

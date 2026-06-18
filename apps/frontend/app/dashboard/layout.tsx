@@ -10,12 +10,10 @@ import { selectCurrentUser } from "@/store/slice/auth.slice";
 const items_data_entry = [
     { label: "Researches", href: "/dashboard/data-entry/researches" },
     { label: "New Entry", href: "/dashboard/data-entry/new-entry" },
-    { label: "Update Metadata", href: "/dashboard/data-entry/update-metadata" },
 ];
 // menu reviewer
 const items_reviewer = [
-    { label: "Researches", href: "/dashboard/reviewer/researches" },
-    { label: "Review", href: "/dashboard/reviewer/review" },
+    { label: "Researches", href: "/dashboard/review/researches" },
 ];
 
 // map role_name (đúng tên trả về từ backend) sang menu navbar tương ứng

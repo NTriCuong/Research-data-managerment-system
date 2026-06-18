@@ -1,6 +1,7 @@
 
 import axiosInstance from "@/lib/axios/axios.instance";
 import { API_ENDPOINT } from "@/lib/constants/api-endpoint";
+import type { StagingResearchObject } from "@/services/data-entry/data-entry.service";
 
 export interface PaginatedResponse<T> {
     items: T[];
@@ -64,6 +65,69 @@ export interface CreateKeywordRequest {
     keyword_text: string;
     normalized_text: string;
 }
+
+export interface StagingFile {
+    file_id: string;
+    staging_id: string;
+    original_filename: string;
+    stored_filename: string;
+    storage_path: string;
+    mime_type: string;
+    file_extension: string;
+    file_size_bytes: number;
+    checksum_sha256: string;
+    file_status: string;
+    uploaded_by: string;
+    uploaded_at: string;
+    access_level: string;
+}
+
+export interface StagingAuthorDetail {
+    staging_author_id: string;
+    staging_id: string;
+    researcher_id: string | null;
+    full_name: string;
+    email: string | null;
+    affiliation: string | null;
+    author_order: number;
+    author_role: string;
+    created_at: string;
+}
+
+export interface StagingDomainDetail {
+    domain_id: string;
+    domain_name: string;
+}
+
+export interface StagingKeywordDetail {
+    keyword_id: string;
+    keyword_text: string;
+}
+
+export interface StagingResearchObjectDetail extends StagingResearchObject {
+    description: string | null;
+    abstract: string | null;
+    start_date: string | null;
+    end_date: string | null;
+    date_issued: string | null;
+    publisher: string | null;
+    language: string | null;
+    identifier: string | null;
+    external_url: string | null;
+    source: string | null;
+    relation: string | null;
+    coverage: string | null;
+    rights: string | null;
+    reviewed_by: string | null;
+    reviewed_at: string | null;
+    revision_note: string | null;
+    rejection_reason: string | null;
+    domains: StagingDomainDetail[];
+    keywords: StagingKeywordDetail[];
+    authors: StagingAuthorDetail[];
+    files: StagingFile[];
+}
+
 export const referenceService = {
     // department
     async getDepartments(page = 1, pageSize = 100) {
@@ -182,6 +246,69 @@ export const referenceService = {
         return response.data;
     },
 
+    //  METADATA 
+    async createMetadata(data: any) {
+        const response = await axiosInstance.post(
+            API_ENDPOINT.DATA_ENTRY.CREATE_METADATA,
+            data
+        );
+
+        return response.data;
+    },
+    async getMetadataByStagingId(stagingId: string) {
+        const response = await axiosInstance.get<StagingResearchObjectDetail>(
+            `${API_ENDPOINT.DATA_ENTRY.GET_METADATA_BY_STAGINGID}/${stagingId}`
+        );
+
+        return response.data;
+    },
+    async updateMetadata(stagingId: string, data: any) {
+        const response = await axiosInstance.put(
+            API_ENDPOINT.DATA_ENTRY.UPDATE_METADATA(stagingId),
+            data
+        );
+
+        return response.data;
+    },
+    submitForReview: (stagingId: string, note: string) => {
+        return axiosInstance.post(
+            API_ENDPOINT.DATA_ENTRY.SUBMIT_FOR_REVIEW(stagingId),
+            {
+                note,
+            }
+        );
+    },
+
+    // file đính kèm
+    async getStagingFiles(stagingId: string) {
+        const response = await axiosInstance.get<StagingFile[]>(
+            API_ENDPOINT.DATA_ENTRY.FILES(stagingId)
+        );
+
+        return response.data;
+    },
+
+    async uploadStagingFile(stagingId: string, file: File) {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await axiosInstance.post<StagingFile>(
+            API_ENDPOINT.DATA_ENTRY.FILES(stagingId),
+            formData,
+            { headers: { "Content-Type": undefined } }
+        );
+
+        return response.data;
+    },
+
+    async deleteStagingFile(stagingId: string, fileId: string) {
+        const response = await axiosInstance.delete(
+            API_ENDPOINT.DATA_ENTRY.DELETE_FILE(stagingId, fileId)
+        );
+
+        return response.data;
+    },
 };
+
 
 
