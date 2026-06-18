@@ -79,6 +79,7 @@ services:
       - elasticsearch
     volumes:
       - ./apps/backend:/app
+      - rdms_backup_data:/app/backups
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - rdms-network
@@ -104,6 +105,7 @@ services:
 volumes:
   rdms_postgres_data:
   rdms_elasticsearch_data:
+  rdms_backup_data:
 
 networks:
   rdms-network:
