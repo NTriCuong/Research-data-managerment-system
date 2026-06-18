@@ -353,7 +353,7 @@ class StagingService:
         changed_new: dict = {}
         
         for field, value in payload_data.items():
-            if field in {"domain_ids", "keyword_ids", "authors"}:
+            if field in {"domain_ids", "keyword_ids", "domain_name", "keyword_name", "authors"}:
                 continue    
             if isinstance(value, AnyUrl):
                 value = str(value)

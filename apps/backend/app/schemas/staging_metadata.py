@@ -50,6 +50,8 @@ class StagingResearchObjectCreate(BaseModel):
     rights: str | None = None
     domain_ids: list[UUID] = Field(default_factory=list)
     keyword_ids: list[UUID] = Field(default_factory=list)
+    domain_name: list[str] = Field(default_factory=list)
+    keyword_name: list[str] = Field(default_factory=list)
     authors: list[StagingAuthorIn] = Field(default_factory=list)
 
     @model_validator(mode="before")
@@ -83,6 +85,8 @@ class StagingResearchObjectUpdate(BaseModel):
     rights: str | None = None
     domain_ids: list[UUID] | None = None
     keyword_ids: list[UUID] | None = None
+    domain_name: list[str] | None = None
+    keyword_name: list[str] | None = None
     authors: list[StagingAuthorIn] | None = None
 
     @model_validator(mode="before")
