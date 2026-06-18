@@ -14,38 +14,43 @@ interface AuthState {
     currentUser: CurrentUser | null
     accessToken: string | null
     isAuthenticated: boolean
+    isInitializing: boolean
 }
 
 const initialState: AuthState = {
     currentUser: null,
     accessToken: null,
-    isAuthenticated: false, //login hay chưa login
+    isAuthenticated: false,
+    isInitializing: true,
 }
-// tạo slice
+
 const authSlice = createSlice({
     name: 'auth',
-    initialState, // trạng thái ban đầu (default)
+    initialState,
     reducers: {
-        setCredentials: ( // set state khi login thành công, lưu thông tin user và token vào state
+        setCredentials: (
             state,
             action: PayloadAction<{ user: CurrentUser; accessToken: string }>
         ) => {
             state.currentUser = action.payload.user
             state.accessToken = action.payload.accessToken
             state.isAuthenticated = true
+            state.isInitializing = false
         },
-        clearCredentials: (state) => { // xoá thông tin user và token khi logout
+        clearCredentials: (state) => {
             state.currentUser = null
             state.accessToken = null
             state.isAuthenticated = false
+            state.isInitializing = false
         },
     },
 })
 
 export const { setCredentials, clearCredentials } = authSlice.actions
 
-export const selectCurrentUser = (state: RootState) => state.auth.currentUser // lấy thông tin user
-export const selectAccessToken = (state: RootState) => state.auth.accessToken // lấy token
-export const selectIsAuthenticated = (state: RootState) => state.auth.isAuthenticated   // lấy trạng thái đã login hay chưa
+export const selectCurrentUser = (state: RootState) => state.auth.currentUser
+export const selectAccessToken = (state: RootState) => state.auth.accessToken
+export const selectIsAuthenticated = (state: RootState) => state.auth.isAuthenticated
+export const selectIsInitializing = (state: RootState) => state.auth.isInitializing
 
 export default authSlice.reducer

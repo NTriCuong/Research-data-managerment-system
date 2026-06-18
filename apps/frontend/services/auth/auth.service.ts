@@ -22,4 +22,8 @@ export const authService = {
             dispatch(clearCredentials()) // xoá credentials khỏi state khi logout dù thành công hay thát bại 
         }
     },
+    async refreshToken() {
+        const response = await axiosInstance.post(API_ENDPOINT.AUTH.REFRESH)
+        return response.data
+    },
 }

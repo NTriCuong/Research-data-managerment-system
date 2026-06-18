@@ -26,7 +26,7 @@ async def list_users(
     q: str | None = Query(default=None, max_length=150),
     role_id: UUID | None = Query(default=None),
     status_filter: UserStatus | None = Query(default=None, alias="status"),
-    _: User = Depends(require_roles("SUPER_ADMIN")),
+    _: User = Depends(require_roles("SUPER_ADMIN", "DATA_ENTRY", "REVIEWER")),
     db: AsyncSession = Depends(get_db),
 ) -> list[UserRead]:
     users = await auth_service.list_users(
@@ -43,7 +43,7 @@ async def list_users(
 @router.get("/{user_id}", response_model=UserRead)
 async def get_user(
     user_id: UUID,
-    _: User = Depends(require_roles("SUPER_ADMIN")),
+    _: User = Depends(require_roles("SUPER_ADMIN", "DATA_ENTRY", "REVIEWER")),
     db: AsyncSession = Depends(get_db),
 ) -> UserRead:
     user = await auth_service.get_user(db, user_id=user_id)
