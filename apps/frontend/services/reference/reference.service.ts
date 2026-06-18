@@ -1,32 +1,132 @@
-import axiosInstance from "@/lib/axios/axios.instance"
-import { API_ENDPOINT } from "@/lib/constants/api-endpoint"
+
+import axiosInstance from "@/lib/axios/axios.instance";
+import { API_ENDPOINT } from "@/lib/constants/api-endpoint";
+import type { StagingResearchObject } from "@/services/data-entry/data-entry.service";
 
 export interface PaginatedResponse<T> {
-    items: T[]
-    total: number
-    page: number
-    page_size: number
-    total_pages: number
+    items: T[];
+    total: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
 }
 
 export interface Department {
-    department_id: string
-    department_code: string
-    department_name: string
-    parent_department_id: string | null
-    description: string | null
-    is_active: boolean
+    department_id: string;
+    department_code: string;
+    department_name: string;
+    parent_department_id: string | null;
+    description: string | null;
+    is_active: boolean;
 }
 
 export interface OutputType {
-    output_type_id: string
-    type_code: string
-    type_name: string
-    description: string | null
-    is_active: boolean
+    output_type_id: string;
+    type_code: string;
+    type_name: string;
+    description: string | null;
+    is_active: boolean;
 }
 
+export interface Researcher {
+    researcher_id: string;
+    full_name: string;
+}
 
+export interface Domain {
+    domain_id: string;
+    domain_name: string;
+}
+
+export interface Keyword {
+    keyword_id: string;
+    keyword_text: string;
+}
+
+export interface CreateResearcherRequest {
+    full_name: string;
+    email?: string;
+    orcid?: string;
+    department_id?: string;
+    academic_title?: string;
+    researcher_code?: string;
+    is_internal?: boolean;
+}
+
+export interface CreateDomainRequest {
+    domain_code: string;
+    domain_name: string;
+    parent_domain_id?: string | null;
+    description?: string;
+    is_active?: boolean;
+}
+
+export interface CreateKeywordRequest {
+    keyword_text: string;
+    normalized_text: string;
+}
+
+export interface StagingFile {
+    file_id: string;
+    staging_id: string;
+    original_filename: string;
+    stored_filename: string;
+    storage_path: string;
+    mime_type: string;
+    file_extension: string;
+    file_size_bytes: number;
+    checksum_sha256: string;
+    file_status: string;
+    uploaded_by: string;
+    uploaded_at: string;
+    access_level: string;
+}
+
+export interface StagingAuthorDetail {
+    staging_author_id: string;
+    staging_id: string;
+    researcher_id: string | null;
+    full_name: string;
+    email: string | null;
+    affiliation: string | null;
+    author_order: number;
+    author_role: string;
+    created_at: string;
+}
+
+export interface StagingDomainDetail {
+    domain_id: string;
+    domain_name: string;
+}
+
+export interface StagingKeywordDetail {
+    keyword_id: string;
+    keyword_text: string;
+}
+
+export interface StagingResearchObjectDetail extends StagingResearchObject {
+    description: string | null;
+    abstract: string | null;
+    start_date: string | null;
+    end_date: string | null;
+    date_issued: string | null;
+    publisher: string | null;
+    language: string | null;
+    identifier: string | null;
+    external_url: string | null;
+    source: string | null;
+    relation: string | null;
+    coverage: string | null;
+    rights: string | null;
+    reviewed_by: string | null;
+    reviewed_at: string | null;
+    revision_note: string | null;
+    rejection_reason: string | null;
+    domains: StagingDomainDetail[];
+    keywords: StagingKeywordDetail[];
+    authors: StagingAuthorDetail[];
+    files: StagingFile[];
+}
 
 export const referenceService = {
     // department
@@ -52,27 +152,163 @@ export const referenceService = {
         })
         return response.data.items
     },
-    async createResearcher(full_name: string) {
-        const response = await axiosInstance.post(API_ENDPOINT.RESEARCHERS.POST, { full_name })
-        return response.data
+    async createResearcher(data: CreateResearcherRequest) {
+        const response = await axiosInstance.post(
+            API_ENDPOINT.RESEARCHERS.POST,
+            data
+        );
+
+        return response.data;
     },
-    // keywords
-    async getKeywords(page = 1, pageSize = 100) {
-        const response = await axiosInstance.get<PaginatedResponse<{ keyword_id: string; keyword: string }>>(API_ENDPOINT.KEYWORD.GET, {
-            params: { page, page_size: pageSize },
-        })
-        return response.data.items
+    // Keywords
+    async getKeywords(
+        page = 1,
+        pageSize = 20,
+        q = ""
+    ) {
+        const response = await axiosInstance.get(
+            API_ENDPOINT.KEYWORD.GET,
+            {
+                params: {
+                    page,
+                    page_size: pageSize,
+                    q,
+                },
+            }
+        );
+
+        return response.data.items;
     },
-    async createKeyword(keyword: string) {
-        const response = await axiosInstance.post(API_ENDPOINT.KEYWORD.POST, { keyword })
-        return response.data
+
+    async createKeyword(data: CreateKeywordRequest) {
+        const response = await axiosInstance.post(
+            API_ENDPOINT.KEYWORD.POST,
+            data
+        );
+
+        return response.data;
     },
-    // domains
-    async getDomains(page = 1, pageSize = 100) {
-        const response = await axiosInstance.get<PaginatedResponse<{ domain_id: string; domain_name: string }>>(API_ENDPOINT.DOMAIN.GET, {
-            params: { page, page_size: pageSize },
-        })
-        return response.data.items
-    }
-}
+
+    async suggestKeywords(q: string, limit = 10) {
+        const response = await axiosInstance.get(
+            "api/v1/reference/keywords/suggestions",
+            {
+                params: {
+                    q,
+                    limit,
+                },
+            }
+        );
+
+        return response.data;
+    },
+
+
+    // Domains
+    async getDomains(
+        page = 1,
+        pageSize = 20,
+        q = ""
+    ) {
+        const response = await axiosInstance.get(
+            API_ENDPOINT.DOMAIN.GET,
+            {
+                params: {
+                    page,
+                    page_size: pageSize,
+                    q,
+                },
+            }
+        );
+
+        return response.data.items;
+    },
+
+    async createDomain(data: CreateDomainRequest) {
+        const response = await axiosInstance.post(
+            API_ENDPOINT.DOMAIN.POST,
+            data
+        );
+
+        return response.data;
+    },
+    async suggestDomains(q: string, limit = 10) {
+        const response = await axiosInstance.get(
+            "api/v1/reference/research-domains/suggestions",
+            {
+                params: {
+                    q,
+                    limit,
+                },
+            }
+        );
+
+        return response.data;
+    },
+
+    //  METADATA 
+    async createMetadata(data: any) {
+        const response = await axiosInstance.post(
+            API_ENDPOINT.DATA_ENTRY.CREATE_METADATA,
+            data
+        );
+
+        return response.data;
+    },
+    async getMetadataByStagingId(stagingId: string) {
+        const response = await axiosInstance.get<StagingResearchObjectDetail>(
+            `${API_ENDPOINT.DATA_ENTRY.GET_METADATA_BY_STAGINGID}/${stagingId}`
+        );
+
+        return response.data;
+    },
+    async updateMetadata(stagingId: string, data: any) {
+        const response = await axiosInstance.put(
+            API_ENDPOINT.DATA_ENTRY.UPDATE_METADATA(stagingId),
+            data
+        );
+
+        return response.data;
+    },
+    submitForReview: (stagingId: string, note: string) => {
+        return axiosInstance.post(
+            API_ENDPOINT.DATA_ENTRY.SUBMIT_FOR_REVIEW(stagingId),
+            {
+                note,
+            }
+        );
+    },
+
+    // file đính kèm
+    async getStagingFiles(stagingId: string) {
+        const response = await axiosInstance.get<StagingFile[]>(
+            API_ENDPOINT.DATA_ENTRY.FILES(stagingId)
+        );
+
+        return response.data;
+    },
+
+    async uploadStagingFile(stagingId: string, file: File) {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await axiosInstance.post<StagingFile>(
+            API_ENDPOINT.DATA_ENTRY.FILES(stagingId),
+            formData,
+            { headers: { "Content-Type": undefined } }
+        );
+
+        return response.data;
+    },
+
+    async deleteStagingFile(stagingId: string, fileId: string) {
+        const response = await axiosInstance.delete(
+            API_ENDPOINT.DATA_ENTRY.DELETE_FILE(stagingId, fileId)
+        );
+
+        return response.data;
+    },
+};
+
+
 
