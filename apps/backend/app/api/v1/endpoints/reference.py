@@ -33,7 +33,7 @@ from app.services.reference.researcher_service import researcher_service
 
 router = APIRouter()
 
-ALLOWED_REFERENCE_READ_ROLES = ("SUPER_ADMIN", "REVIEWER", "DATA_ENTRY")
+ALLOWED_REFERENCE_READ_ROLES = ("SUPER_ADMIN", "REVIEWER", "DATA_ENTRY", "APPROVER")
 ALLOWED_REFERENCE_CREATE_ROLES = ("SUPER_ADMIN", "DATA_ENTRY")
 
 
