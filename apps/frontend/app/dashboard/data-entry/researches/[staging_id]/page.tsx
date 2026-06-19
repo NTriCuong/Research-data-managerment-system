@@ -69,7 +69,7 @@ export default function DataEntryResearchDetailPage() {
 
     return (
         <div className="min-h-full bg-gray-50">
-            <div className="mx-auto max-w-7xl space-y-6 p-6">
+            <div className="mx-auto max-w-5xl space-y-6 p-6">
                 <div>
                     <button
                         type="button"
@@ -81,7 +81,7 @@ export default function DataEntryResearchDetailPage() {
                     </button>
 
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                        <h1 className="text-2xl font-semibold text-gray-900">{detail.title || 'Bản ghi nghiên cứu'}</h1>
+                        <h1 className="min-w-0 wrap-break-word text-2xl font-semibold text-gray-900">{detail.title || 'Bản ghi nghiên cứu'}</h1>
 
                         <span className={`rounded-full px-3 py-1 text-sm font-medium ${WORKFLOW_STATUS_BADGE_CLASS[detail.workflow_status] ?? 'bg-gray-100 text-gray-700'}`}>
                             {WORKFLOW_STATUS_LABEL[detail.workflow_status] ?? detail.workflow_status}
