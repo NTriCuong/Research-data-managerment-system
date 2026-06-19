@@ -15,6 +15,7 @@ from app.schemas.staging_metadata import (
     CreateRevisionRequest,
     StagingFileOut,
     StagingResearchObjectCreate,
+    StagingResearchObjectDetailOut,
     StagingResearchObjectOut,
     StagingResearchObjectUpdate,
     SubmitForReviewRequest,
@@ -26,7 +27,7 @@ router = APIRouter()
 
 ALLOWED_EDITOR_ROLES = ("SUPER_ADMIN", "DATA_ENTRY")
 ALLOWED_ADMIN_MANAGER_ROLES = ("SUPER_ADMIN", "MANAGER")
-ALLOWED_STAGING_VIEWER_ROLES = ("SUPER_ADMIN", "MANAGER", "DATA_ENTRY")
+ALLOWED_STAGING_VIEWER_ROLES = ("SUPER_ADMIN", "MANAGER", "DATA_ENTRY", "REVIEWER", "APPROVER")
 
 
 @router.post("", response_model=StagingResearchObjectOut, status_code=status.HTTP_201_CREATED)
@@ -106,12 +107,12 @@ async def bulk_submit_for_review(
     return result
 
 
-@router.get("/{staging_id}", response_model=StagingResearchObjectOut)
+@router.get("/{staging_id}", response_model=StagingResearchObjectDetailOut)
 async def get_staging_record(
     staging_id: UUID,
-    current_user: User = Depends(require_roles(*ALLOWED_EDITOR_ROLES)),
+    current_user: User = Depends(require_roles(*ALLOWED_STAGING_VIEWER_ROLES)),
     db: AsyncSession = Depends(get_db),
-) -> StagingResearchObjectOut:
+) -> StagingResearchObjectDetailOut:
     return await staging_service.get_staging_record(
         db,
         staging_id=staging_id,

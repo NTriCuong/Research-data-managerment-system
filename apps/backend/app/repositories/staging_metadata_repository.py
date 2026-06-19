@@ -10,6 +10,8 @@ from app.models.enum import FileStatus
 from app.models.enum import WorkflowStatus
 from app.models.staging.stg_file_attachment import StgFileAttachment
 from app.models.staging.stg_research_object import StgResearchObject
+from app.models.staging.stg_research_object_domain import StgResearchObjectDomain
+from app.models.staging.stg_research_object_keyword import StgResearchObjectKeyword
 
 
 class StagingRepository:
@@ -25,9 +27,10 @@ class StagingRepository:
         stmt = select(StgResearchObject).where(StgResearchObject.staging_id == staging_id)
         if with_relations:
             stmt = stmt.options(
-                selectinload(StgResearchObject.domains),
-                selectinload(StgResearchObject.keywords),
+                selectinload(StgResearchObject.domains).selectinload(StgResearchObjectDomain.domain),
+                selectinload(StgResearchObject.keywords).selectinload(StgResearchObjectKeyword.keyword),
                 selectinload(StgResearchObject.authors),
+                selectinload(StgResearchObject.file_attachments),
             )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()

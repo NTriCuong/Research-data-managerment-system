@@ -6,7 +6,23 @@ export const API_ENDPOINT = {
         CHANGE_PASSWORD: 'api/v1/auth/change-password',
     },
     DATA_ENTRY: {
-        GET_RESEARCH_DATA: 'api/v1/staging-metadata/mine'
+        GET_RESEARCH_DATA: 'api/v1/staging-metadata/mine',
+        CREATE_METADATA: '/api/v1/staging-metadata',
+        GET_METADATA_BY_STAGINGID: '/api/v1/staging-metadata', // dùng path param
+        UPDATE_METADATA: (stagingId: string) => `/api/v1/staging-metadata/${stagingId}`,
+        SUBMIT_FOR_REVIEW: (stagingId: string) => `/api/v1/staging-metadata/${stagingId}/submit`,
+        FILES: (stagingId: string) => `/api/v1/staging-metadata/${stagingId}/files`,
+        DELETE_FILE: (stagingId: string, fileId: string) => `/api/v1/staging-metadata/${stagingId}/files/${fileId}`,
+    },
+    REVIEWER: {
+        GET_RESEARCH_DATA: '/api/v1/staging-review/pending',
+        FORWARD: (stagingId: string) => `/api/v1/staging-review/${stagingId}/forward`,
+        REQUEST_REVISION: (stagingId: string) => `/api/v1/staging-review/${stagingId}/request-revision`,
+    },
+    APPROVER: {
+        GET_RESEARCH_DATA: '/api/v1/core-approve/pending',
+        APPROVE: (stagingId: string) => `/api/v1/core-approve/${stagingId}/approve`,
+        REJECT: (stagingId: string) => `/api/v1/core-approve/${stagingId}/reject`,
     },
     // reference dùng chung 
     OUTPUT_TYPE: {
@@ -24,6 +40,7 @@ export const API_ENDPOINT = {
         POST: 'api/v1/reference/keywords',
     },
     DOMAIN: {
-        GET: 'api/v1/reference/domains',
+        GET: 'api/v1/reference/research-domains',
+        POST: 'api/v1/reference/research-domains',
     }
 } 

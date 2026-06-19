@@ -48,9 +48,21 @@ class StagingResearchObjectCreate(BaseModel):
     relation: str | None = None
     coverage: str | None = None
     rights: str | None = None
-    domain_ids: list[UUID] = Field(default_factory=list)
-    keyword_ids: list[UUID] = Field(default_factory=list)
-    authors: list[StagingAuthorIn] = Field(default_factory=list)
+    domain_ids: list[UUID] | None = None
+    keyword_ids: list[UUID] | None = None
+    domain_name: list[str] | None = None
+    keyword_name: list[str] | None = None
+    authors: list[StagingAuthorIn] 
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_name_based_references(cls, data):
+        if isinstance(data, dict):
+            unsupported = {"domain_name", "keyword_name"} & set(data)
+            if unsupported:
+                fields = ", ".join(sorted(unsupported))
+                raise ValueError(f"{fields} không được hỗ trợ; hãy dùng domain_ids/keyword_ids đã tồn tại")
+        return data
 
     @model_validator(mode="before")
     @classmethod
@@ -83,6 +95,8 @@ class StagingResearchObjectUpdate(BaseModel):
     rights: str | None = None
     domain_ids: list[UUID] | None = None
     keyword_ids: list[UUID] | None = None
+    domain_name: list[str] | None = None
+    keyword_name: list[str] | None = None
     authors: list[StagingAuthorIn] | None = None
 
     @model_validator(mode="before")
@@ -168,6 +182,40 @@ class StagingFileOut(BaseModel):
     uploaded_by: UUID
     uploaded_at: datetime
     access_level: AccessLevel
+
+
+class StagingDomainOut(BaseModel):
+    domain_id: UUID
+    domain_name: str
+
+
+class StagingKeywordOut(BaseModel):
+    keyword_id: UUID
+    keyword_text: str
+
+
+class StagingResearchObjectDetailOut(StagingResearchObjectOut):
+    description: str | None
+    abstract: str | None
+    start_date: date | None
+    end_date: date | None
+    date_issued: date | None
+    publisher: str | None
+    language: str | None
+    identifier: str | None
+    external_url: str | None
+    source: str | None
+    relation: str | None
+    coverage: str | None
+    rights: str | None
+    reviewed_by: UUID | None
+    reviewed_at: datetime | None
+    revision_note: str | None
+    rejection_reason: str | None
+    domains: list[StagingDomainOut]
+    keywords: list[StagingKeywordOut]
+    authors: list[StagingAuthorOut]
+    files: list[StagingFileOut]
 
 
 class WorkflowHistoryOut(BaseModel):

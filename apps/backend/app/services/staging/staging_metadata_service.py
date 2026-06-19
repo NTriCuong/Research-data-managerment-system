@@ -24,8 +24,12 @@ from app.schemas.staging_metadata import (
     BulkSubmitForReviewOut,
     BulkSubmitForReviewRequest,
     CreateRevisionRequest,
+    StagingAuthorOut,
+    StagingDomainOut,
     StagingFileOut,
+    StagingKeywordOut,
     StagingResearchObjectCreate,
+    StagingResearchObjectDetailOut,
     StagingResearchObjectOut,
     StagingResearchObjectUpdate,
     SubmitForReviewRequest,
@@ -307,14 +311,51 @@ class StagingService:
         )
         return [StagingResearchObjectOut.model_validate(x) for x in rows]
 
-    async def get_staging_record(self, db: AsyncSession, *, staging_id: UUID, current_user: User) -> StagingResearchObjectOut:
+    async def get_staging_record(self, db: AsyncSession, *, staging_id: UUID, current_user: User) -> StagingResearchObjectDetailOut:
         repo = StagingRepository(db)
-        obj = await repo.get_by_id(staging_id)
+        obj = await repo.get_by_id(staging_id, with_relations=True)
         if obj is None or obj.deleted_at is not None:
             raise NotFoundException("Không tìm thấy bản ghi tạm")
-        if obj.created_by != current_user.user_id and current_user.role.role_code != "SUPER_ADMIN":
+        if obj.created_by != current_user.user_id and current_user.role.role_code not in {"SUPER_ADMIN", "MANAGER", "REVIEWER", "APPROVER"}:
             raise ForbiddenException("Bạn không có quyền xem bản ghi tạm này")
-        return StagingResearchObjectOut.model_validate(obj)
+        return StagingResearchObjectDetailOut(
+            staging_id=obj.staging_id,
+            title=obj.title,
+            output_type_id=obj.output_type_id,
+            department_id=obj.department_id,
+            year=obj.year,
+            workflow_status=obj.workflow_status,
+            access_level=obj.access_level,
+            source_core_research_id=obj.source_core_research_id,
+            update_reason=obj.update_reason,
+            metadata_quality_score=obj.metadata_quality_score,
+            created_by=obj.created_by,
+            submitted_by=obj.submitted_by,
+            submitted_at=obj.submitted_at,
+            created_at=obj.created_at,
+            updated_at=obj.updated_at,
+            description=obj.description,
+            abstract=obj.abstract,
+            start_date=obj.start_date,
+            end_date=obj.end_date,
+            date_issued=obj.date_issued,
+            publisher=obj.publisher,
+            language=obj.language,
+            identifier=obj.identifier,
+            external_url=obj.external_url,
+            source=obj.source,
+            relation=obj.relation,
+            coverage=obj.coverage,
+            rights=obj.rights,
+            reviewed_by=obj.reviewed_by,
+            reviewed_at=obj.reviewed_at,
+            revision_note=obj.revision_note,
+            rejection_reason=obj.rejection_reason,
+            domains=[StagingDomainOut(domain_id=d.domain_id, domain_name=d.domain.domain_name) for d in obj.domains],
+            keywords=[StagingKeywordOut(keyword_id=k.keyword_id, keyword_text=k.keyword.keyword_text) for k in obj.keywords],
+            authors=[StagingAuthorOut.model_validate(a) for a in obj.authors],
+            files=[StagingFileOut.model_validate(f) for f in obj.file_attachments if f.file_status != FileStatus.deleted],
+        )
 
     async def list_all_staging_records(
         self,
@@ -353,7 +394,7 @@ class StagingService:
         changed_new: dict = {}
         
         for field, value in payload_data.items():
-            if field in {"domain_ids", "keyword_ids", "authors"}:
+            if field in {"domain_ids", "keyword_ids", "domain_name", "keyword_name", "authors"}:
                 continue    
             if isinstance(value, AnyUrl):
                 value = str(value)

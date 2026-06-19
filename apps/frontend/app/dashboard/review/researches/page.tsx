@@ -1,6 +1,7 @@
 'use client'
 
-import { dataEntryService, type StagingResearchObject } from '@/services/data-entry/data-entry.service'
+import { type StagingResearchObject } from '@/services/data-entry/data-entry.service'
+import { reviewerService } from '@/services/reviewer/reviewer.service'
 import { referenceService } from '@/services/reference/reference.service'
 import { parseAxiosError } from '@/lib/axios/error-paser'
 import { WORKFLOW_STATUS_LABEL, WORKFLOW_STATUS_BADGE_CLASS, ACCESS_LEVEL_LABEL, ACCESS_LEVEL_BADGE_CLASS } from '@/lib/constants/workflow'
@@ -28,7 +29,7 @@ export default function Researches() {
             setError('')
 
             try {
-                const data = await dataEntryService.getResearchData()
+                const data = await reviewerService.getPendingReviews()
                 setDataResearch(data)
             } catch (err) {
                 setError(parseAxiosError(err).message)
@@ -62,9 +63,9 @@ export default function Researches() {
         <div className="space-y-6 p-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-semibold text-gray-900">Nghiên cứu của tôi phụ trách</h1>
+                    <h1 className="text-2xl font-semibold text-gray-900">Nghiên cứu chờ kiểm duyệt</h1>
                     <p className="mt-1 text-sm text-gray-500">
-                        {dataResearch.length} bản ghi
+                        {dataResearch.length} bản ghi đang chờ kiểm duyệt
                     </p>
                 </div>
 
@@ -96,16 +97,14 @@ export default function Researches() {
                                 <th className="px-4 py-3">Năm</th>
                                 <th className="px-4 py-3">Trạng thái</th>
                                 <th className="px-4 py-3">Mức truy cập</th>
-                                <th className="px-4 py-3">Lý do cập nhật</th>
                                 <th className="px-4 py-3">Điểm chất lượng</th>
-                                <th className="px-4 py-3">Ngày tạo</th>
-                                <th className="px-4 py-3">Ngày cập nhật</th>
+                                <th className="px-4 py-3">Ngày gửi</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {loading && (
                                 <tr>
-                                    <td colSpan={10} className="px-4 py-6 text-center text-sm text-gray-400">
+                                    <td colSpan={8} className="px-4 py-6 text-center text-sm text-gray-400">
                                         Đang tải dữ liệu...
                                     </td>
                                 </tr>
@@ -114,7 +113,7 @@ export default function Researches() {
                             {!loading && filteredData.map((item) => (
                                 <tr
                                     key={item.staging_id}
-                                    onClick={() => router.push(`/dashboard/data-entry/researches/${item.staging_id}`)}
+                                    onClick={() => router.push(`/dashboard/review/researches/${item.staging_id}`)}
                                     className="cursor-pointer transition hover:bg-blue-50/60"
                                 >
                                     <td className="max-w-80 truncate px-4 py-3 font-medium text-gray-900" title={item.title}>{item.title}</td>
@@ -131,16 +130,14 @@ export default function Researches() {
                                             {ACCESS_LEVEL_LABEL[item.access_level] ?? item.access_level}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-3 text-gray-600">{item.update_reason ?? '-'}</td>
                                     <td className="px-4 py-3 text-gray-600">{item.metadata_quality_score ?? '-'}</td>
-                                    <td className="px-4 py-3 text-gray-600">{formatDateTime(item.created_at)}</td>
-                                    <td className="px-4 py-3 text-gray-600">{formatDateTime(item.updated_at)}</td>
+                                    <td className="px-4 py-3 text-gray-600">{formatDateTime(item.submitted_at)}</td>
                                 </tr>
                             ))}
 
                             {!loading && filteredData.length === 0 && (
                                 <tr>
-                                    <td colSpan={10} className="px-4 py-10 text-center text-sm text-gray-400">
+                                    <td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-400">
                                         Không có dữ liệu
                                     </td>
                                 </tr>

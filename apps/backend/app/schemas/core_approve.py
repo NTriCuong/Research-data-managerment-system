@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -49,6 +50,8 @@ class PendingApprovalOut(BaseModel):
     department_id: UUID
     year: int | None
     workflow_status: WorkflowStatus
+    access_level: AccessLevel
+    metadata_quality_score: Decimal | None
     submitted_by: UUID | None
     reviewed_by: UUID | None
     submitted_at: datetime | None
