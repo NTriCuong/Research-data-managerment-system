@@ -111,6 +111,10 @@ class AuthRepository:
         result = await self.db.execute(select(Role).where(Role.role_id == role_id))
         return result.scalar_one_or_none()
 
+    async def list_roles(self) -> list[Role]:
+        result = await self.db.execute(select(Role).order_by(Role.role_name))
+        return list(result.scalars().all())
+
     async def list_users(
         self,
         *,

@@ -8,7 +8,7 @@ from app.database.session import get_db
 from app.models.auth.user import User
 from app.models.enum import UserStatus
 from app.schemas.auth import MessageResponse
-from app.schemas.user import UserCreate, UserRead, UserRoleUpdate, UserStatusUpdate, UserUpdate
+from app.schemas.user import RoleOut, UserCreate, UserRead, UserRoleUpdate, UserStatusUpdate, UserUpdate
 from app.services.auth.auth_service import auth_service
 
 router = APIRouter()
@@ -38,6 +38,15 @@ async def list_users(
         user_status=status_filter,
     )
     return [UserRead.model_validate(user) for user in users]
+
+
+@router.get("/roles", response_model=list[RoleOut])
+async def list_roles(
+    _: User = Depends(require_roles("SUPER_ADMIN")),
+    db: AsyncSession = Depends(get_db),
+) -> list[RoleOut]:
+    roles = await auth_service.list_roles(db)
+    return [RoleOut.model_validate(r) for r in roles]
 
 
 @router.get("/{user_id}", response_model=UserRead)
