@@ -99,6 +99,24 @@ class CoreApproveService:
             "keyword_ids": [str(x.keyword_id) for x in core_obj.keywords],
         }
 
+    @staticmethod
+    def _metadata_version_for(
+        *,
+        core_obj: CoreResearchObject,
+        staging_obj,
+        current_user: User,
+        created_at: datetime,
+        note: str | None,
+    ) -> CoreMetadataVersion:
+        return CoreMetadataVersion(
+            research_id=core_obj.research_id,
+            version_no=core_obj.version_no,
+            metadata_snapshot=CoreApproveService._build_snapshot(core_obj),
+            change_reason=staging_obj.update_reason or note,
+            created_by=current_user.user_id,
+            created_at=created_at,
+        )
+
     async def list_pending_approval_records(self, db: AsyncSession, *, limit: int, offset: int) -> list[PendingApprovalOut]:
         repo = CoreApproveRepository(db)
         rows = await repo.list_pending_approval_records(limit=limit, offset=offset)
@@ -148,19 +166,8 @@ class CoreApproveService:
             if core_obj is None or core_obj.deleted_at is not None:
                 raise NotFoundException("Không tìm thấy bản ghi core nguồn")
 
-            old_snapshot = self._build_snapshot(core_obj)
             core_obj.version_no += 1
             self._copy_staging_into_core(staging_obj, core_obj, now, current_user.user_id)
-            db.add(
-                CoreMetadataVersion(
-                    research_id=core_obj.research_id,
-                    version_no=core_obj.version_no,
-                    metadata_snapshot=old_snapshot,
-                    change_reason=staging_obj.update_reason,
-                    created_by=current_user.user_id,
-                    created_at=now,
-                )
-            )
 
             core_obj.authors.clear()
             core_obj.domains.clear()
@@ -206,6 +213,15 @@ class CoreApproveService:
                 )
                 for f in staging_obj.file_attachments
             ]
+        )
+        db.add(
+            self._metadata_version_for(
+                core_obj=core_obj,
+                staging_obj=staging_obj,
+                current_user=current_user,
+                created_at=now,
+                note=payload.note,
+            )
         )
 
         staging_obj.workflow_status = WorkflowStatus.approved

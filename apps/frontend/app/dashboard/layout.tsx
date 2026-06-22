@@ -5,7 +5,7 @@ import Navbar, { type NavbarItem } from "@/components/navbar/Navbar";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAppSelector } from "@/store/hooks";
 import { selectCurrentUser } from "@/store/slice/auth.slice";
-import { CheckCheck, ClipboardList, FilePlus2, FileText } from "lucide-react";
+import { CheckCheck, ClipboardList, FilePlus2, FileText, Users } from "lucide-react";
 
 // menu data entry
 const items_data_entry = [
@@ -20,12 +20,17 @@ const items_reviewer = [
 const items_approver = [
     { label: "Researches", href: "/dashboard/approval/researches", icon: CheckCheck },
 ];
+// menu super admin
+const items_super_admin = [
+    { label: "Users", href: "/dashboard/superadmin/users", icon: Users },
+];
 
 // map role_name (đúng tên trả về từ backend) sang menu navbar tương ứng
 const ROLE_NAVBAR_ITEMS: Record<string, NavbarItem[]> = {
     "Data Entry User": items_data_entry,
     "Metadata Reviewer": items_reviewer,
     "Metadata Approver": items_approver,
+    "Super Administrator": items_super_admin,
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
