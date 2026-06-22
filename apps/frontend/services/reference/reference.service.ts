@@ -128,6 +128,52 @@ export interface StagingResearchObjectDetail extends StagingResearchObject {
     files: StagingFile[];
 }
 
+export type UserStatus = "active" | "disabled"
+
+export interface Role {
+    role_id: string;
+    role_code: string;
+    role_name: string;
+}
+
+export interface AppUser {
+    user_id: string;
+    username: string;
+    email: string;
+    full_name: string;
+    role_id: string;
+    department_id: string | null;
+    status: UserStatus;
+    last_login_at: string | null;
+    created_at: string;
+    updated_at: string | null;
+    deleted_at: string | null;
+}
+
+export interface CreateUserRequest {
+    username: string;
+    email: string;
+    password: string;
+    full_name: string;
+    role_id: string;
+    department_id?: string | null;
+}
+
+export interface UpdateUserRequest {
+    username?: string;
+    email?: string;
+    full_name?: string;
+    department_id?: string | null;
+}
+
+export interface ListUsersParams {
+    limit?: number;
+    offset?: number;
+    q?: string;
+    role_id?: string;
+    status?: UserStatus;
+}
+
 export const referenceService = {
     // department
     async getDepartments(page = 1, pageSize = 100) {
@@ -306,6 +352,48 @@ export const referenceService = {
             API_ENDPOINT.DATA_ENTRY.DELETE_FILE(stagingId, fileId)
         );
 
+        return response.data;
+    },
+
+    // Roles
+    async getRoles() {
+        const response = await axiosInstance.get<Role[]>(API_ENDPOINT.ROLE.GET);
+        return response.data;
+    },
+
+    // Users
+    async getUsers(params?: ListUsersParams) {
+        const response = await axiosInstance.get<AppUser[]>(API_ENDPOINT.USER.GET, { params });
+        return response.data;
+    },
+
+    async getUserDetail(userId: string) {
+        const response = await axiosInstance.get<AppUser>(API_ENDPOINT.USER.GET_DETAIL(userId));
+        return response.data;
+    },
+
+    async createUser(data: CreateUserRequest) {
+        const response = await axiosInstance.post<AppUser>(API_ENDPOINT.USER.POST, data);
+        return response.data;
+    },
+
+    async updateUser(userId: string, data: UpdateUserRequest) {
+        const response = await axiosInstance.put<AppUser>(API_ENDPOINT.USER.PUT(userId), data);
+        return response.data;
+    },
+
+    async deleteUser(userId: string) {
+        const response = await axiosInstance.delete(API_ENDPOINT.USER.DELETE(userId));
+        return response.data;
+    },
+
+    async updateUserStatus(userId: string, status: UserStatus) {
+        const response = await axiosInstance.put<AppUser>(API_ENDPOINT.USER.PUT_STATUS(userId), { status });
+        return response.data;
+    },
+
+    async updateUserRole(userId: string, roleId: string) {
+        const response = await axiosInstance.put<AppUser>(API_ENDPOINT.USER.PUT_ROLE(userId), { role_id: roleId });
         return response.data;
     },
 };
