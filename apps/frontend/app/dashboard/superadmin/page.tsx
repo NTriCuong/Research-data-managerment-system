@@ -5,6 +5,7 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks'
 import { selectCurrentUser } from '@/store/slice/auth.slice'
 import { authService } from '@/services/auth/auth.service'
 import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 
 export default function SuperAdminPage() {
     const currentUser = useAppSelector(selectCurrentUser)
@@ -24,6 +25,8 @@ export default function SuperAdminPage() {
         <div className="p-6">
             <div className="flex items-center justify-between mb-4">
                 <h1 className="text-2xl font-bold">Super Admin</h1>
+                <Button>Hello shadcn/ui</Button>
+
                 <button
                     onClick={handleLogout}
                     className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-sm"

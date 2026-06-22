@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.auth.refresh_token import RefreshToken
+from app.models.auth.role import Role
 from app.models.auth.user import User
 from app.models.enum import UserStatus
 from app.repositories.auth_repository import AuthRepository
@@ -54,6 +55,9 @@ class AuthService:
             role_id=role_id,
             status=user_status.value if user_status else None,
         )
+
+    async def list_roles(self, db: AsyncSession) -> list[Role]:
+        return await AuthRepository(db).list_roles()
 
     async def get_user(self, db: AsyncSession, *, user_id: UUID) -> User:
         user = await AuthRepository(db).find_user_by_id_with_role(user_id)

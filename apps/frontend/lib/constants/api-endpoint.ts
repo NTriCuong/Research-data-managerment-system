@@ -42,5 +42,17 @@ export const API_ENDPOINT = {
     DOMAIN: {
         GET: 'api/v1/reference/research-domains',
         POST: 'api/v1/reference/research-domains',
+    },
+    USER: {
+        GET: 'api/v1/users',
+        POST: 'api/v1/users',
+        GET_DETAIL: (userId: string) => `api/v1/users/${userId}`,
+        PUT: (userId: string) => `api/v1/users/${userId}`,
+        DELETE: (userId: string) => `api/v1/users/${userId}`,
+        PUT_STATUS: (userId: string) => `api/v1/users/${userId}/status`,
+        PUT_ROLE: (userId: string) => `api/v1/users/${userId}/role`
+    },
+    ROLE: {
+        GET: 'api/v1/users/roles',
     }
-} 
+}

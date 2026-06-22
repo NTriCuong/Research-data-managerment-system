@@ -45,3 +45,11 @@ class UserRoleUpdate(BaseModel):
 class UserStatusUpdate(BaseModel):
     status: UserStatus
 
+
+class RoleOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    role_id: UUID
+    role_code: str
+    role_name: str
+
