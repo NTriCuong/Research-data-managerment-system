@@ -1,6 +1,7 @@
 "use client";
 
 import FirebaseInitializer from "@/components/filebase/FirebaseInitializer";
+import NotificationButton from "@/components/filebase/NotificationButton";
 import Header from "@/components/header/Header";
 import Navbar, { type NavbarItem } from "@/components/navbar/Navbar";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -41,6 +42,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return (
         <ProtectedRoute>
             <FirebaseInitializer />
+            <NotificationButton />
             <div className="flex h-screen flex-col">
                 <div className="flex">
                     <div className="flex h-12 w-60 shrink-0 items-center bg-[#1f3568] px-4">

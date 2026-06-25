@@ -1,5 +1,5 @@
 // Lấy hàm khởi tạo app từ Firebase core
-import { initializeApp } from "firebase/app";
+import { getApps, initializeApp } from "firebase/app";
 
 // Lấy module messaging để dùng push notification
 import { getMessaging } from "firebase/messaging";
@@ -15,12 +15,6 @@ const firebaseConfig = {
     measurementId: "G-C8XJGFSJTE"
 };
 
-// Khởi tạo Firebase app — phải gọi trước bất kỳ service nào khác
-const app = initializeApp(firebaseConfig);
+const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
-// Khởi tạo messaging service từ app vừa tạo
-// getMessaging() chỉ chạy được trên trình duyệt — KHÔNG chạy được trên server (Next.js SSR)
-const messaging = getMessaging(app);
-
-// Export để dùng ở các file khác
-export { messaging };
+export default app;
