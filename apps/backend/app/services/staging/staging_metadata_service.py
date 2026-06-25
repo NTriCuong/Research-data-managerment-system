@@ -38,6 +38,7 @@ from app.schemas.staging_metadata import (
 from app.services.logs.audit_service import audit_service
 from app.services.storage.file_service import file_service
 from app.services.logs.workflow_service import workflow_service
+from app.services.notifications.notification_service import notification_service
 from fastapi.encoders import jsonable_encoder
 from pydantic import AnyUrl
 
@@ -212,6 +213,19 @@ class StagingService:
             old_value={"workflow_status": old_status.value},
             new_value={"workflow_status": WorkflowStatus.pending_review.value, "note": note},
             message="Submitted staging record for review",
+        )
+        await notification_service.notify_role(
+            db,
+            role_codes=["REVIEWER", "SUPER_ADMIN"],
+            actor_user_id=current_user.user_id,
+            event_type="staging.submitted",
+            title="Co bai nghien cuu moi can review",
+            message=f"Data entry da gui bai nghien cuu '{obj.title}' den buoc review.",
+            target_url=f"/dashboard/review/researches/{obj.staging_id}",
+            payload={
+                "staging_id": str(obj.staging_id),
+                "workflow_status": WorkflowStatus.pending_review.value,
+            },
         )
 
     async def create_staging_research_object(

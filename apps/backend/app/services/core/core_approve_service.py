@@ -18,6 +18,7 @@ from app.schemas.auth import MessageResponse
 from app.schemas.core_approve import ApproveRequest, PendingApprovalOut
 from app.services.logs.audit_service import audit_service
 from app.services.logs.workflow_service import workflow_service
+from app.services.notifications.notification_service import notification_service
 
 
 class CoreApproveService:
@@ -256,6 +257,20 @@ class CoreApproveService:
         )
         await db.flush()
         await self._refresh_search_vector(db, research_id=core_obj.research_id)
+        await notification_service.notify_user(
+            db,
+            recipient_user_id=staging_obj.created_by,
+            actor_user_id=current_user.user_id,
+            event_type="staging.approved",
+            title="Bai nghien cuu da duoc phe duyet",
+            message=f"Bai nghien cuu '{staging_obj.title}' da duoc phe duyet va xuat ban vao core.",
+            target_url=f"/dashboard/data-entry/researches/{staging_obj.staging_id}",
+            payload={
+                "staging_id": str(staging_obj.staging_id),
+                "research_id": str(core_obj.research_id),
+                "workflow_status": WorkflowStatus.approved.value,
+            },
+        )
         return MessageResponse(message="Phê duyệt và xuất bản bản ghi vào core thành công")
 
     async def reject_record(self, db: AsyncSession, *, staging_id: UUID, reason: str, current_user: User) -> MessageResponse:
@@ -293,6 +308,20 @@ class CoreApproveService:
             old_value={"workflow_status": previous_status.value},
             new_value={"workflow_status": WorkflowStatus.rejected.value, "rejection_reason": reason},
             message="Approver rejected staging record",
+        )
+        await notification_service.notify_user(
+            db,
+            recipient_user_id=staging_obj.created_by,
+            actor_user_id=current_user.user_id,
+            event_type="staging.rejected",
+            title="Bai nghien cuu bi tu choi",
+            message=f"Bai nghien cuu '{staging_obj.title}' bi tu choi: {reason}",
+            target_url=f"/dashboard/data-entry/researches/{staging_obj.staging_id}",
+            payload={
+                "staging_id": str(staging_obj.staging_id),
+                "workflow_status": WorkflowStatus.rejected.value,
+                "reason": reason,
+            },
         )
         return MessageResponse(message="Từ chối bản ghi thành công")
 

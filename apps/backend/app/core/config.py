@@ -33,8 +33,16 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE: int
     MAX_LOGIN_ATTEMPTS: int
     LOCK_DURATION: int
+    FRONTEND_URL: str
     BACKUP_DIRECTORY: Path = Path("backups")
     PG_DUMP_PATH: str = "pg_dump"
+    SMTP_HOST: str 
+    SMTP_PORT: int 
+    SMTP_USERNAME: str 
+    SMTP_PASSWORD: str 
+    SMTP_FROM_EMAIL: str 
+    SMTP_FROM_NAME: str = "Khoa khoa học - công nghệ STU"
+    SMTP_USE_TLS: bool 
 
     @field_validator("DEBUG", mode="before")
     @classmethod

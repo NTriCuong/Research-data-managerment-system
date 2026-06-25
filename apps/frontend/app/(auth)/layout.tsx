@@ -1,8 +1,17 @@
+import Image from "next/image";
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-zinc-100 flex flex-col items-center justify-center px-4">
       <div className="mb-8 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-800">RDMS</h1>
+        <Image
+          src="/logo-stu.svg"
+          alt="STU"
+          width={144}
+          height={42}
+          priority
+          className="mx-auto h-28 w-auto"
+        />
         <p className="text-sm text-zinc-500 mt-1">Research Data Management System</p>
       </div>
 

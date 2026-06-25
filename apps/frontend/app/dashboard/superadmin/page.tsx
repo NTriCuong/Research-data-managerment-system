@@ -1,11 +1,10 @@
-
 'use client'
 
+import ProfileSummary from '@/components/dashboard/ProfileSummary'
+import { authService } from '@/services/auth/auth.service'
 import { useAppDispatch, useAppSelector } from '@/store/hooks'
 import { selectCurrentUser } from '@/store/slice/auth.slice'
-import { authService } from '@/services/auth/auth.service'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
 
 export default function SuperAdminPage() {
     const currentUser = useAppSelector(selectCurrentUser)
@@ -18,49 +17,15 @@ export default function SuperAdminPage() {
     }
 
     if (!currentUser) {
-        return <p>Loading...</p>
+        return <p className="p-6 text-sm text-gray-500">Đang tải dữ liệu...</p>
     }
 
     return (
-        <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-                <h1 className="text-2xl font-bold">Super Admin</h1>
-                <Button>Hello shadcn/ui</Button>
-
-                <button
-                    onClick={handleLogout}
-                    className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
-                >
-                    Đăng xuất
-                </button>
-            </div>
-            <div className="bg-white rounded-lg shadow p-6 max-w-md">
-                <h2 className="text-lg font-semibold mb-4">Thông tin người dùng</h2>
-                <dl className="space-y-2">
-                    <div className="flex gap-2">
-                        <dt className="font-medium text-gray-500 w-36">Họ tên:</dt>
-                        <dd>{currentUser.full_name}</dd>
-                    </div>
-                    <div className="flex gap-2">
-                        <dt className="font-medium text-gray-500 w-36">Tên đăng nhập:</dt>
-                        <dd>{currentUser.username}</dd>
-                    </div>
-                    <div className="flex gap-2">
-                        <dt className="font-medium text-gray-500 w-36">Email:</dt>
-                        <dd>{currentUser.email}</dd>
-                    </div>
-                    <div className="flex gap-2">
-                        <dt className="font-medium text-gray-500 w-36">Vai trò:</dt>
-                        <dd>{currentUser.role_name}</dd>
-                    </div>
-                    {currentUser.department_name && (
-                        <div className="flex gap-2">
-                            <dt className="font-medium text-gray-500 w-36">Phòng ban:</dt>
-                            <dd>{currentUser.department_name}</dd>
-                        </div>
-                    )}
-                </dl>
-            </div>
-        </div>
-    );
+        <ProfileSummary
+            title="Super Admin"
+            description="Quản trị người dùng, phân quyền và dữ liệu tham chiếu của hệ thống."
+            user={currentUser}
+            onLogout={handleLogout}
+        />
+    )
 }
