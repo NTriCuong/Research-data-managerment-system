@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, User } from "lucide-react";
 import type { CurrentUser } from "@/store/slice/auth.slice";
-import { useAppDispatch } from "@/store/hooks";
+import { useAppDispatch } from "@/lib/hooks/hooks";
 import { authService } from "@/services/auth/auth.service";
 
 interface AuthHeaderProps {

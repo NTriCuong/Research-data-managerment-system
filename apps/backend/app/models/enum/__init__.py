@@ -121,3 +121,16 @@ FileStatusType = SAEnum(
     schema="app",
     create_type=False,
 )
+
+
+# enum notification
+class NotificationType(str, enum.Enum):
+    PENDING_REVIEW = "PENDING_REVIEW"
+
+    REQUEST_REVISION = "REQUEST_REVISION"
+
+    PENDING_APPROVAL = "PENDING_APPROVAL"
+
+    REJECTED = "REJECTED"
+
+    APPROVAL = "APPROVAL"

@@ -1,9 +1,10 @@
 "use client";
 
+import FirebaseInitializer from "@/components/filebase/FirebaseInitializer";
 import Header from "@/components/header/Header";
 import Navbar, { type NavbarItem } from "@/components/navbar/Navbar";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { useAppSelector } from "@/store/hooks";
+import { useAppSelector } from "@/lib/hooks/hooks";
 import { selectCurrentUser } from "@/store/slice/auth.slice";
 import { CheckCheck, ClipboardList, FilePlus2, FileText, Users } from "lucide-react";
 
@@ -39,6 +40,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     return (
         <ProtectedRoute>
+            <FirebaseInitializer />
             <div className="flex h-screen flex-col">
                 <div className="flex">
                     <div className="flex h-12 w-60 shrink-0 items-center bg-[#1f3568] px-4">

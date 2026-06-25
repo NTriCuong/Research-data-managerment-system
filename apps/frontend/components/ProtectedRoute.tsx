@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { hasPermission } from "@/lib/auth/permissions";
-import { useAppSelector } from "@/store/hooks";
+import { useAppSelector } from "@/lib/hooks/hooks";
 import { selectCurrentUser, selectIsAuthenticated, selectIsInitializing } from "@/store/slice/auth.slice";
 
 interface ProtectedRouteProps {
