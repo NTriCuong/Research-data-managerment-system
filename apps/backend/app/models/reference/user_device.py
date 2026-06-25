@@ -8,7 +8,7 @@ from app.database.base import Base
 
 class UserDevice(Base):
     __tablename__ = "user_devices"
-    __table_args__ = {"schema": "notification"}
+    __table_args__ = {"schema": "reference"}
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

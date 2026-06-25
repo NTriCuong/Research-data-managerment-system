@@ -10,7 +10,7 @@ from app.database.base import Base
 
 class UserNotification(Base):
     __tablename__ = "user_notifications"
-    __table_args__ = {"schema": "notification"}
+    __table_args__ = {"schema": "reference"}
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -20,7 +20,7 @@ class UserNotification(Base):
 
     notification_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("notification.notifications.id"),
+        ForeignKey("reference.notifications.id"),
         nullable=False,
         index=True
     )

@@ -8,6 +8,7 @@ from app.models.logs.workflow_history import WorkflowHistory
 from app.models.core.core_research_object import CoreResearchObject
 from app.models.enum import FileStatus
 from app.models.enum import WorkflowStatus
+from app.models.auth.user import User
 from app.models.staging.stg_file_attachment import StgFileAttachment
 from app.models.staging.stg_research_object import StgResearchObject
 from app.models.staging.stg_research_object_domain import StgResearchObjectDomain
@@ -147,3 +148,9 @@ class StagingRepository:
         self.db.add(file_obj)
         await self.db.flush()
         return file_obj
+
+    async def get_reviewers(self) -> list[User]:
+        stmt = select(User).where(User.role == "reviewer")
+
+        result = await self.db.execute(stmt)
+        return result.scalars().all()

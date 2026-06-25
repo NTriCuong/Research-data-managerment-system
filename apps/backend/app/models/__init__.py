@@ -20,9 +20,6 @@ from app.models.staging.stg_research_object import StgResearchObject  # noqa: F4
 from app.models.staging.stg_research_object_author import StgResearchObjectAuthor  # noqa: F401
 from app.models.staging.stg_research_object_domain import StgResearchObjectDomain  # noqa: F401
 from app.models.staging.stg_research_object_keyword import StgResearchObjectKeyword  # noqa: F401
-from app.models.logs.audit_log import AuditLog # noqa: F401
-from app.models.logs.login_log import LoginLog # noqa: F401
-from app.models.logs.workflow_history import WorkflowHistory # noqa: F401
 
 # notification 
 from app.models.reference.notification import Notification

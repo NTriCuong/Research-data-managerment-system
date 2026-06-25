@@ -213,6 +213,21 @@ class StagingService:
             new_value={"workflow_status": WorkflowStatus.pending_review.value, "note": note},
             message="Submitted staging record for review",
         )
+        # 4. GET REVIEWERS
+        reviewers = await repo.get_reviewers()
+        reviewer_ids = [u.user_id for u in reviewers]
+
+        # 5. NOTIFY
+        self.notification_service.notify(
+            db=db,
+            user_ids=reviewer_ids,
+            title="New Research Submitted",
+            message=f"{obj.title} is waiting for review",
+            type_="RESEARCH_SUBMITTED",
+            sender_id=current_user.user_id,
+            research_id=obj.staging_id,
+        )
+
 
     async def create_staging_research_object(
         self,
