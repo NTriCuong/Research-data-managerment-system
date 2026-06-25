@@ -46,7 +46,7 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-zinc-700 mb-1">
-            Username or email
+            Tên đăng nhập hoặc email
           </label>
           <input
             type="text"
@@ -54,21 +54,21 @@ export default function LoginPage() {
             onChange={(e) => setIdentifier(e.target.value)}
             required
             autoFocus
-            placeholder="Enter username or email"
+            placeholder="Nhập tên đăng nhập hoặc email..."
             className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 bg-white text-zinc-900 placeholder-zinc-400 outline-none focus:ring-2 focus:ring-zinc-400 focus:border-transparent transition"
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-zinc-700 mb-1">
-            Password
+            Mật khẩu
           </label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            placeholder="Enter password"
+            placeholder="Nhập mật khẩu..."
             className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-300 bg-white text-zinc-900 placeholder-zinc-400 outline-none focus:ring-2 focus:ring-zinc-400 focus:border-transparent transition"
           />
         </div>
@@ -93,7 +93,7 @@ export default function LoginPage() {
           disabled={loading}
           className="w-full py-2 px-4 text-sm font-medium rounded-lg bg-zinc-800 text-white hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
         >
-          {loading ? 'Signing in...' : 'Sign in'}
+          {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
         </button>
       </form>
     </>

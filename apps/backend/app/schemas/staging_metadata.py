@@ -64,6 +64,16 @@ class StagingResearchObjectCreate(BaseModel):
                 raise ValueError(f"{fields} không được hỗ trợ; hãy dùng domain_ids/keyword_ids đã tồn tại")
         return data
 
+    @model_validator(mode="before")
+    @classmethod
+    def reject_name_based_references(cls, data):
+        if isinstance(data, dict):
+            unsupported = {"domain_name", "keyword_name"} & set(data)
+            if unsupported:
+                fields = ", ".join(sorted(unsupported))
+                raise ValueError(f"{fields} không được hỗ trợ; hãy dùng domain_ids/keyword_ids đã tồn tại")
+        return data
+
 
 class StagingResearchObjectUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=500)

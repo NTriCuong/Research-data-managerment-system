@@ -54,5 +54,13 @@ export const API_ENDPOINT = {
     },
     ROLE: {
         GET: 'api/v1/users/roles',
+    },
+    SEARCH: {
+        CORE: 'api/v1/search/core',
+        STAGING: 'api/v1/search/staging',
+    },
+    NOTIFICATIONS: {
+        LIST: 'api/v1/notifications',
+        MARK_READ: (notificationId: string) => `api/v1/notifications/${notificationId}/read`,
     }
 }

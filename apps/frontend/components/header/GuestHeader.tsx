@@ -1,11 +1,18 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export default function GuestHeader() {
     return (
         <header className="flex h-12 w-full items-center justify-between border-b border-gray-200 px-20">
-            <div className="flex items-center gap-3 text-lg font-bold text-[#1f3b8c]">
-                <span className="text-2xl">⚗️</span>
-                <span>RDMS</span>
+            <div className="flex items-center">
+                <Image
+                    src="/logo-stu.svg"
+                    alt="STU"
+                    width={118}
+                    height={34}
+                    priority
+                    className="h-8 w-auto"
+                />
             </div>
 
             <Link

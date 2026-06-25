@@ -9,6 +9,7 @@ from app.models.core.core_research_object_domain import CoreResearchObjectDomain
 from app.models.core.core_research_object_keyword import CoreResearchObjectKeyword  # noqa: F401
 from app.models.logs.audit_log import AuditLog  # noqa: F401
 from app.models.logs.login_log import LoginLog  # noqa: F401
+from app.models.logs.notification import Notification  # noqa: F401
 from app.models.logs.workflow_history import WorkflowHistory  # noqa: F401
 from app.models.reference.department import Department  # noqa: F401
 from app.models.reference.keyword import Keyword  # noqa: F401

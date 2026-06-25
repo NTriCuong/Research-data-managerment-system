@@ -13,6 +13,7 @@ from app.schemas.staging_metadata import StagingResearchObjectOut
 from app.schemas.staging_review import ForwardToApprovalRequest, RequestRevisionRequest
 from app.services.logs.audit_service import audit_service
 from app.services.logs.workflow_service import workflow_service
+from app.services.notifications.notification_service import notification_service
 
 
 class StagingReviewService:
@@ -77,6 +78,20 @@ class StagingReviewService:
             new_value={"workflow_status": WorkflowStatus.revision_required.value, "revision_note": payload.note},
             message="Reviewer requested revision",
         )
+        await notification_service.notify_user(
+            db,
+            recipient_user_id=obj.created_by,
+            actor_user_id=current_user.user_id,
+            event_type="staging.revision_requested",
+            title="Can chinh sua bai nghien cuu",
+            message=f"Reviewer yeu cau chinh sua bai nghien cuu '{obj.title}': {payload.note}",
+            target_url=f"/dashboard/data-entry/researches/{obj.staging_id}",
+            payload={
+                "staging_id": str(obj.staging_id),
+                "workflow_status": WorkflowStatus.revision_required.value,
+                "note": payload.note,
+            },
+        )
         return MessageResponse(message="Yêu cầu chỉnh sửa thành công")
 
     async def forward_to_approval(
@@ -120,6 +135,20 @@ class StagingReviewService:
             old_value={"workflow_status": old_status.value},
             new_value={"workflow_status": WorkflowStatus.pending_approval.value, "note": payload.note},
             message="Reviewer forwarded record to approval",
+        )
+        await notification_service.notify_role(
+            db,
+            role_codes=["APPROVER", "SUPER_ADMIN"],
+            actor_user_id=current_user.user_id,
+            event_type="staging.forwarded_to_approval",
+            title="Co bai nghien cuu moi can phe duyet",
+            message=f"Reviewer da chuyen bai nghien cuu '{obj.title}' den buoc phe duyet.",
+            target_url=f"/dashboard/approval/researches/{obj.staging_id}",
+            payload={
+                "staging_id": str(obj.staging_id),
+                "workflow_status": WorkflowStatus.pending_approval.value,
+                "note": payload.note,
+            },
         )
         return MessageResponse(message="Chuyển bản ghi sang bước phê duyệt thành công")
 
