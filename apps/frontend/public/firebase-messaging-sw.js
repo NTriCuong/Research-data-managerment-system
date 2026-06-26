@@ -21,13 +21,16 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
     console.log("Background message received:", payload);
 
-    // Hiện system notification của trình duyệt
-    // self.registration = Service Worker đang quản lý trang này
     self.registration.showNotification(
-        payload.notification.title,  // tiêu đề notification
+        payload.notification.title,
         {
-            body: payload.notification.body,  // nội dung
-            icon: "/favicon.ico",             // icon hiển thị (để ảnh logo app)
+            body: payload.notification.body,
+            icon: "/favicon.ico",
         }
     );
+
+    // Thông báo cho tất cả các tab đang mở để cập nhật danh sách thông báo
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+        clients.forEach((client) => client.postMessage({ type: "FCM_NOTIFICATION" }));
+    });
 });

@@ -8,7 +8,7 @@ import StagingDetailView from '@/components/data-entry/StagingDetailView'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Loader2 } from 'lucide-react'
 
 function formatDateTime(value: string | null) {
     if (!value) return '-'
@@ -204,9 +204,10 @@ export default function ReviewResearchDetailPage() {
 
                             <button
                                 disabled={submitting}
-                                className="cursor-pointer rounded-lg bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+                                className="flex cursor-pointer items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
                                 onClick={handleForward}
                             >
+                                {submitting && <Loader2 size={14} className="animate-spin" />}
                                 Xác nhận
                             </button>
                         </div>
@@ -239,9 +240,10 @@ export default function ReviewResearchDetailPage() {
 
                             <button
                                 disabled={submitting}
-                                className="cursor-pointer rounded-lg bg-red-600 px-4 py-2 text-white disabled:opacity-50"
+                                className="flex cursor-pointer items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-white disabled:opacity-50"
                                 onClick={handleRequestRevision}
                             >
+                                {submitting && <Loader2 size={14} className="animate-spin" />}
                                 Xác nhận
                             </button>
                         </div>

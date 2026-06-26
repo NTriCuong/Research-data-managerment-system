@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import AddKeywordModal from "./add-keyword-modal";
 import AddDomainModal from "./add-research-domain-modal";
 import AsyncSelect from "react-select/async";
-import { FileText, CalendarRange, Tags, Users, Paperclip, type LucideIcon } from "lucide-react";
+import { FileText, CalendarRange, Tags, Users, Paperclip, Loader2, type LucideIcon } from "lucide-react";
 
 const AUTHOR_ROLES = [
     { value: "creator", label: "Người tạo (tác giả chính)" },
@@ -101,6 +101,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
     const [openSubmitModal, setOpenSubmitModal] = useState(false);
     const [isDraftSaved, setIsDraftSaved] = useState(isEditMode);
     const [submitNote, setSubmitNote] = useState("");
+    const [submitting, setSubmitting] = useState(false);
 
     const [stagingId, setStagingId] = useState<string | null>(editStagingId ?? null);
     const [files, setFiles] = useState<StagingFile[]>(initialDetail?.files ?? []);
@@ -397,6 +398,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
         setOpenSubmitModal(true);
     };
     const handleConfirmSubmit = async () => {
+        setSubmitting(true);
         try {
             await referenceService.submitForReview(stagingId ?? "", submitNote);
 
@@ -410,6 +412,8 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
         } catch (error) {
             console.error(error);
             toast.error(parseAxiosError(error).message);
+        } finally {
+            setSubmitting(false);
         }
     };
     return (
@@ -1114,9 +1118,11 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                             </button>
 
                             <button
-                                className="cursor-pointer rounded-lg bg-blue-600 px-4 py-2 text-white"
+                                disabled={submitting}
+                                className="flex cursor-pointer items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
                                 onClick={handleConfirmSubmit}
                             >
+                                {submitting && <Loader2 size={14} className="animate-spin" />}
                                 Xác nhận
                             </button>
                         </div>

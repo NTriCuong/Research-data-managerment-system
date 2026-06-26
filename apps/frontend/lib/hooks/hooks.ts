@@ -21,7 +21,7 @@ export async function requestPermissionAndGetToken(): Promise<string | null> {
 
     const token = await getToken(messaging, { vapidKey: VAPID_KEY });
 
-    await axiosInstance.post(API_ENDPOINT.NOTIFICATION.REGISTER_TOKEN, {
+    await axiosInstance.post(API_ENDPOINT.NOTIFICATIONS.REGISTER_TOKEN, {
         fcm_token: token,
         device_name: navigator.userAgent,
     });

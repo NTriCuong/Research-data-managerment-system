@@ -5,30 +5,20 @@ import { Bell } from "lucide-react";
 import { useRouter } from "next/navigation";
 import axiosInstance from "@/lib/axios/axios.instance";
 import { API_ENDPOINT } from "@/lib/constants/api-endpoint";
-import { listenForegroundMessage } from "@/lib/hooks/hooks";
 
 interface Notification {
-    id: string;
+    notification_id: string;
+    event_type: string;
     title: string;
     message: string;
-    notification_type: string;
-    research_id: string | null;
-    is_read: boolean;
+    target_url: string | null;
+    read_at: string | null;
     created_at: string;
 }
 
 interface NotificationBellProps {
     userId: string;
 }
-
-// Map notification_type → đường dẫn tương ứng theo role nhận
-const NOTIFICATION_ROUTES: Record<string, string> = {
-    PENDING_REVIEW: "/dashboard/review/researches",
-    PENDING_APPROVAL: "/dashboard/approval/researches",
-    REQUEST_REVISION: "/dashboard/data-entry/researches",
-    APPROVAL: "/dashboard/data-entry/researches",
-    REJECTED: "/dashboard/data-entry/researches",
-};
 
 type Tab = "all" | "unread";
 
@@ -41,14 +31,13 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
 
     const fetchNotifications = useCallback(async () => {
         try {
-            const res = await axiosInstance.get(API_ENDPOINT.NOTIFICATION.GET);
+            const res = await axiosInstance.get(API_ENDPOINT.NOTIFICATIONS.LIST);
             setNotifications(res.data);
-        } catch (err) {
-            console.error("Failed to fetch notifications", err);
+        } catch {
+            // ignore
         }
     }, []);
 
-    // Đóng dropdown khi click ra ngoài
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -74,49 +63,45 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
     // FCM foreground
     useEffect(() => {
         if (!userId) return;
-        let unsubscribe: (() => void) | undefined;
-        listenForegroundMessage((_payload) => {
-            fetchNotifications();
-        }).then((unsub) => {
-            unsubscribe = unsub;
-        });
-        return () => { if (unsubscribe) unsubscribe(); };
+        window.addEventListener("fcm-message", fetchNotifications);
+        return () => window.removeEventListener("fcm-message", fetchNotifications);
     }, [userId, fetchNotifications]);
 
     const handleClickNotification = useCallback(async (n: Notification) => {
-        // Đánh dấu đã đọc nếu chưa đọc
-        if (!n.is_read) {
+        if (!n.read_at) {
             try {
-                await axiosInstance.patch(API_ENDPOINT.NOTIFICATION.MARK_READ(n.id));
-                setNotifications((prev) =>
-                    prev.map((item) => item.id === n.id ? { ...item, is_read: true } : item)
+                const res = await axiosInstance.post(
+                    API_ENDPOINT.NOTIFICATIONS.MARK_READ(n.notification_id)
                 );
-            } catch (err) {
-                console.error("Failed to mark as read", err);
+                setNotifications((prev) =>
+                    prev.map((item) =>
+                        item.notification_id === n.notification_id ? res.data : item
+                    )
+                );
+            } catch {
+                // ignore
             }
         }
 
-        // Redirect đến trang detail nếu có research_id
-        if (n.research_id) {
-            const basePath = NOTIFICATION_ROUTES[n.notification_type];
-            if (basePath) {
-                router.push(`${basePath}/${n.research_id}`);
-                setOpen(false);
-            }
+        setOpen(false);
+
+        if (n.target_url) {
+            router.push(n.target_url);
         }
     }, [router]);
 
-    const unreadCount = notifications.filter((n) => !n.is_read).length;
+    const unreadCount = notifications.filter((n) => !n.read_at).length;
     const displayed = tab === "unread"
-        ? notifications.filter((n) => !n.is_read)
+        ? notifications.filter((n) => !n.read_at)
         : notifications;
 
     return (
         <div ref={dropdownRef} style={{ position: "relative" }}>
-            {/* Bell icon */}
-            <div
+            <button
+                type="button"
+                aria-label="Notifications"
                 onClick={() => setOpen((prev) => !prev)}
-                style={{ cursor: "pointer", position: "relative", display: "inline-flex" }}
+                style={{ cursor: "pointer", position: "relative", display: "inline-flex", background: "none", border: "none", padding: 0, color: "#5f6f8c" }}
             >
                 <Bell size={22} />
                 {unreadCount > 0 && (
@@ -139,9 +124,8 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
                         {unreadCount > 99 ? "99+" : unreadCount}
                     </span>
                 )}
-            </div>
+            </button>
 
-            {/* Dropdown */}
             {open && (
                 <div style={{
                     position: "absolute",
@@ -155,7 +139,6 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
                     boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
                     overflow: "hidden",
                 }}>
-                    {/* Header */}
                     <div style={{
                         padding: "12px 16px 0",
                         fontWeight: 700,
@@ -165,7 +148,6 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
                     }}>
                         <div style={{ marginBottom: 10 }}>Thông báo</div>
 
-                        {/* Tabs */}
                         <div style={{ display: "flex", gap: 4 }}>
                             {(["unread", "all"] as Tab[]).map((t) => (
                                 <button
@@ -189,70 +171,71 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
                         </div>
                     </div>
 
-                    {/* List */}
                     <div style={{ maxHeight: 380, overflowY: "auto" }}>
                         {displayed.length === 0 ? (
                             <div style={{ padding: "24px 16px", color: "#a0aec0", textAlign: "center", fontSize: 14 }}>
                                 {tab === "unread" ? "Không có thông báo chưa đọc" : "Không có thông báo"}
                             </div>
                         ) : (
-                            displayed.map((n) => (
-                                <div
-                                    key={n.id}
-                                    onClick={() => handleClickNotification(n)}
-                                    style={{
-                                        padding: "12px 16px",
-                                        borderBottom: "1px solid #f7fafc",
-                                        cursor: "pointer",
-                                        background: n.is_read ? "white" : "#ebf4ff",
-                                        display: "flex",
-                                        gap: 10,
-                                        alignItems: "flex-start",
-                                        transition: "background 0.15s",
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        (e.currentTarget as HTMLDivElement).style.background = n.is_read ? "#f7fafc" : "#dbeafe";
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        (e.currentTarget as HTMLDivElement).style.background = n.is_read ? "white" : "#ebf4ff";
-                                    }}
-                                >
-                                    {/* Dot chưa đọc */}
-                                    <div style={{
-                                        width: 8,
-                                        height: 8,
-                                        borderRadius: "50%",
-                                        background: n.is_read ? "transparent" : "#3b82f6",
-                                        flexShrink: 0,
-                                        marginTop: 5,
-                                    }} />
-
-                                    <div style={{ flex: 1, minWidth: 0 }}>
+                            displayed.map((n) => {
+                                const isUnread = !n.read_at;
+                                return (
+                                    <div
+                                        key={n.notification_id}
+                                        onClick={() => handleClickNotification(n)}
+                                        style={{
+                                            padding: "12px 16px",
+                                            borderBottom: "1px solid #f7fafc",
+                                            cursor: "pointer",
+                                            background: isUnread ? "#ebf4ff" : "white",
+                                            display: "flex",
+                                            gap: 10,
+                                            alignItems: "flex-start",
+                                            transition: "background 0.15s",
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            (e.currentTarget as HTMLDivElement).style.background = isUnread ? "#dbeafe" : "#f7fafc";
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            (e.currentTarget as HTMLDivElement).style.background = isUnread ? "#ebf4ff" : "white";
+                                        }}
+                                    >
                                         <div style={{
-                                            fontWeight: n.is_read ? 400 : 600,
-                                            fontSize: 13,
-                                            color: "#2d3748",
-                                            marginBottom: 2,
-                                        }}>
-                                            {n.title}
-                                        </div>
-                                        {n.message && (
+                                            width: 8,
+                                            height: 8,
+                                            borderRadius: "50%",
+                                            background: isUnread ? "#3b82f6" : "transparent",
+                                            flexShrink: 0,
+                                            marginTop: 5,
+                                        }} />
+
+                                        <div style={{ flex: 1, minWidth: 0 }}>
                                             <div style={{
-                                                color: "#718096",
-                                                fontSize: 12,
-                                                whiteSpace: "nowrap",
-                                                overflow: "hidden",
-                                                textOverflow: "ellipsis",
+                                                fontWeight: isUnread ? 600 : 400,
+                                                fontSize: 13,
+                                                color: "#2d3748",
+                                                marginBottom: 2,
                                             }}>
-                                                {n.message}
+                                                {n.title}
                                             </div>
-                                        )}
-                                        <div style={{ color: "#a0aec0", fontSize: 11, marginTop: 4 }}>
-                                            {new Date(n.created_at).toLocaleString("vi-VN")}
+                                            {n.message && (
+                                                <div style={{
+                                                    color: "#718096",
+                                                    fontSize: 12,
+                                                    whiteSpace: "nowrap",
+                                                    overflow: "hidden",
+                                                    textOverflow: "ellipsis",
+                                                }}>
+                                                    {n.message}
+                                                </div>
+                                            )}
+                                            <div style={{ color: "#a0aec0", fontSize: 11, marginTop: 4 }}>
+                                                {new Date(n.created_at).toLocaleString("vi-VN")}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 </div>
