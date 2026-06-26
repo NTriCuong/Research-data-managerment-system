@@ -19,6 +19,7 @@ from app.schemas.core_approve import ApproveRequest, PendingApprovalOut
 from app.services.logs.audit_service import audit_service
 from app.services.logs.workflow_service import workflow_service
 from app.services.notifications.notification_service import notification_service
+from app.services.notification.notification_service import push_to_users
 
 
 class CoreApproveService:
@@ -257,13 +258,15 @@ class CoreApproveService:
         )
         await db.flush()
         await self._refresh_search_vector(db, research_id=core_obj.research_id)
+        title = "Bai nghien cuu da duoc phe duyet"
+        message = f"Bai nghien cuu '{staging_obj.title}' da duoc phe duyet va xuat ban vao core."
         await notification_service.notify_user(
             db,
             recipient_user_id=staging_obj.created_by,
             actor_user_id=current_user.user_id,
             event_type="staging.approved",
-            title="Bai nghien cuu da duoc phe duyet",
-            message=f"Bai nghien cuu '{staging_obj.title}' da duoc phe duyet va xuat ban vao core.",
+            title=title,
+            message=message,
             target_url=f"/dashboard/data-entry/researches/{staging_obj.staging_id}",
             payload={
                 "staging_id": str(staging_obj.staging_id),
@@ -271,6 +274,7 @@ class CoreApproveService:
                 "workflow_status": WorkflowStatus.approved.value,
             },
         )
+        await push_to_users(db, [staging_obj.created_by], title, message)
         return MessageResponse(message="Phê duyệt và xuất bản bản ghi vào core thành công")
 
     async def reject_record(self, db: AsyncSession, *, staging_id: UUID, reason: str, current_user: User) -> MessageResponse:
@@ -309,13 +313,15 @@ class CoreApproveService:
             new_value={"workflow_status": WorkflowStatus.rejected.value, "rejection_reason": reason},
             message="Approver rejected staging record",
         )
+        title = "Bai nghien cuu bi tu choi"
+        message = f"Bai nghien cuu '{staging_obj.title}' bi tu choi: {reason}"
         await notification_service.notify_user(
             db,
             recipient_user_id=staging_obj.created_by,
             actor_user_id=current_user.user_id,
             event_type="staging.rejected",
-            title="Bai nghien cuu bi tu choi",
-            message=f"Bai nghien cuu '{staging_obj.title}' bi tu choi: {reason}",
+            title=title,
+            message=message,
             target_url=f"/dashboard/data-entry/researches/{staging_obj.staging_id}",
             payload={
                 "staging_id": str(staging_obj.staging_id),
@@ -323,6 +329,7 @@ class CoreApproveService:
                 "reason": reason,
             },
         )
+        await push_to_users(db, [staging_obj.created_by], title, message)
         return MessageResponse(message="Từ chối bản ghi thành công")
 
     async def _refresh_search_vector(self, db: AsyncSession, *, research_id: UUID) -> None:

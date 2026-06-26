@@ -17,3 +17,8 @@ class NotificationOut(BaseModel):
     payload: dict | None = None
     read_at: datetime | None = None
     created_at: datetime
+
+
+class RegisterTokenRequest(BaseModel):
+    fcm_token: str
+    device_name: str | None = None

@@ -2,7 +2,7 @@
 
 import ProfileSummary from '@/components/dashboard/ProfileSummary'
 import { authService } from '@/services/auth/auth.service'
-import { useAppDispatch, useAppSelector } from '@/store/hooks'
+import { useAppDispatch, useAppSelector } from '@/lib/hooks/hooks'
 import { selectCurrentUser } from '@/store/slice/auth.slice'
 import { useRouter } from 'next/navigation'
 
