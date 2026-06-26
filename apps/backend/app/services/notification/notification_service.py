@@ -1,93 +1,34 @@
+import logging
+from uuid import UUID
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.reference.notification import Notification
-from app.models.reference.user_notification import UserNotification
-from app.repositories.notification_repository import (
-    NotificationRepository,
-    UserNotificationRepository,
-    DeviceRepository,
-)
+from app.repositories.notification_repository import DeviceRepository
 from app.services.notification.fcm_service import fcm_service
 
+logger = logging.getLogger(__name__)
 
-# NOTIFICATION SERVICE
-class NotificationService:
-
-    def __init__(self, noti_repo, user_noti_repo, device_repo, fcm_service):
-        self.noti_repo = noti_repo
-        self.user_noti_repo = user_noti_repo
-        self.device_repo = device_repo
-        self.fcm_service = fcm_service
-
-    # CREATE + SEND NOTIFICATION
-    async def notify(
-        self,
-        db: AsyncSession,
-        user_ids,
-        title,
-        message,
-        type_,
-        sender_id=None,
-        research_id=None
-    ):
-
-        # 1. create notification
-        notification = Notification(
-            title=title,
-            message=message,
-            notification_type=type_,
-            sender_user_id=sender_id,
-            research_id=research_id
-        )
-
-        notification = await self.noti_repo.create(db, notification)
-
-        # 2. create user_notifications
-        user_notifications = [
-            UserNotification(
-                user_id=u,
-                notification_id=notification.id
-            )
-            for u in user_ids
-        ]
-
-        await self.user_noti_repo.bulk_create(db, user_notifications)
-
-        # 3. get tokens
-        tokens = await self.device_repo.get_tokens(db, user_ids)
-
-        # 4. send FCM
-        await self.fcm_service.send(tokens, title, message)
-
-        # 5. commit transaction
-        await db.commit()
-
-        return notification
-
-    # GET NOTIFICATIONS BY USER
-    async def get_notifications(self, db: AsyncSession, user_id):
-        rows = await self.noti_repo.get_by_user(db, user_id)
-        return [
-            {
-                "id": str(n.id),
-                "title": n.title,
-                "message": n.message,
-                "notification_type": n.notification_type,
-                "research_id": str(n.research_id) if n.research_id else None,
-                "is_read": is_read,
-                "created_at": n.created_at,
-            }
-            for n, is_read in rows
-        ]
-
-    # MARK AS READ
-    async def mark_as_read(self, db: AsyncSession, notification_id, user_id):
-        await self.user_noti_repo.mark_as_read(db, notification_id, user_id)
+_device_repo = DeviceRepository()
 
 
-notification_service = NotificationService(
-    noti_repo=NotificationRepository(),
-    user_noti_repo=UserNotificationRepository(),
-    device_repo=DeviceRepository(),
-    fcm_service=fcm_service,
-)
+async def push_to_users(db: AsyncSession, user_ids: list[UUID], title: str, message: str) -> None:
+    tokens = await _device_repo.get_tokens(db, list(user_ids))
+    logger.info("FCM push_to_users: %d user(s), %d token(s)", len(user_ids), len(tokens))
+    if tokens:
+        await fcm_service.send(list(tokens), title, message)
+
+
+async def push_to_roles(db: AsyncSession, role_codes: list[str], title: str, message: str) -> None:
+    from sqlalchemy import select
+    from app.models.auth.role import Role
+    from app.models.auth.user import User
+
+    result = await db.execute(
+        select(User.user_id)
+        .join(Role, Role.role_id == User.role_id)
+        .where(Role.role_code.in_(role_codes))
+        .where(User.deleted_at.is_(None))
+    )
+    user_ids = [row[0] for row in result.all()]
+    logger.info("FCM push_to_roles %s: %d user(s) found", role_codes, len(user_ids))
+    await push_to_users(db, user_ids, title, message)

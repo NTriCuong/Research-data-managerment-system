@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from app.database.base import Base
 
 
-class Notification(Base):
+class FCMNotification(Base):
     __tablename__ = "notifications"
     __table_args__ = {"schema": "reference"}
 
@@ -60,6 +60,6 @@ class Notification(Base):
 
     user_notifications: Mapped[list["UserNotification"]] = relationship(
         "UserNotification",
-        back_populates="notification",
+        back_populates="fcm_notification",
         cascade="all, delete-orphan"
     )

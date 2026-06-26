@@ -9,7 +9,6 @@ export default function Header() {
     const isInitializing = useAppSelector(selectIsInitializing);
     const isAuthenticated = useAppSelector(selectIsAuthenticated);
     const currentUser = useAppSelector(selectCurrentUser);
-    console.log(currentUser);
 
     if (isInitializing) return null;
 

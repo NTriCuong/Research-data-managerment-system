@@ -1,13 +1,28 @@
 'use client'
 
-import { type StagingResearchObject } from '@/services/data-entry/data-entry.service'
-import { reviewerService } from '@/services/reviewer/reviewer.service'
-import { referenceService } from '@/services/reference/reference.service'
-import { parseAxiosError } from '@/lib/axios/error-paser'
-import { WORKFLOW_STATUS_LABEL, WORKFLOW_STATUS_BADGE_CLASS, ACCESS_LEVEL_LABEL, ACCESS_LEVEL_BADGE_CLASS } from '@/lib/constants/workflow'
-import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+
+import FilterToolbar, { type FilterSelect } from '@/components/dashboard/filter-toolbar'
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table'
+import { parseAxiosError } from '@/lib/axios/error-paser'
+import {
+    ACCESS_LEVEL_BADGE_CLASS,
+    ACCESS_LEVEL_LABEL,
+    WORKFLOW_STATUS_BADGE_CLASS,
+    WORKFLOW_STATUS_LABEL,
+} from '@/lib/constants/workflow'
+import { referenceService } from '@/services/reference/reference.service'
+import { reviewerService } from '@/services/reviewer/reviewer.service'
+import { type StagingResearchObject } from '@/services/data-entry/data-entry.service'
 
 function formatDateTime(value: string | null) {
     if (!value) return '-'
@@ -22,6 +37,10 @@ export default function Researches() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
     const [search, setSearch] = useState('')
+    const [departmentFilter, setDepartmentFilter] = useState('')
+    const [outputTypeFilter, setOutputTypeFilter] = useState('')
+    const [accessFilter, setAccessFilter] = useState('')
+    const [yearFilter, setYearFilter] = useState('')
 
     useEffect(() => {
         const fetchResearchData = async () => {
@@ -55,9 +74,70 @@ export default function Researches() {
 
     const filteredData = useMemo(() => {
         const q = search.trim().toLowerCase()
-        if (!q) return dataResearch
-        return dataResearch.filter((item) => item.title.toLowerCase().includes(q))
-    }, [dataResearch, search])
+        return dataResearch.filter((item) => {
+            const matchesSearch =
+                !q ||
+                item.title.toLowerCase().includes(q) ||
+                item.staging_id.toLowerCase().includes(q)
+            const matchesDepartment = !departmentFilter || item.department_id === departmentFilter
+            const matchesOutputType = !outputTypeFilter || item.output_type_id === outputTypeFilter
+            const matchesAccess = !accessFilter || item.access_level === accessFilter
+            const matchesYear = !yearFilter || String(item.year ?? '') === yearFilter
+
+            return matchesSearch && matchesDepartment && matchesOutputType && matchesAccess && matchesYear
+        })
+    }, [accessFilter, dataResearch, departmentFilter, outputTypeFilter, search, yearFilter])
+
+    const yearOptions = useMemo(
+        () =>
+            Array.from(new Set(dataResearch.map((item) => item.year).filter((year): year is number => year !== null)))
+                .sort((a, b) => b - a)
+                .map((year) => ({ value: String(year), label: String(year) })),
+        [dataResearch]
+    )
+
+    const filterSelects: FilterSelect[] = [
+        {
+            key: 'output-type',
+            label: 'Loại sản phẩm',
+            value: outputTypeFilter,
+            allLabel: 'Tất cả loại',
+            options: Object.entries(outputTypeMap).map(([value, label]) => ({ value, label })),
+            onChange: setOutputTypeFilter,
+        },
+        {
+            key: 'department',
+            label: 'Đơn vị',
+            value: departmentFilter,
+            allLabel: 'Tất cả đơn vị',
+            options: Object.entries(departmentMap).map(([value, label]) => ({ value, label })),
+            onChange: setDepartmentFilter,
+        },
+        {
+            key: 'access',
+            label: 'Mức truy cập',
+            value: accessFilter,
+            allLabel: 'Tất cả mức',
+            options: Object.entries(ACCESS_LEVEL_LABEL).map(([value, label]) => ({ value, label })),
+            onChange: setAccessFilter,
+        },
+        {
+            key: 'year',
+            label: 'Năm',
+            value: yearFilter,
+            allLabel: 'Tất cả năm',
+            options: yearOptions,
+            onChange: setYearFilter,
+        },
+    ]
+
+    const resetFilters = () => {
+        setSearch('')
+        setDepartmentFilter('')
+        setOutputTypeFilter('')
+        setAccessFilter('')
+        setYearFilter('')
+    }
 
     return (
         <div className="space-y-6 p-6">
@@ -69,8 +149,8 @@ export default function Researches() {
                     </p>
                 </div>
 
-                <div className="relative">
-                    <Search size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-gray-400" />
+                <div className="hidden">
+                    <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
@@ -80,6 +160,15 @@ export default function Researches() {
                 </div>
             </div>
 
+            <FilterToolbar
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder="Tìm kiếm ..."
+                selects={filterSelects}
+                resultCount={filteredData.length}
+                onReset={resetFilters}
+            />
+
             {error && (
                 <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-500">
                     {error}
@@ -88,62 +177,64 @@ export default function Researches() {
 
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
                 <div className="max-h-[calc(100vh-260px)] overflow-auto">
-                    <table className="w-full min-w-max text-left text-sm whitespace-nowrap">
-                        <thead className="sticky top-0 bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                            <tr>
-                                <th className="px-4 py-3">Tiêu đề</th>
-                                <th className="px-4 py-3">Loại sản phẩm</th>
-                                <th className="px-4 py-3">Đơn vị</th>
-                                <th className="px-4 py-3">Năm</th>
-                                <th className="px-4 py-3">Trạng thái</th>
-                                <th className="px-4 py-3">Mức truy cập</th>
-                                <th className="px-4 py-3">Điểm chất lượng</th>
-                                <th className="px-4 py-3">Ngày gửi</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
+                    <Table className="min-w-max">
+                        <TableHeader className="sticky top-0 z-10 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                            <TableRow className="hover:bg-transparent">
+                                <TableHead className="px-4 py-3">Tiêu đề</TableHead>
+                                <TableHead className="px-4 py-3">Loại sản phẩm</TableHead>
+                                <TableHead className="px-4 py-3">Đơn vị</TableHead>
+                                <TableHead className="px-4 py-3">Năm</TableHead>
+                                <TableHead className="px-4 py-3">Trạng thái</TableHead>
+                                <TableHead className="px-4 py-3">Mức truy cập</TableHead>
+                                <TableHead className="px-4 py-3">Điểm chất lượng</TableHead>
+                                <TableHead className="px-4 py-3">Ngày gửi</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {loading && (
-                                <tr>
-                                    <td colSpan={8} className="px-4 py-6 text-center text-sm text-gray-400">
+                                <TableRow>
+                                    <TableCell colSpan={8} className="px-4 py-6 text-center text-sm text-gray-400">
                                         Đang tải dữ liệu...
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             )}
 
                             {!loading && filteredData.map((item) => (
-                                <tr
+                                <TableRow
                                     key={item.staging_id}
                                     onClick={() => router.push(`/dashboard/review/researches/${item.staging_id}`)}
                                     className="cursor-pointer transition hover:bg-blue-50/60"
                                 >
-                                    <td className="max-w-80 truncate px-4 py-3 font-medium text-gray-900" title={item.title}>{item.title}</td>
-                                    <td className="px-4 py-3 text-gray-600">{outputTypeMap[item.output_type_id] ?? '-'}</td>
-                                    <td className="px-4 py-3 text-gray-600">{departmentMap[item.department_id] ?? '-'}</td>
-                                    <td className="px-4 py-3 text-gray-600">{item.year ?? '-'}</td>
-                                    <td className="px-4 py-3">
+                                    <TableCell className="max-w-80 truncate px-4 py-3 font-medium text-gray-900" title={item.title}>
+                                        {item.title}
+                                    </TableCell>
+                                    <TableCell className="px-4 py-3 text-gray-600">{outputTypeMap[item.output_type_id] ?? '-'}</TableCell>
+                                    <TableCell className="px-4 py-3 text-gray-600">{departmentMap[item.department_id] ?? '-'}</TableCell>
+                                    <TableCell className="px-4 py-3 text-gray-600">{item.year ?? '-'}</TableCell>
+                                    <TableCell className="px-4 py-3">
                                         <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${WORKFLOW_STATUS_BADGE_CLASS[item.workflow_status] ?? 'bg-gray-100 text-gray-700'}`}>
                                             {WORKFLOW_STATUS_LABEL[item.workflow_status] ?? item.workflow_status}
                                         </span>
-                                    </td>
-                                    <td className="px-4 py-3">
+                                    </TableCell>
+                                    <TableCell className="px-4 py-3">
                                         <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${ACCESS_LEVEL_BADGE_CLASS[item.access_level] ?? 'bg-gray-100 text-gray-700'}`}>
                                             {ACCESS_LEVEL_LABEL[item.access_level] ?? item.access_level}
                                         </span>
-                                    </td>
-                                    <td className="px-4 py-3 text-gray-600">{item.metadata_quality_score ?? '-'}</td>
-                                    <td className="px-4 py-3 text-gray-600">{formatDateTime(item.submitted_at)}</td>
-                                </tr>
+                                    </TableCell>
+                                    <TableCell className="px-4 py-3 text-gray-600">{item.metadata_quality_score ?? '-'}</TableCell>
+                                    <TableCell className="px-4 py-3 text-gray-600">{formatDateTime(item.submitted_at)}</TableCell>
+                                </TableRow>
                             ))}
 
                             {!loading && filteredData.length === 0 && (
-                                <tr>
-                                    <td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-400">
+                                <TableRow>
+                                    <TableCell colSpan={8} className="px-4 py-10 text-center text-sm text-gray-400">
                                         Không có dữ liệu
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             )}
-                        </tbody>
-                    </table>
+                        </TableBody>
+                    </Table>
                 </div>
             </div>
         </div>

@@ -5,14 +5,16 @@ from app.api.v1.endpoints import (
     auth,
     core_approve,
     core_repository,
+    imports,
     logs,
+    notifications,
     reference,
     reports,
     search,
     staging_metadata,
     staging_review,
     users,
-    notification
+    notification,
 )
 
 api_router = APIRouter()
@@ -38,6 +40,7 @@ api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
 api_router.include_router(core_repository.router, prefix="/core-repository", tags=["Core Repository"])
 api_router.include_router(search.router, prefix="/search", tags=["Search"])
 api_router.include_router(logs.router, prefix="/logs", tags=["Logs"])
+api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 api_router.include_router(backup.router, prefix="/backup", tags=["Backup"])
 
 api_router.include_router(

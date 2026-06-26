@@ -272,9 +272,10 @@ async def test_full_publication_and_approved_revision_workflow(workflow_context,
     assert str(updated_core.research_id) == research_id
     assert updated_core.title == revised_title
     assert updated_core.version_no == 2
-    assert len(versions) == 1
-    assert versions[0].version_no == 2
-    assert versions[0].metadata_snapshot["title"] == original_title
+    versions_by_number = {version.version_no: version for version in versions}
+    assert set(versions_by_number) == {1, 2}
+    assert versions_by_number[1].metadata_snapshot["title"] == original_title
+    assert versions_by_number[2].metadata_snapshot["title"] == revised_title
 
     revised_search_response = await client.get(
         f"{prefix}/search/core",

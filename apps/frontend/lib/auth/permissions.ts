@@ -1,9 +1,9 @@
 const permissions: Record<string, string[]> = {
     "Super Administrator": ["*"],
-    "Data Entry User":     ["/dashboard/data-entry"],
-    "Metadata Reviewer":   ["/dashboard/review"],
-    "Metadata Approver":   ["/dashboard/approval"],
-    "Research Manager":    ["/dashboard/reports"],
+    "Data Entry User":     ["/dashboard/data-entry", "/dashboard/settings"],
+    "Metadata Reviewer":   ["/dashboard/review", "/dashboard/settings"],
+    "Metadata Approver":   ["/dashboard/approval", "/dashboard/settings"],
+    "Research Manager":    ["/dashboard/reports", "/dashboard/settings"],
     "Public User":         ["/"],
 };
 

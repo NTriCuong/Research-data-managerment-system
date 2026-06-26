@@ -9,6 +9,7 @@ from app.models.core.core_research_object_domain import CoreResearchObjectDomain
 from app.models.core.core_research_object_keyword import CoreResearchObjectKeyword  # noqa: F401
 from app.models.logs.audit_log import AuditLog  # noqa: F401
 from app.models.logs.login_log import LoginLog  # noqa: F401
+from app.models.logs.notification import Notification  # noqa: F401
 from app.models.logs.workflow_history import WorkflowHistory  # noqa: F401
 from app.models.reference.department import Department  # noqa: F401
 from app.models.reference.keyword import Keyword  # noqa: F401
@@ -20,8 +21,6 @@ from app.models.staging.stg_research_object import StgResearchObject  # noqa: F4
 from app.models.staging.stg_research_object_author import StgResearchObjectAuthor  # noqa: F401
 from app.models.staging.stg_research_object_domain import StgResearchObjectDomain  # noqa: F401
 from app.models.staging.stg_research_object_keyword import StgResearchObjectKeyword  # noqa: F401
-
-# notification 
-from app.models.reference.notification import Notification
-from app.models.reference.user_device import UserDevice
-from app.models.reference.user_notification import UserNotification
+from app.models.reference.notification import FCMNotification  # noqa: F401
+from app.models.reference.user_device import UserDevice  # noqa: F401
+from app.models.reference.user_notification import UserNotification  # noqa: F401

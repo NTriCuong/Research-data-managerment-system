@@ -38,17 +38,13 @@ from app.schemas.staging_metadata import (
 from app.services.logs.audit_service import audit_service
 from app.services.storage.file_service import file_service
 from app.services.logs.workflow_service import workflow_service
+from app.services.notifications.notification_service import notification_service
+from app.services.notification.notification_service import push_to_roles
 from fastapi.encoders import jsonable_encoder
 from pydantic import AnyUrl
-from app.models.enum import NotificationType
-from app.services.notification.notification_service import (
-    NotificationService,
-    notification_service,
-)
+
 
 class StagingService:
-    def __init__(self, notification_service: NotificationService):
-        self.notification_service = notification_service
 
     def _dedupe_ids(self, values: list[UUID]) -> list[UUID]:
         ids: list[UUID] = []
@@ -221,7 +217,22 @@ class StagingService:
             new_value={"workflow_status": WorkflowStatus.pending_review.value, "note": note},
             message="Submitted staging record for review",
         )
-        
+        title = "Co bai nghien cuu moi can review"
+        message = f"Data entry da gui bai nghien cuu '{obj.title}' den buoc review."
+        await notification_service.notify_role(
+            db,
+            role_codes=["REVIEWER", "SUPER_ADMIN"],
+            actor_user_id=current_user.user_id,
+            event_type="staging.submitted",
+            title=title,
+            message=message,
+            target_url=f"/dashboard/review/researches/{obj.staging_id}",
+            payload={
+                "staging_id": str(obj.staging_id),
+                "workflow_status": WorkflowStatus.pending_review.value,
+            },
+        )
+        await push_to_roles(db, ["REVIEWER", "SUPER_ADMIN"], title, message)
 
     async def create_staging_research_object(
         self,
@@ -546,7 +557,6 @@ class StagingService:
     ) -> MessageResponse:
         repo = StagingRepository(db)
 
-        # 1. submit
         await self._submit_one_for_review(
             db,
             repo=repo,
@@ -554,27 +564,6 @@ class StagingService:
             note=payload.note,
             current_user=current_user,
         )
-
-        # 2. LẤY LẠI OBJECT
-        obj = await repo.get_by_id(staging_id, with_relations=True)
-        if not obj:
-            raise NotFoundException("Không tìm thấy staging object")
-
-        # 3. reviewers
-        reviewers = await repo.get_reviewers()
-        reviewer_ids = [u.user_id for u in reviewers]
-
-        # 4. notify
-        await self.notification_service.notify(
-            db=db,
-            user_ids=reviewer_ids,
-            title="Có 1 bài nghiên cứu mới",
-            message=f"{obj.title} đang chờ kiểm duyệt",
-            type_=NotificationType.PENDING_REVIEW,
-            sender_id=current_user.user_id,
-            research_id=obj.staging_id,
-        )
-
         return MessageResponse(message="Gửi xét duyệt thành công")
 
     async def delete_draft_staging_record(
@@ -903,4 +892,4 @@ class StagingService:
         rows = await repo.list_workflow_history(staging_id=staging_id, limit=limit, offset=offset)
         return [WorkflowHistoryOut.model_validate(x) for x in rows]
 
-staging_service = StagingService(notification_service)
+staging_service = StagingService()

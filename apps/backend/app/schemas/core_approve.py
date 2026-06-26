@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enum import AccessLevel, WorkflowStatus
+from app.schemas.search import CoreSearchResponseOut, CoreSearchResultOut
 
 
 class RejectApprovalRequest(BaseModel):
@@ -20,25 +21,6 @@ class ApproveRequest(BaseModel):
     note: str | None = Field(default=None, max_length=1000)
     access_level: AccessLevel
     file_access_levels: list[FileAccessLevelAssignment] = Field(default_factory=list)
-
-
-class CoreSearchResultOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    research_id: UUID
-    title: str
-    year: int | None
-    access_level: AccessLevel
-    version_no: int
-    approved_at: datetime
-    rank: float
-
-
-class CoreSearchResponseOut(BaseModel):
-    items: list[CoreSearchResultOut]
-    total: int
-    limit: int
-    offset: int
 
 
 class PendingApprovalOut(BaseModel):

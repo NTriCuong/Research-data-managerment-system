@@ -48,8 +48,8 @@ class UserNotification(Base):
         server_default=text("now()")
     )
 
-    notification = relationship(
-        "Notification",
+    fcm_notification = relationship(
+        "FCMNotification",
         back_populates="user_notifications"
     )
 
