@@ -1,35 +1,16 @@
-import firebase_admin
-from firebase_admin import credentials, messaging
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.notification.notification import Notification
-from app.models.notification.user_notification import UserNotification
-
-# init firebase (chỉ chạy 1 lần)
-if not firebase_admin._apps:
-    cred = credentials.Certificate("firebase-service-account.json")
-    firebase_admin.initialize_app(cred)
-
-
-class FCMService:
-
-    def send(self, tokens, title, message):
-        if not tokens:
-            return None
-
-        # Firebase multicast 
-        msg = messaging.MulticastMessage(
-            notification=messaging.Notification(
-                title=title,
-                body=message
-            ),
-            tokens=tokens
-        )
-
-        response = messaging.send_multicast(msg)
-        return response
+from app.models.reference.notification import Notification
+from app.models.reference.user_notification import UserNotification
+from app.repositories.notification_repository import (
+    NotificationRepository,
+    UserNotificationRepository,
+    DeviceRepository,
+)
+from app.services.notification.fcm_service import fcm_service
 
 
-
+# NOTIFICATION SERVICE
 class NotificationService:
 
     def __init__(self, noti_repo, user_noti_repo, device_repo, fcm_service):
@@ -38,9 +19,10 @@ class NotificationService:
         self.device_repo = device_repo
         self.fcm_service = fcm_service
 
-    def notify(
+    # CREATE + SEND NOTIFICATION
+    async def notify(
         self,
-        db,
+        db: AsyncSession,
         user_ids,
         title,
         message,
@@ -58,7 +40,7 @@ class NotificationService:
             research_id=research_id
         )
 
-        notification = self.noti_repo.create(db, notification)
+        notification = await self.noti_repo.create(db, notification)
 
         # 2. create user_notifications
         user_notifications = [
@@ -69,15 +51,43 @@ class NotificationService:
             for u in user_ids
         ]
 
-        self.user_noti_repo.bulk_create(db, user_notifications)
+        await self.user_noti_repo.bulk_create(db, user_notifications)
 
         # 3. get tokens
-        tokens = self.device_repo.get_tokens(db, user_ids)
+        tokens = await self.device_repo.get_tokens(db, user_ids)
 
         # 4. send FCM
-        self.fcm_service.send(tokens, title, message)
+        await self.fcm_service.send(tokens, title, message)
 
         # 5. commit transaction
-        db.commit()
+        await db.commit()
 
         return notification
+
+    # GET NOTIFICATIONS BY USER
+    async def get_notifications(self, db: AsyncSession, user_id):
+        rows = await self.noti_repo.get_by_user(db, user_id)
+        return [
+            {
+                "id": str(n.id),
+                "title": n.title,
+                "message": n.message,
+                "notification_type": n.notification_type,
+                "research_id": str(n.research_id) if n.research_id else None,
+                "is_read": is_read,
+                "created_at": n.created_at,
+            }
+            for n, is_read in rows
+        ]
+
+    # MARK AS READ
+    async def mark_as_read(self, db: AsyncSession, notification_id, user_id):
+        await self.user_noti_repo.mark_as_read(db, notification_id, user_id)
+
+
+notification_service = NotificationService(
+    noti_repo=NotificationRepository(),
+    user_noti_repo=UserNotificationRepository(),
+    device_repo=DeviceRepository(),
+    fcm_service=fcm_service,
+)

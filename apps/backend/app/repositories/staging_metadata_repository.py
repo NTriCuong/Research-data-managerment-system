@@ -150,7 +150,13 @@ class StagingRepository:
         return file_obj
 
     async def get_reviewers(self) -> list[User]:
-        stmt = select(User).where(User.role == "reviewer")
+        result = await self.db.execute(
+            select(User).where(User.role.has(role_code="REVIEWER"))
+        )
+        return result.scalars().all()
 
-        result = await self.db.execute(stmt)
+    async def get_approvers(self) -> list[User]:
+        result = await self.db.execute(
+            select(User).where(User.role.has(role_code="APPROVER"))
+        )
         return result.scalars().all()

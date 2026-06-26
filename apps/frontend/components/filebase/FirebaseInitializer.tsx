@@ -24,7 +24,7 @@ export default function FirebaseInitializer() {
                     console.log("SW registered");
                 }
 
-                const token = await requestPermissionAndGetToken(user.user_id);
+                const token = await requestPermissionAndGetToken();
 
                 console.log("FCM TOKEN:", token);
             } catch (error) {

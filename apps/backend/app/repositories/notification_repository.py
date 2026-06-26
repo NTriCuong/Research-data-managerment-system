@@ -1,26 +1,79 @@
+import uuid
+
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.reference.notification import Notification
+from app.models.reference.user_notification import UserNotification
+from app.models.reference.user_device import UserDevice
+
+
 class NotificationRepository:
 
-    def create(self, db, notification):
+    async def create(
+        self,
+        db: AsyncSession,
+        notification: Notification,
+    ) -> Notification:
         db.add(notification)
-        db.flush()  # lấy ID ngay lập tức
+        await db.flush()
+        await db.refresh(notification)
         return notification
+
+    async def get_by_user(
+        self,
+        db: AsyncSession,
+        user_id: uuid.UUID,
+    ) -> list:
+        result = await db.execute(
+            select(Notification, UserNotification.is_read)
+            .join(UserNotification, UserNotification.notification_id == Notification.id)
+            .where(UserNotification.user_id == user_id)
+            .order_by(Notification.created_at.desc())
+        )
+        return result.all()
+
 
 class UserNotificationRepository:
 
-    def bulk_create(self, db, user_notifications):
+    async def bulk_create(
+        self,
+        db: AsyncSession,
+        user_notifications,
+    ) -> None:
         if user_notifications:
             db.add_all(user_notifications)
-from app.models.notification.user_device import UserDevice
+            await db.flush()
+
+    async def mark_as_read(
+        self,
+        db: AsyncSession,
+        notification_id: uuid.UUID,
+        user_id: uuid.UUID,
+    ) -> None:
+        await db.execute(
+            update(UserNotification)
+            .where(UserNotification.notification_id == notification_id)
+            .where(UserNotification.user_id == user_id)
+            .values(is_read=True)
+        )
+        await db.commit()
 
 
 class DeviceRepository:
 
-    def get_tokens(self, db, user_ids):
+    async def get_tokens(
+        self,
+        db: AsyncSession,
+        user_ids,
+    ) -> list[str]:
         if not user_ids:
             return []
 
-        devices = db.query(UserDevice.fcm_token).filter(
-            UserDevice.user_id.in_(user_ids)
-        ).all()
+        result = await db.execute(
+            select(UserDevice.fcm_token).where(
+                UserDevice.user_id.in_(user_ids)
+            )
+        )
 
-        return [d[0] for d in devices]
+        return result.scalars().all()

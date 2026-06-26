@@ -12,15 +12,19 @@ from app.models.core.core_research_object import CoreResearchObject
 from app.models.core.core_research_object_author import CoreResearchObjectAuthor
 from app.models.core.core_research_object_domain import CoreResearchObjectDomain
 from app.models.core.core_research_object_keyword import CoreResearchObjectKeyword
-from app.models.enum import AccessLevel, WorkflowStatus
+from app.models.enum import AccessLevel, NotificationType, WorkflowStatus
 from app.repositories.core_approve_repository import CoreApproveRepository
 from app.schemas.auth import MessageResponse
 from app.schemas.core_approve import ApproveRequest, PendingApprovalOut
 from app.services.logs.audit_service import audit_service
 from app.services.logs.workflow_service import workflow_service
+from app.services.notification.notification_service import NotificationService, notification_service
 
 
 class CoreApproveService:
+    def __init__(self, notification_service: NotificationService):
+        self.notification_service = notification_service
+
     _REFRESH_SEARCH_VECTOR_SQL = text(
         "SELECT app.refresh_core_search_vector(CAST(:research_id AS uuid))"
     )
@@ -240,6 +244,15 @@ class CoreApproveService:
         )
         await db.flush()
         await self._refresh_search_vector(db, research_id=core_obj.research_id)
+        await self.notification_service.notify(
+            db=db,
+            user_ids=[staging_obj.created_by],
+            title="Bài nghiên cứu đã được phê duyệt",
+            message=f"{staging_obj.title} đã được phê duyệt và xuất bản thành công",
+            type_=NotificationType.APPROVAL,
+            sender_id=current_user.user_id,
+            research_id=staging_obj.staging_id,
+        )
         return MessageResponse(message="Phê duyệt và xuất bản bản ghi vào core thành công")
 
     async def reject_record(self, db: AsyncSession, *, staging_id: UUID, reason: str, current_user: User) -> MessageResponse:
@@ -278,9 +291,18 @@ class CoreApproveService:
             new_value={"workflow_status": WorkflowStatus.rejected.value, "rejection_reason": reason},
             message="Approver rejected staging record",
         )
+        await self.notification_service.notify(
+            db=db,
+            user_ids=[staging_obj.created_by],
+            title="Bài nghiên cứu bị từ chối",
+            message=f"Lý do: {reason}",
+            type_=NotificationType.REJECTED,
+            sender_id=current_user.user_id,
+            research_id=staging_obj.staging_id,
+        )
         return MessageResponse(message="Từ chối bản ghi thành công")
 
     async def _refresh_search_vector(self, db: AsyncSession, *, research_id: UUID) -> None:
         await db.execute(self._REFRESH_SEARCH_VECTOR_SQL, {"research_id": str(research_id)})
 
-core_approve_service = CoreApproveService()
+core_approve_service = CoreApproveService(notification_service)
