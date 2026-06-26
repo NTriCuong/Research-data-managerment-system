@@ -95,6 +95,9 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
     const router = useRouter();
     const isEditMode = !!editStagingId;
 
+    const currentYear = new Date().getFullYear();
+    const years = Array.from({ length: 50 }, (_, i) => currentYear - i);
+
     const [openDomainModal, setOpenDomainModal] = useState(false);
     const [openKeywordModal, setOpenKeywordModal] = useState(false);
     const [openResearcherModal, setOpenResearcherModal] = useState(false);
@@ -515,17 +518,24 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                                 Năm (Year)
                             </label>
 
-                            <input
-                                type="number"
+                            <select
                                 className="w-full rounded-lg border px-3 py-2"
                                 value={formData.year ?? ""}
                                 onChange={(e) =>
-                                    setFormData(prev => ({
+                                    setFormData((prev) => ({
                                         ...prev,
                                         year: e.target.value ? Number(e.target.value) : null,
                                     }))
                                 }
-                            />
+                            >
+                                <option value="">Chọn năm</option>
+
+                                {years.map((year) => (
+                                    <option key={year} value={year}>
+                                        {year}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
 
                         <div>
