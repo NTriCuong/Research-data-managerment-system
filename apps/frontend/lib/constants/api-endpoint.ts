@@ -59,6 +59,12 @@ export const API_ENDPOINT = {
         CORE: 'api/v1/search/core',
         STAGING: 'api/v1/search/staging',
     },
+    PUBLIC: {
+        RESEARCH_LOOKUPS: 'api/v1/public/research-lookups',
+        RESEARCHES: 'api/v1/public/researches',
+        RESEARCH_DETAIL: (researchId: string) => `api/v1/public/researches/${researchId}`,
+        DOWNLOAD_FILE: (researchId: string, fileId: string) => `api/v1/public/researches/${researchId}/files/${fileId}/download`,
+    },
     NOTIFICATIONS: {
         LIST: 'api/v1/notifications',
         REGISTER_TOKEN: 'api/v1/notifications/register-token',

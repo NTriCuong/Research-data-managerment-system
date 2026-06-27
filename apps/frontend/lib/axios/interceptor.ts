@@ -42,13 +42,16 @@ export const setupInterceptors = (store: AppStore) => {
             const is401 = error.response?.status === 401
             const isRefreshEndpoint = original.url?.includes(API_ENDPOINT.AUTH.REFRESH)
             const isLoginEndpoint = original.url?.includes(API_ENDPOINT.AUTH.LOGIN)
+            const skipAuthRedirect = original.headers?.["X-Skip-Auth-Redirect"] === "1"
 
             // Không retry nếu: không phải 401, đã retry, là refresh endpoint, hoặc là login endpoint
             if (!is401 || original._retry || isRefreshEndpoint || isLoginEndpoint) {
                 if (isRefreshEndpoint) {
                     flushQueue(error, null)
                     store.dispatch(clearCredentials())
-                    window.location.href = '/login'
+                    if (!skipAuthRedirect) {
+                        window.location.href = '/login'
+                    }
                 }
                 return Promise.reject(parseAxiosError(error))
             }

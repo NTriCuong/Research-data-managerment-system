@@ -7,6 +7,10 @@ export const PUBLIC_ROUTES = [
     "/verify-otp",
 ];
 
+export const PUBLIC_ROUTE_PREFIXES = [
+    "/researches",
+];
+
 export const PROTECTED_ROUTES = [
     "/dashboard",
 ];

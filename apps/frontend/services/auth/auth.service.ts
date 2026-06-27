@@ -22,8 +22,12 @@ export const authService = {
             dispatch(clearCredentials()) // xoá credentials khỏi state khi logout dù thành công hay thát bại 
         }
     },
-    async refreshToken() {
-        const response = await axiosInstance.post(API_ENDPOINT.AUTH.REFRESH)
+    async refreshToken(options?: { silent?: boolean }) {
+        const response = await axiosInstance.post(
+            API_ENDPOINT.AUTH.REFRESH,
+            undefined,
+            options?.silent ? { headers: { "X-Skip-Auth-Redirect": "1" } } : undefined
+        )
         return response.data
     },
 }

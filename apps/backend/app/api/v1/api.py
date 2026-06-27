@@ -15,6 +15,7 @@ from app.api.v1.endpoints import (
     staging_review,
     users,
     notification,
+    public_research,
 )
 
 api_router = APIRouter()
@@ -39,6 +40,7 @@ api_router.include_router(core_approve.router, prefix="/core-approve", tags=["Co
 api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
 api_router.include_router(core_repository.router, prefix="/core-repository", tags=["Core Repository"])
 api_router.include_router(search.router, prefix="/search", tags=["Search"])
+api_router.include_router(public_research.router, prefix="/public", tags=["Public Research"])
 api_router.include_router(logs.router, prefix="/logs", tags=["Logs"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 api_router.include_router(backup.router, prefix="/backup", tags=["Backup"])

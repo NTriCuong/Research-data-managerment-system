@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { User } from "lucide-react";
-import { type CurrentUser } from "@/store/slice/auth.slice";
-import { useAppDispatch } from "@/lib/hooks/hooks";
+import { Bell, User } from "lucide-react";
+import { selectAccessToken, type CurrentUser } from "@/store/slice/auth.slice";
+import { useAppDispatch, useAppSelector } from "@/lib/hooks/hooks";
 import { authService } from "@/services/auth/auth.service";
+import { notificationService, type AppNotification } from "@/services/notifications/notification.service";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import NotificationBell from "../bell/NotificationBell";
 
@@ -15,14 +16,22 @@ interface AuthHeaderProps {
 
 export default function AuthHeader({ currentUser }: AuthHeaderProps) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+    const [notifications, setNotifications] = useState<AppNotification[]>([]);
     const menuRef = useRef<HTMLDivElement>(null);
+    const notificationRef = useRef<HTMLDivElement>(null);
     const dispatch = useAppDispatch();
+    const accessToken = useAppSelector(selectAccessToken);
     const router = useRouter();
+    const unreadCount = notifications.filter((item) => !item.read_at).length;
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
                 setIsMenuOpen(false);
+            }
+            if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+                setIsNotificationOpen(false);
             }
         };
 
@@ -30,9 +39,39 @@ export default function AuthHeader({ currentUser }: AuthHeaderProps) {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    useEffect(() => {
+        if (!accessToken) return;
+
+        let isMounted = true;
+        notificationService.list()
+            .then((data) => {
+                if (isMounted) setNotifications(data);
+            })
+            .catch(() => undefined);
+
+        return () => {
+            isMounted = false;
+        };
+    }, [accessToken]);
+
     const handleLogout = async () => {
         await authService.logout(dispatch);
         router.replace("/login");
+    };
+
+    const handleNotificationClick = async (notification: AppNotification) => {
+        if (!notification.read_at) {
+            const updated = await notificationService.markRead(notification.notification_id);
+            setNotifications((current) =>
+                current.map((item) =>
+                    item.notification_id === updated.notification_id ? updated : item
+                )
+            );
+        }
+        setIsNotificationOpen(false);
+        if (notification.target_url) {
+            router.push(notification.target_url);
+        }
     };
 
     return (

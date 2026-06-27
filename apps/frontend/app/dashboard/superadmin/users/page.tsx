@@ -16,6 +16,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { RtlPagination } from '@/components/ui/rtl-pagination'
 import {
     Table,
     TableBody,
@@ -32,6 +33,8 @@ import {
     type Role,
 } from '@/services/reference/reference.service'
 
+const PAGE_SIZE = 10
+
 function formatDateTime(value: string | null) {
     if (!value) return '-'
     return new Date(value).toLocaleString('vi-VN')
@@ -47,6 +50,7 @@ export default function SuperAdminUsersPage() {
     const [roleFilter, setRoleFilter] = useState('')
     const [departmentFilter, setDepartmentFilter] = useState('')
     const [statusFilter, setStatusFilter] = useState('')
+    const [page, setPage] = useState(1)
 
     const [openAddDialog, setOpenAddDialog] = useState(false)
     const [editingUser, setEditingUser] = useState<AppUser | null>(null)
@@ -94,6 +98,13 @@ export default function SuperAdminUsersPage() {
         )
     }, [departmentFilter, roleFilter, search, statusFilter, users])
 
+    const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE))
+    const currentPage = Math.min(page, totalPages)
+    const paginatedUsers = useMemo(
+        () => filteredUsers.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+        [currentPage, filteredUsers]
+    )
+
     const filterSelects: FilterSelect[] = [
         {
             key: 'role',
@@ -101,7 +112,10 @@ export default function SuperAdminUsersPage() {
             value: roleFilter,
             allLabel: 'Tất cả vai trò',
             options: roles.map((role) => ({ value: role.role_id, label: role.role_name })),
-            onChange: setRoleFilter,
+            onChange: (value) => {
+                setRoleFilter(value)
+                setPage(1)
+            },
         },
         {
             key: 'department',
@@ -109,7 +123,10 @@ export default function SuperAdminUsersPage() {
             value: departmentFilter,
             allLabel: 'Tất cả đơn vị',
             options: departments.map((department) => ({ value: department.department_id, label: department.department_name })),
-            onChange: setDepartmentFilter,
+            onChange: (value) => {
+                setDepartmentFilter(value)
+                setPage(1)
+            },
         },
         {
             key: 'status',
@@ -120,7 +137,10 @@ export default function SuperAdminUsersPage() {
                 { value: 'active', label: 'Đang hoạt động' },
                 { value: 'disabled', label: 'Đã khóa' },
             ],
-            onChange: setStatusFilter,
+            onChange: (value) => {
+                setStatusFilter(value)
+                setPage(1)
+            },
         },
     ]
 
@@ -129,6 +149,7 @@ export default function SuperAdminUsersPage() {
         setRoleFilter('')
         setDepartmentFilter('')
         setStatusFilter('')
+        setPage(1)
     }
 
     const handleToggleStatus = async (user: AppUser) => {
@@ -156,7 +177,7 @@ export default function SuperAdminUsersPage() {
                         <Input
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Tìm theo tên, username, email..."
+                            placeholder="Tìm kiếm..."
                             autoComplete="off"
                             className="w-64 pl-9"
                         />
@@ -171,7 +192,10 @@ export default function SuperAdminUsersPage() {
 
             <FilterToolbar
                 search={search}
-                onSearchChange={setSearch}
+                onSearchChange={(value) => {
+                    setSearch(value)
+                    setPage(1)
+                }}
                 searchPlaceholder="Tìm theo tên, username, email hoặc ID"
                 selects={filterSelects}
                 resultCount={filteredUsers.length}
@@ -215,7 +239,7 @@ export default function SuperAdminUsersPage() {
                                 </TableRow>
                             )}
 
-                            {!loading && filteredUsers.map((user) => (
+                            {!loading && paginatedUsers.map((user) => (
                                 <TableRow key={user.user_id} className="transition hover:bg-blue-50/60">
                                     <TableCell className="max-w-32 truncate px-4 py-3 text-gray-500" title={user.user_id}>
                                         {user.user_id}
@@ -269,6 +293,13 @@ export default function SuperAdminUsersPage() {
                         </TableBody>
                     </Table>
                 </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-gray-500">
+                    Trang {currentPage} / {totalPages}
+                </p>
+                <RtlPagination page={currentPage} totalPages={totalPages} onPageChange={setPage} />
             </div>
 
             <AddUserDialog

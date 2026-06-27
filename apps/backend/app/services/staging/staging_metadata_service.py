@@ -42,6 +42,7 @@ from app.services.notifications.notification_service import notification_service
 from app.services.notification.notification_service import push_to_roles
 from fastapi.encoders import jsonable_encoder
 from pydantic import AnyUrl
+from app.core.config import settings
 
 
 class StagingService:
@@ -217,8 +218,8 @@ class StagingService:
             new_value={"workflow_status": WorkflowStatus.pending_review.value, "note": note},
             message="Submitted staging record for review",
         )
-        title = "Co bai nghien cuu moi can review"
-        message = f"Data entry da gui bai nghien cuu '{obj.title}' den buoc review."
+        title = "Có bài nghiên cứu mới cần kiểm duyệt"
+        message = f"Bài nghiên cứu '{obj.title}' đã được gửi để kiểm duyệt."
         await notification_service.notify_role(
             db,
             role_codes=["REVIEWER", "SUPER_ADMIN"],
@@ -226,7 +227,7 @@ class StagingService:
             event_type="staging.submitted",
             title=title,
             message=message,
-            target_url=f"/dashboard/review/researches/{obj.staging_id}",
+            target_url=f"{settings.FRONTEND_URL}/dashboard/review/researches/{obj.staging_id}",
             payload={
                 "staging_id": str(obj.staging_id),
                 "workflow_status": WorkflowStatus.pending_review.value,

@@ -412,8 +412,12 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
             if (isEditMode) {
                 router.push("/dashboard/data-entry/researches");
             }
-        } catch (error) {
-            console.error(error);
+        } catch (error: any) {
+            console.error("submit error", {
+                status: error?.response?.status,
+                data: error?.response?.data,
+                message: error?.message,
+            });
             toast.error(parseAxiosError(error).message);
         } finally {
             setSubmitting(false);

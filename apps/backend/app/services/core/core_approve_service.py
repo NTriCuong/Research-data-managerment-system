@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from email import message
 from uuid import UUID
 
 from app.core.exceptions import BadRequestException, NotFoundException
@@ -19,6 +20,7 @@ from app.schemas.core_approve import ApproveRequest, PendingApprovalOut
 from app.services.logs.audit_service import audit_service
 from app.services.logs.workflow_service import workflow_service
 from app.services.notifications.notification_service import notification_service
+from app.core.config import settings
 from app.services.notification.notification_service import push_to_users
 
 
@@ -258,8 +260,8 @@ class CoreApproveService:
         )
         await db.flush()
         await self._refresh_search_vector(db, research_id=core_obj.research_id)
-        title = "Bai nghien cuu da duoc phe duyet"
-        message = f"Bai nghien cuu '{staging_obj.title}' da duoc phe duyet va xuat ban vao core."
+        title = "Bài nghiên cứu đã được phê duyệt"
+        message = f"Bài nghiên cứu '{staging_obj.title}' đã được phê duyệt và xuất bản vào core."
         await notification_service.notify_user(
             db,
             recipient_user_id=staging_obj.created_by,
@@ -267,7 +269,7 @@ class CoreApproveService:
             event_type="staging.approved",
             title=title,
             message=message,
-            target_url=f"/dashboard/data-entry/researches/{staging_obj.staging_id}",
+            target_url=f"{settings.FRONTEND_URL}/dashboard/data-entry/researches/{staging_obj.staging_id}",
             payload={
                 "staging_id": str(staging_obj.staging_id),
                 "research_id": str(core_obj.research_id),
@@ -313,8 +315,8 @@ class CoreApproveService:
             new_value={"workflow_status": WorkflowStatus.rejected.value, "rejection_reason": reason},
             message="Approver rejected staging record",
         )
-        title = "Bai nghien cuu bi tu choi"
-        message = f"Bai nghien cuu '{staging_obj.title}' bi tu choi: {reason}"
+        title = "Bài nghiên cứu bị từ chối"
+        message = f"Bài nghiên cứu '{staging_obj.title}' bị từ chối: {reason}"
         await notification_service.notify_user(
             db,
             recipient_user_id=staging_obj.created_by,
@@ -322,7 +324,7 @@ class CoreApproveService:
             event_type="staging.rejected",
             title=title,
             message=message,
-            target_url=f"/dashboard/data-entry/researches/{staging_obj.staging_id}",
+            target_url=f"{settings.FRONTEND_URL}/dashboard/data-entry/researches/{staging_obj.staging_id}",
             payload={
                 "staging_id": str(staging_obj.staging_id),
                 "workflow_status": WorkflowStatus.rejected.value,

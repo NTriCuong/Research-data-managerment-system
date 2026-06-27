@@ -7,6 +7,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import {
   SidebarInset,
   SidebarProvider,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useAppSelector } from "@/lib/hooks/hooks";
 import { selectCurrentUser } from "@/store/slice/auth.slice";
