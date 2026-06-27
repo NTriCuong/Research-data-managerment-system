@@ -7,6 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
 from app.models.enum import UserStatus, UserStatusType
+from app.models.reference.user_notification import UserNotification
+from app.models.reference.user_device import UserDevice
 
 
 class User(Base):
@@ -28,4 +30,15 @@ class User(Base):
 
     role: Mapped["Role"] = relationship("Role", back_populates="users")  # noqa: F821
     department: Mapped["Department | None"] = relationship("Department", back_populates="users")  # noqa: F821
-    refresh_tokens: Mapped[list["RefreshToken"]] = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")  # noqa: F821
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
+    user_notifications: Mapped[list["UserNotification"]] = relationship(
+        "UserNotification",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
+    devices: Mapped[list["UserDevice"]] = relationship(
+        "UserDevice",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )

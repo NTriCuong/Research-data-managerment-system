@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import AddKeywordModal from "./add-keyword-modal";
 import AddDomainModal from "./add-research-domain-modal";
 import AsyncSelect from "react-select/async";
-import { FileText, CalendarRange, Tags, Users, Paperclip, type LucideIcon } from "lucide-react";
+import { FileText, CalendarRange, Tags, Users, Paperclip, Loader2, type LucideIcon } from "lucide-react";
 
 const AUTHOR_ROLES = [
     { value: "creator", label: "Người tạo (tác giả chính)" },
@@ -95,12 +95,16 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
     const router = useRouter();
     const isEditMode = !!editStagingId;
 
+    const currentYear = new Date().getFullYear();
+    const years = Array.from({ length: 50 }, (_, i) => currentYear - i);
+
     const [openDomainModal, setOpenDomainModal] = useState(false);
     const [openKeywordModal, setOpenKeywordModal] = useState(false);
     const [openResearcherModal, setOpenResearcherModal] = useState(false);
     const [openSubmitModal, setOpenSubmitModal] = useState(false);
     const [isDraftSaved, setIsDraftSaved] = useState(isEditMode);
     const [submitNote, setSubmitNote] = useState("");
+    const [submitting, setSubmitting] = useState(false);
 
     const [stagingId, setStagingId] = useState<string | null>(editStagingId ?? null);
     const [files, setFiles] = useState<StagingFile[]>(initialDetail?.files ?? []);
@@ -397,6 +401,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
         setOpenSubmitModal(true);
     };
     const handleConfirmSubmit = async () => {
+        setSubmitting(true);
         try {
             await referenceService.submitForReview(stagingId ?? "", submitNote);
 
@@ -407,9 +412,15 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
             if (isEditMode) {
                 router.push("/dashboard/data-entry/researches");
             }
-        } catch (error) {
-            console.error(error);
+        } catch (error: any) {
+            console.error("submit error", {
+                status: error?.response?.status,
+                data: error?.response?.data,
+                message: error?.message,
+            });
             toast.error(parseAxiosError(error).message);
+        } finally {
+            setSubmitting(false);
         }
     };
     return (
@@ -511,17 +522,24 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                                 Năm (Year)
                             </label>
 
-                            <input
-                                type="number"
+                            <select
                                 className="w-full rounded-lg border px-3 py-2"
                                 value={formData.year ?? ""}
                                 onChange={(e) =>
-                                    setFormData(prev => ({
+                                    setFormData((prev) => ({
                                         ...prev,
                                         year: e.target.value ? Number(e.target.value) : null,
                                     }))
                                 }
-                            />
+                            >
+                                <option value="">Chọn năm</option>
+
+                                {years.map((year) => (
+                                    <option key={year} value={year}>
+                                        {year}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
 
                         <div>
@@ -1114,9 +1132,11 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                             </button>
 
                             <button
-                                className="cursor-pointer rounded-lg bg-blue-600 px-4 py-2 text-white"
+                                disabled={submitting}
+                                className="flex cursor-pointer items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
                                 onClick={handleConfirmSubmit}
                             >
+                                {submitting && <Loader2 size={14} className="animate-spin" />}
                                 Xác nhận
                             </button>
                         </div>

@@ -2,7 +2,7 @@
 
 import { authService } from '@/services/auth/auth.service'
 import { setCredentials } from '@/store/slice/auth.slice'
-import { useAppDispatch } from '@/store/hooks'
+import { useAppDispatch } from '@/lib/hooks/hooks'
 import { parseAxiosError } from '@/lib/axios/error-paser'
 import { getRoleHomePath } from '@/lib/auth/routes'
 import Link from 'next/link'

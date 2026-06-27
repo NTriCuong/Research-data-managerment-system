@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation"
 import { LogIn, LayoutDashboard } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { useAppSelector } from "@/store/hooks"
+import { useAppSelector } from "@/lib/hooks/hooks"
 import { getRoleHomePath } from "@/lib/auth/routes"
 
 export function PublicShell({ children }: { children: React.ReactNode }) {

@@ -39,11 +39,14 @@ from app.services.logs.audit_service import audit_service
 from app.services.storage.file_service import file_service
 from app.services.logs.workflow_service import workflow_service
 from app.services.notifications.notification_service import notification_service
+from app.services.notification.notification_service import push_to_roles
 from fastapi.encoders import jsonable_encoder
 from pydantic import AnyUrl
 from app.core.config import settings
 
+
 class StagingService:
+
     def _dedupe_ids(self, values: list[UUID]) -> list[UUID]:
         ids: list[UUID] = []
         seen: set[UUID] = set()
@@ -215,19 +218,22 @@ class StagingService:
             new_value={"workflow_status": WorkflowStatus.pending_review.value, "note": note},
             message="Submitted staging record for review",
         )
+        title = "Có bài nghiên cứu mới cần kiểm duyệt"
+        message = f"Bài nghiên cứu '{obj.title}' đã được gửi để kiểm duyệt."
         await notification_service.notify_role(
             db,
             role_codes=["REVIEWER", "SUPER_ADMIN"],
             actor_user_id=current_user.user_id,
             event_type="staging.submitted",
-            title="Có bài nghiên cứu mới cần kiểm duyệt",
-            message=f"Bài nghiên cứu '{obj.title}' đã được gửi để kiểm duyệt.",
+            title=title,
+            message=message,
             target_url=f"{settings.FRONTEND_URL}/dashboard/review/researches/{obj.staging_id}",
             payload={
                 "staging_id": str(obj.staging_id),
                 "workflow_status": WorkflowStatus.pending_review.value,
             },
         )
+        await push_to_roles(db, ["REVIEWER", "SUPER_ADMIN"], title, message)
 
     async def create_staging_research_object(
         self,
@@ -542,6 +548,25 @@ class StagingService:
         await db.refresh(obj)
         return StagingResearchObjectOut.model_validate(obj)
 
+    async def submit_for_review(
+        self,
+        db: AsyncSession,
+        *,
+        staging_id: UUID,
+        payload: SubmitForReviewRequest,
+        current_user: User,
+    ) -> MessageResponse:
+        repo = StagingRepository(db)
+
+        await self._submit_one_for_review(
+            db,
+            repo=repo,
+            staging_id=staging_id,
+            note=payload.note,
+            current_user=current_user,
+        )
+        return MessageResponse(message="Gửi xét duyệt thành công")
+
     async def delete_draft_staging_record(
         self,
         db: AsyncSession,
@@ -571,24 +596,6 @@ class StagingService:
             message="Soft deleted staging draft",
         )
         return MessageResponse(message="Xóa bản nháp thành công")
-
-    async def submit_for_review(
-        self,
-        db: AsyncSession,
-        *,
-        staging_id: UUID,
-        payload: SubmitForReviewRequest,
-        current_user: User,
-    ) -> MessageResponse:
-        repo = StagingRepository(db)
-        await self._submit_one_for_review(
-            db,
-            repo=repo,
-            staging_id=staging_id,
-            note=payload.note,
-            current_user=current_user,
-        )
-        return MessageResponse(message="Gửi xét duyệt thành công")
 
     async def bulk_submit_for_review(
         self,
@@ -885,6 +892,5 @@ class StagingService:
             raise ForbiddenException("Bạn không có quyền xem lịch sử quy trình của bản ghi tạm này")
         rows = await repo.list_workflow_history(staging_id=staging_id, limit=limit, offset=offset)
         return [WorkflowHistoryOut.model_validate(x) for x in rows]
-
 
 staging_service = StagingService()

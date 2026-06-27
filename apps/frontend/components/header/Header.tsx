@@ -1,6 +1,6 @@
 "use client";
 
-import { useAppSelector } from "@/store/hooks";
+import { useAppSelector } from "@/lib/hooks/hooks";
 import { selectCurrentUser, selectIsAuthenticated, selectIsInitializing } from "@/store/slice/auth.slice";
 import GuestHeader from "./GuestHeader";
 import AuthHeader from "./AuthHeader";

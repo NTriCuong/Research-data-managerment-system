@@ -34,3 +34,6 @@ coverage/
 
 
 venv/
+
+#backend filebasse
+firebase-service-account.json

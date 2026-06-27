@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.auth.user import User
 from app.models.enum import WorkflowStatus
 from app.models.staging.stg_research_object import StgResearchObject
 
@@ -25,5 +26,11 @@ class StagingReviewRepository:
             .order_by(StgResearchObject.submitted_at.desc().nullslast(), StgResearchObject.created_at.desc())
             .offset(offset)
             .limit(limit)
+        )
+        return result.scalars().all()
+
+    async def get_approvers(self) -> list[User]:
+        result = await self.db.execute(
+            select(User).where(User.role.has(role_code="APPROVER"))
         )
         return result.scalars().all()

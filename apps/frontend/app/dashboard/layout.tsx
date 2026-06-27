@@ -1,5 +1,6 @@
 "use client";
 
+import FirebaseInitializer from "@/components/filebase/FirebaseInitializer";
 import AppSidebar, { type AppSidebarItem } from "@/components/app-sidebar";
 import Header from "@/components/header/Header";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -8,7 +9,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { useAppSelector } from "@/store/hooks";
+import { useAppSelector } from "@/lib/hooks/hooks";
 import { selectCurrentUser } from "@/store/slice/auth.slice";
 import {
   Building2,
@@ -63,15 +64,11 @@ export default function DashboardLayout({
 
   return (
     <ProtectedRoute>
+      <FirebaseInitializer />
       <SidebarProvider>
         <AppSidebar items={items} currentUser={currentUser} />
         <SidebarInset className="h-screen overflow-hidden">
-          <div className="flex h-12 shrink-0 items-center border-b bg-background">
-            <SidebarTrigger className="ml-2" />
-            <div className="flex-1">
-              <Header />
-            </div>
-          </div>
+          <Header />
           <main className="flex-1 overflow-y-auto">{children}</main>
         </SidebarInset>
       </SidebarProvider>

@@ -4,8 +4,8 @@ import { clearCredentials, setCredentials } from '@/store/slice/auth.slice'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { authService } from '@/services/auth/auth.service'
-import { useAppDispatch, useAppSelector } from './hooks'
 import { PUBLIC_ROUTE_PREFIXES, PUBLIC_ROUTES } from '@/lib/auth/routes'
+import { useAppDispatch, useAppSelector } from '@/lib/hooks/hooks'
 
 const isPublicPath = (pathname: string) =>
     PUBLIC_ROUTES.includes(pathname) ||

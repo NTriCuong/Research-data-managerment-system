@@ -12,7 +12,7 @@ import {
   TypographyP,
   TypographySmall,
 } from "@/components/ui/typography"
-import { useAppSelector } from "@/store/hooks"
+import { useAppSelector } from "@/lib/hooks/hooks"
 import { selectCurrentUser } from "@/store/slice/auth.slice"
 
 function getInitials(name?: string) {

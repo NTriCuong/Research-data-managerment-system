@@ -15,8 +15,11 @@ from app.services.logs.audit_service import audit_service
 from app.services.logs.workflow_service import workflow_service
 from app.services.notifications.notification_service import notification_service
 from app.core.config import settings
+from app.services.notification.notification_service import push_to_users, push_to_roles
+
 
 class StagingReviewService:
+
     @staticmethod
     def _assert_pending_review(staging_obj: StgResearchObject) -> None:
         if staging_obj.workflow_status != WorkflowStatus.pending_review:
@@ -78,13 +81,15 @@ class StagingReviewService:
             new_value={"workflow_status": WorkflowStatus.revision_required.value, "revision_note": payload.note},
             message="Reviewer requested revision",
         )
+        title = "Có bài nghiên cứu cần chỉnh sửa"
+        message = f"Người kiểm duyệt yêu cầu chỉnh sửa bài nghiên cứu '{obj.title}': {payload.note}"
         await notification_service.notify_user(
             db,
             recipient_user_id=obj.created_by,
             actor_user_id=current_user.user_id,
             event_type="staging.revision_requested",
-            title="Có bài nghiên cứu cần chỉnh sửa",
-            message=f"Reviewer yêu cầu chỉnh sửa bài nghiên cứu '{obj.title}': {payload.note}",
+            title=title,
+            message=message,
             target_url=f"{settings.FRONTEND_URL}/dashboard/data-entry/researches/{obj.staging_id}",
             payload={
                 "staging_id": str(obj.staging_id),
@@ -92,6 +97,7 @@ class StagingReviewService:
                 "note": payload.note,
             },
         )
+        await push_to_users(db, [obj.created_by], title, message)
         return MessageResponse(message="Yêu cầu chỉnh sửa thành công")
 
     async def forward_to_approval(
@@ -136,13 +142,15 @@ class StagingReviewService:
             new_value={"workflow_status": WorkflowStatus.pending_approval.value, "note": payload.note},
             message="Reviewer forwarded record to approval",
         )
+        title = "Có bài nghiên cứu mới cần phê duyệt"
+        message = f"Người kiểm duyệt đã chuyển bài nghiên cứu '{obj.title}' đến bước phê duyệt."
         await notification_service.notify_role(
             db,
             role_codes=["APPROVER", "SUPER_ADMIN"],
             actor_user_id=current_user.user_id,
             event_type="staging.forwarded_to_approval",
-            title="Có bài nghiên cứu mới cần phê duyệt",
-            message=f"Reviewer đã chuyển bài nghiên cứu '{obj.title}' đến bước phê duyệt.",
+            title=title,
+            message=message,
             target_url=f"{settings.FRONTEND_URL}/dashboard/approval/researches/{obj.staging_id}",
             payload={
                 "staging_id": str(obj.staging_id),
@@ -150,6 +158,7 @@ class StagingReviewService:
                 "note": payload.note,
             },
         )
+        await push_to_roles(db, ["APPROVER", "SUPER_ADMIN"], title, message)
         return MessageResponse(message="Chuyển bản ghi sang bước phê duyệt thành công")
 
 
