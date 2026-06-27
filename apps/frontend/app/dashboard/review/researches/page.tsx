@@ -5,6 +5,7 @@ import { Search } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 import FilterToolbar, { type FilterSelect } from '@/components/dashboard/filter-toolbar'
+import { RtlPagination } from '@/components/ui/rtl-pagination'
 import {
     Table,
     TableBody,
@@ -24,6 +25,8 @@ import { referenceService } from '@/services/reference/reference.service'
 import { reviewerService } from '@/services/reviewer/reviewer.service'
 import { type StagingResearchObject } from '@/services/data-entry/data-entry.service'
 
+const PAGE_SIZE = 10
+
 function formatDateTime(value: string | null) {
     if (!value) return '-'
     return new Date(value).toLocaleString('vi-VN')
@@ -41,6 +44,7 @@ export default function Researches() {
     const [outputTypeFilter, setOutputTypeFilter] = useState('')
     const [accessFilter, setAccessFilter] = useState('')
     const [yearFilter, setYearFilter] = useState('')
+    const [page, setPage] = useState(1)
 
     useEffect(() => {
         const fetchResearchData = async () => {
@@ -96,6 +100,13 @@ export default function Researches() {
         [dataResearch]
     )
 
+    const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE))
+    const currentPage = Math.min(page, totalPages)
+    const paginatedData = useMemo(
+        () => filteredData.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+        [currentPage, filteredData]
+    )
+
     const filterSelects: FilterSelect[] = [
         {
             key: 'output-type',
@@ -103,7 +114,10 @@ export default function Researches() {
             value: outputTypeFilter,
             allLabel: 'Tất cả loại',
             options: Object.entries(outputTypeMap).map(([value, label]) => ({ value, label })),
-            onChange: setOutputTypeFilter,
+            onChange: (value) => {
+                setOutputTypeFilter(value)
+                setPage(1)
+            },
         },
         {
             key: 'department',
@@ -111,7 +125,10 @@ export default function Researches() {
             value: departmentFilter,
             allLabel: 'Tất cả đơn vị',
             options: Object.entries(departmentMap).map(([value, label]) => ({ value, label })),
-            onChange: setDepartmentFilter,
+            onChange: (value) => {
+                setDepartmentFilter(value)
+                setPage(1)
+            },
         },
         {
             key: 'access',
@@ -119,7 +136,10 @@ export default function Researches() {
             value: accessFilter,
             allLabel: 'Tất cả mức',
             options: Object.entries(ACCESS_LEVEL_LABEL).map(([value, label]) => ({ value, label })),
-            onChange: setAccessFilter,
+            onChange: (value) => {
+                setAccessFilter(value)
+                setPage(1)
+            },
         },
         {
             key: 'year',
@@ -127,7 +147,10 @@ export default function Researches() {
             value: yearFilter,
             allLabel: 'Tất cả năm',
             options: yearOptions,
-            onChange: setYearFilter,
+            onChange: (value) => {
+                setYearFilter(value)
+                setPage(1)
+            },
         },
     ]
 
@@ -137,6 +160,7 @@ export default function Researches() {
         setOutputTypeFilter('')
         setAccessFilter('')
         setYearFilter('')
+        setPage(1)
     }
 
     return (
@@ -162,7 +186,10 @@ export default function Researches() {
 
             <FilterToolbar
                 search={search}
-                onSearchChange={setSearch}
+                onSearchChange={(value) => {
+                    setSearch(value)
+                    setPage(1)
+                }}
                 searchPlaceholder="Tìm kiếm ..."
                 selects={filterSelects}
                 resultCount={filteredData.length}
@@ -199,7 +226,7 @@ export default function Researches() {
                                 </TableRow>
                             )}
 
-                            {!loading && filteredData.map((item) => (
+                            {!loading && paginatedData.map((item) => (
                                 <TableRow
                                     key={item.staging_id}
                                     onClick={() => router.push(`/dashboard/review/researches/${item.staging_id}`)}
@@ -236,6 +263,13 @@ export default function Researches() {
                         </TableBody>
                     </Table>
                 </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-gray-500">
+                    Trang {currentPage} / {totalPages}
+                </p>
+                <RtlPagination page={currentPage} totalPages={totalPages} onPageChange={setPage} />
             </div>
         </div>
     )

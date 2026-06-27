@@ -41,6 +41,7 @@ from app.services.logs.workflow_service import workflow_service
 from app.services.notifications.notification_service import notification_service
 from fastapi.encoders import jsonable_encoder
 from pydantic import AnyUrl
+from app.core.config import settings
 
 class StagingService:
     def _dedupe_ids(self, values: list[UUID]) -> list[UUID]:
@@ -219,9 +220,9 @@ class StagingService:
             role_codes=["REVIEWER", "SUPER_ADMIN"],
             actor_user_id=current_user.user_id,
             event_type="staging.submitted",
-            title="Co bai nghien cuu moi can review",
-            message=f"Data entry da gui bai nghien cuu '{obj.title}' den buoc review.",
-            target_url=f"/dashboard/review/researches/{obj.staging_id}",
+            title="Có bài nghiên cứu mới cần kiểm duyệt",
+            message=f"Bài nghiên cứu '{obj.title}' đã được gửi để kiểm duyệt.",
+            target_url=f"{settings.FRONTEND_URL}/dashboard/review/researches/{obj.staging_id}",
             payload={
                 "staging_id": str(obj.staging_id),
                 "workflow_status": WorkflowStatus.pending_review.value,

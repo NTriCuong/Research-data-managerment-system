@@ -14,7 +14,7 @@ from app.schemas.staging_review import ForwardToApprovalRequest, RequestRevision
 from app.services.logs.audit_service import audit_service
 from app.services.logs.workflow_service import workflow_service
 from app.services.notifications.notification_service import notification_service
-
+from app.core.config import settings
 
 class StagingReviewService:
     @staticmethod
@@ -83,9 +83,9 @@ class StagingReviewService:
             recipient_user_id=obj.created_by,
             actor_user_id=current_user.user_id,
             event_type="staging.revision_requested",
-            title="Can chinh sua bai nghien cuu",
-            message=f"Reviewer yeu cau chinh sua bai nghien cuu '{obj.title}': {payload.note}",
-            target_url=f"/dashboard/data-entry/researches/{obj.staging_id}",
+            title="Có bài nghiên cứu cần chỉnh sửa",
+            message=f"Reviewer yêu cầu chỉnh sửa bài nghiên cứu '{obj.title}': {payload.note}",
+            target_url=f"{settings.FRONTEND_URL}/dashboard/data-entry/researches/{obj.staging_id}",
             payload={
                 "staging_id": str(obj.staging_id),
                 "workflow_status": WorkflowStatus.revision_required.value,
@@ -141,9 +141,9 @@ class StagingReviewService:
             role_codes=["APPROVER", "SUPER_ADMIN"],
             actor_user_id=current_user.user_id,
             event_type="staging.forwarded_to_approval",
-            title="Co bai nghien cuu moi can phe duyet",
-            message=f"Reviewer da chuyen bai nghien cuu '{obj.title}' den buoc phe duyet.",
-            target_url=f"/dashboard/approval/researches/{obj.staging_id}",
+            title="Có bài nghiên cứu mới cần phê duyệt",
+            message=f"Reviewer đã chuyển bài nghiên cứu '{obj.title}' đến bước phê duyệt.",
+            target_url=f"{settings.FRONTEND_URL}/dashboard/approval/researches/{obj.staging_id}",
             payload={
                 "staging_id": str(obj.staging_id),
                 "workflow_status": WorkflowStatus.pending_approval.value,

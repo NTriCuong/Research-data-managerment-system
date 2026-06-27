@@ -19,7 +19,7 @@ from app.schemas.core_approve import ApproveRequest, PendingApprovalOut
 from app.services.logs.audit_service import audit_service
 from app.services.logs.workflow_service import workflow_service
 from app.services.notifications.notification_service import notification_service
-
+from app.core.config import settings
 
 class CoreApproveService:
     _REFRESH_SEARCH_VECTOR_SQL = text(
@@ -262,9 +262,9 @@ class CoreApproveService:
             recipient_user_id=staging_obj.created_by,
             actor_user_id=current_user.user_id,
             event_type="staging.approved",
-            title="Bai nghien cuu da duoc phe duyet",
-            message=f"Bai nghien cuu '{staging_obj.title}' da duoc phe duyet va xuat ban vao core.",
-            target_url=f"/dashboard/data-entry/researches/{staging_obj.staging_id}",
+            title="Bài nghiên cứu đã được phê duyệt",
+            message=f"Bài nghiên cứu '{staging_obj.title}' đã được phê duyệt",
+            target_url=f"{settings.FRONTEND_URL}/dashboard/data-entry/researches/{staging_obj.staging_id}",
             payload={
                 "staging_id": str(staging_obj.staging_id),
                 "research_id": str(core_obj.research_id),
@@ -314,9 +314,9 @@ class CoreApproveService:
             recipient_user_id=staging_obj.created_by,
             actor_user_id=current_user.user_id,
             event_type="staging.rejected",
-            title="Bai nghien cuu bi tu choi",
-            message=f"Bai nghien cuu '{staging_obj.title}' bi tu choi: {reason}",
-            target_url=f"/dashboard/data-entry/researches/{staging_obj.staging_id}",
+            title="Bài nghiên cứu bị từ chối",
+            message=f"Bài nghiên cứu '{staging_obj.title}' bị từ chối: {reason}",
+            target_url=f"{settings.FRONTEND_URL}/dashboard/data-entry/researches/{staging_obj.staging_id}",
             payload={
                 "staging_id": str(staging_obj.staging_id),
                 "workflow_status": WorkflowStatus.rejected.value,

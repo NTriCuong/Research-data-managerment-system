@@ -5,7 +5,11 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { authService } from '@/services/auth/auth.service'
 import { useAppDispatch, useAppSelector } from './hooks'
-import { PUBLIC_ROUTES } from '@/lib/auth/routes'
+import { PUBLIC_ROUTE_PREFIXES, PUBLIC_ROUTES } from '@/lib/auth/routes'
+
+const isPublicPath = (pathname: string) =>
+    PUBLIC_ROUTES.includes(pathname) ||
+    PUBLIC_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 
 export default function AuthInitializer() {
     const dispatch = useAppDispatch()
@@ -16,20 +20,19 @@ export default function AuthInitializer() {
     useEffect(() => {
         if (isAuthenticated) return
 
-        if (PUBLIC_ROUTES.includes(pathname)) {
-            dispatch(clearCredentials())
-            return
-        }
+        const publicPath = isPublicPath(pathname)
 
-        authService.refreshToken()
+        authService.refreshToken({ silent: publicPath })
             .then((data) => {
                 dispatch(setCredentials({ user: data.user, accessToken: data.access_token }))
             })
             .catch(() => {
                 dispatch(clearCredentials())
-                router.replace('/login')
+                if (!publicPath) {
+                    router.replace('/login')
+                }
             })
-    }, [pathname])
+    }, [dispatch, isAuthenticated, pathname, router])
 
     return null
 }

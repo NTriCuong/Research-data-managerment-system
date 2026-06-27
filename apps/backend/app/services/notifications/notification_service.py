@@ -35,7 +35,7 @@ class NotificationService:
             <p>{safe_message}</p>
             <p>
                 <a href="{safe_url}" style="color: #1d4ed8; font-weight: 600;">
-                    Xem chi tiet
+                    Xem chi tiết
                 </a>
             </p>
         </div>

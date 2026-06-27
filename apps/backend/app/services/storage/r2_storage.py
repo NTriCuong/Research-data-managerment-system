@@ -88,3 +88,17 @@ def upload_fileobj_to_r2(*, object_key: str, fileobj, content_type: str) -> R2Up
         public_url = f"{base}/{object_key}"
 
     return R2UploadResult(storage_path=object_key, public_url=public_url)
+
+
+def create_presigned_download_url(*, object_key: str, filename: str, expires_in: int = 300) -> str:
+    account_id, access_key_id, secret_access_key, bucket_name = _require_r2_settings()
+    s3_client = _build_s3_client(account_id, access_key_id, secret_access_key)
+    return s3_client.generate_presigned_url(
+        "get_object",
+        Params={
+            "Bucket": bucket_name,
+            "Key": object_key,
+            "ResponseContentDisposition": f'attachment; filename="{filename}"',
+        },
+        ExpiresIn=expires_in,
+    )
