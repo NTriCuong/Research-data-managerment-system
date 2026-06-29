@@ -31,6 +31,24 @@ export interface OutputType {
 export interface Researcher {
     researcher_id: string;
     full_name: string;
+    email: string | null;
+    orcid: string | null;
+    department_id: string | null;
+    academic_title: string | null;
+    researcher_code: string | null;
+    is_internal: boolean;
+    created_at: string;
+    updated_at: string | null;
+}
+
+export interface UpdateResearcherRequest {
+    full_name?: string;
+    email?: string | null;
+    orcid?: string | null;
+    department_id?: string | null;
+    academic_title?: string | null;
+    researcher_code?: string | null;
+    is_internal?: boolean;
 }
 
 export interface Domain {
@@ -174,12 +192,62 @@ export interface ListUsersParams {
     status?: UserStatus;
 }
 
+export interface CreateOutputTypeRequest {
+    type_code: string;
+    type_name: string;
+    description?: string | null;
+    is_active?: boolean;
+}
+
+export interface UpdateOutputTypeRequest {
+    type_code?: string;
+    type_name?: string;
+    description?: string | null;
+    is_active?: boolean;
+}
+
+export interface CreateDepartmentRequest {
+    department_code: string;
+    department_name: string;
+    parent_department_id?: string | null;
+    description?: string | null;
+    is_active?: boolean;
+}
+
+export interface UpdateDepartmentRequest {
+    department_code?: string;
+    department_name?: string;
+    parent_department_id?: string | null;
+    description?: string | null;
+    is_active?: boolean;
+}
+
 export const referenceService = {
     // department
     async getDepartments(page = 1, pageSize = 100) {
         const response = await axiosInstance.get<PaginatedResponse<Department>>(API_ENDPOINT.DEPARTMENT.GET, {
             params: { page, page_size: pageSize },
         })
+        return response.data
+    },
+
+    async getDepartmentDetail(departmentId: string) {
+        const response = await axiosInstance.get<Department>(API_ENDPOINT.DEPARTMENT.GET_DETAIL(departmentId))
+        return response.data
+    },
+
+    async createDepartment(data: CreateDepartmentRequest) {
+        const response = await axiosInstance.post<Department>(API_ENDPOINT.DEPARTMENT.POST, data)
+        return response.data
+    },
+
+    async updateDepartment(departmentId: string, data: UpdateDepartmentRequest) {
+        const response = await axiosInstance.put<Department>(API_ENDPOINT.DEPARTMENT.PUT(departmentId), data)
+        return response.data
+    },
+
+    async deleteDepartment(departmentId: string) {
+        const response = await axiosInstance.delete(API_ENDPOINT.DEPARTMENT.DELETE(departmentId))
         return response.data
     },
 
@@ -191,20 +259,52 @@ export const referenceService = {
         return response.data
     },
 
+    async getOutputTypeDetail(id: string) {
+        const response = await axiosInstance.get<OutputType>(API_ENDPOINT.OUTPUT_TYPE.GET_DETAIL(id))
+        return response.data
+    },
+
+    async createOutputType(data: CreateOutputTypeRequest) {
+        const response = await axiosInstance.post<OutputType>(API_ENDPOINT.OUTPUT_TYPE.POST, data)
+        return response.data
+    },
+
+    async updateOutputType(id: string, data: UpdateOutputTypeRequest) {
+        const response = await axiosInstance.put<OutputType>(API_ENDPOINT.OUTPUT_TYPE.PUT(id), data)
+        return response.data
+    },
+
+    async deleteOutputType(id: string) {
+        const response = await axiosInstance.delete(API_ENDPOINT.OUTPUT_TYPE.DELETE(id))
+        return response.data
+    },
+
     // researchers
     async getResearchers(page = 1, pageSize = 100) {
-        const response = await axiosInstance.get<PaginatedResponse<{ user_id: string; full_name: string }>>(API_ENDPOINT.RESEARCHERS.GET, {
+        const response = await axiosInstance.get<PaginatedResponse<Researcher>>(API_ENDPOINT.RESEARCHERS.GET, {
             params: { page, page_size: pageSize },
         })
-        return response.data.items
+        return response.data
     },
-    async createResearcher(data: CreateResearcherRequest) {
-        const response = await axiosInstance.post(
-            API_ENDPOINT.RESEARCHERS.POST,
-            data
-        );
 
-        return response.data;
+    async getResearcherDetail(id: string) {
+        const response = await axiosInstance.get<Researcher>(API_ENDPOINT.RESEARCHERS.GET_DETAIL(id))
+        return response.data
+    },
+
+    async createResearcher(data: CreateResearcherRequest) {
+        const response = await axiosInstance.post<Researcher>(API_ENDPOINT.RESEARCHERS.POST, data)
+        return response.data
+    },
+
+    async updateResearcher(id: string, data: UpdateResearcherRequest) {
+        const response = await axiosInstance.put<Researcher>(API_ENDPOINT.RESEARCHERS.PUT(id), data)
+        return response.data
+    },
+
+    async deleteResearcher(id: string) {
+        const response = await axiosInstance.delete(API_ENDPOINT.RESEARCHERS.DELETE(id))
+        return response.data
     },
     // Keywords
     async getKeywords(
