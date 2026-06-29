@@ -56,16 +56,16 @@ export default function PersonalSettingsPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <TypographyH1>Thong tin ca nhan</TypographyH1>
+          <TypographyH1>Cài đặt thông tin cá nhân</TypographyH1>
           <TypographyMuted className="mt-1">
-            Xem thong tin tai khoan, vai tro va don vi dang duoc gan trong he thong.
+            Xem thông tin tài khoản, vai trò và đơn vị đang được gắn trong hệ thống.
           </TypographyMuted>
         </div>
 
         <Button asChild variant="outline">
           <Link href="/change-password">
             <KeyRound size={16} />
-            Doi mat khau
+            Đổi mật khẩu
           </Link>
         </Button>
       </div>
@@ -87,25 +87,29 @@ export default function PersonalSettingsPage() {
 
       <section className="space-y-3">
         <div>
-          <TypographyH2>Ho so tai khoan</TypographyH2>
-          <TypographyMuted className="mt-1">Thong tin nay duoc lay tu phien dang nhap hien tai.</TypographyMuted>
+          <TypographyH2>Thông tin chi tiết</TypographyH2>
+          <TypographyMuted className="mt-1">Thay đổi thông tin cá nhân của bạn đang được cập nhật.</TypographyMuted>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <InfoRow icon={UserRound} label="Ho ten" value={currentUser?.full_name ?? "-"} />
+          <InfoRow icon={UserRound} label="Họ và tên" value={currentUser?.full_name ?? "-"} />
           <InfoRow icon={Mail} label="Email" value={currentUser?.email ?? "-"} />
-          <InfoRow icon={IdCard} label="Ten dang nhap" value={currentUser?.username ?? "-"} />
-          <InfoRow icon={ShieldCheck} label="Vai tro" value={currentUser?.role_name ?? "-"} />
-          <InfoRow icon={Building2} label="Don vi" value={currentUser?.department_name ?? "Chua co don vi"} />
+          <InfoRow icon={IdCard} label="ên đăng nhập" value={currentUser?.username ?? "-"} />
+          <InfoRow icon={ShieldCheck} label="Vai trò" value={currentUser?.role_name ?? "-"} />
+          <InfoRow icon={Building2} label="Đơn vị" value={currentUser?.department_name ?? "Chưa có đơn vị"} />
         </div>
       </section>
 
       <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-        <TypographyH2>Bao mat tai khoan</TypographyH2>
+        <TypographyH2>Bảo mật tài khoản</TypographyH2>
         <TypographyP className="mt-2 max-w-2xl">
-          Neu thong tin ca nhan hoac don vi chua dung, vui long lien he quan tri vien de cap nhat tai khoan. Mat khau co the
-          duoc thay doi bang luong xac thuc rieng cua he thong.
+          Nếu thông tin cá nhân hoặc đơn vị chưa đúng, vui lòng liên hệ quản trị viên để cập nhật tài khoản.
         </TypographyP>
+        <TypographyP className="mt-2 max-w-2xl">
+          Email: <a href="mailto:admin@example.com" className="text-blue-500 hover:underline">
+            admin@example.com
+          </a>
+          </TypographyP>
       </section>
     </div>
   )

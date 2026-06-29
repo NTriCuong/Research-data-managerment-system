@@ -64,7 +64,7 @@ export function ResearchCard({
                             </Badge>
                         ))}
                     </div>
-                    <Button asChild variant="outline" size="sm" className="mt-4">
+                    <Button asChild variant="outline" size="sm" className="mt-4 bg-blue-500 text-white hover:bg-blue-600">
                         <Link href={`/researches/${research.research_id}`}>Xem chi tiết</Link>
                     </Button>
                 </div>

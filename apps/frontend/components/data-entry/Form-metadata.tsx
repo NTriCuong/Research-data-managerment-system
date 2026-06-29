@@ -78,7 +78,7 @@ function FormSectionCard({
                 <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
                     <Icon size={18} className="text-gray-400" />
                     {title}
-                </h2>
+                </h2>   
                 {action}
             </div>
             {children}
@@ -395,7 +395,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
             } else {
                 const res = await referenceService.createMetadata(payload);
                 setStagingId(res.staging_id);
-                toast.success("Save draft thành công");
+                toast.success("Lưu bản nháp thành công");
             }
             setIsDraftSaved(true);
         } catch (error) {
@@ -453,7 +453,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                     Các trường có dấu<span className="font-medium text-red-500"> *</span> là bắt buộc.
                 </p>
 
-                <FormSectionCard icon={FileText} title="Thông tin metadata (Metadata Information)">
+                <FormSectionCard icon={FileText} title="Metadata bài nghiên cứu (Research Metadata)">
                     <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                         <div className="md:col-span-2">
                             <label className="mb-2 block text-sm font-medium text-gray-700">
@@ -530,7 +530,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
 
                         <div>
                             <label className="mb-2 block text-sm font-medium text-gray-700">
-                                Năm (Year)
+                                Năm (Year)<RequiredMark />
                             </label>
 
                             <select
@@ -799,7 +799,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                         {/* Domain */}
                         <div>
                             <label className="mb-2 block text-sm font-medium text-gray-700">
-                                Phạm vi (Domain)
+                                Phạm vi (Domain)<RequiredMark />
                             </label>
 
                             <AsyncSelect
@@ -835,7 +835,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                         {/* Keyword */}
                         <div>
                             <label className="mb-2 block text-sm font-medium text-gray-700">
-                                Từ khóa (Keyword)
+                                Từ khóa (Keyword)<RequiredMark />
                             </label>
 
                             <AsyncSelect
@@ -1120,7 +1120,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
             {openSubmitModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
                     <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
-                        <h2 className="text-lg font-semibold">Gửi yêu cầu phê duyệt đến review</h2>
+                        <h2 className="text-lg font-semibold">Gửi yêu cầu kiểm duyệt</h2>
 
                         <p className="mt-2 text-sm text-gray-500">
                             Ghi chú gửi kèm

@@ -36,7 +36,7 @@ export function ResearchCover({
             ) : (
                 <div className="flex h-full flex-col justify-between bg-background p-3">
                     <div className="flex items-center justify-between">
-                        <span className="rounded-sm bg-foreground px-1.5 py-0.5 text-[10px] font-semibold uppercase text-background">
+                        <span className="rounded-sm bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-background">
                             PDF
                         </span>
                     </div>

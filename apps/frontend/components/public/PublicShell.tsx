@@ -32,7 +32,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
                             <Link href="/">Trang chủ</Link>
                         </Button>
                         <Button asChild variant={pathname.startsWith("/researches") ? "secondary" : "ghost"} size="lg">
-                            <Link href="/researches">Bộ lọc</Link>
+                            <Link href="/researches">Duyệt</Link>
                         </Button>
                         {isAuthenticated ? (
                             <Button asChild variant="outline" size="lg">
