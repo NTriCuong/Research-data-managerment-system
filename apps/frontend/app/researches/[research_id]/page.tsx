@@ -11,12 +11,20 @@ import { PublicShell } from "@/components/public/PublicShell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+<<<<<<< HEAD
 import { useAppSelector } from "@/store/hooks"
+=======
+>>>>>>> 81b8f47b8207f1112da7e824e3abcecee4919224
 import {
     publicSearchService,
     type PublicFile,
     type PublicResearchDetail,
 } from "@/services/public-search/public-search.service"
+<<<<<<< HEAD
+=======
+import { useAppSelector } from "@/lib/hooks/hooks"
+import { selectIsAuthenticated } from "@/store/slice/auth.slice"
+>>>>>>> 81b8f47b8207f1112da7e824e3abcecee4919224
 
 const formatDate = (value: string | null) =>
     value ? new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value)) : "Chưa cập nhật"
@@ -128,7 +136,11 @@ export default function PublicResearchDetailPage() {
                                     ))}
                                 </div>
                             </div>
+<<<<<<< HEAD
                             
+=======
+
+>>>>>>> 81b8f47b8207f1112da7e824e3abcecee4919224
                             <div className="rounded-lg border border-border bg-card p-4">
                                 <h2 className="font-semibold text-foreground">Từ khóa</h2>
                                 <div className="mt-3 flex flex-wrap gap-2">
@@ -148,7 +160,11 @@ export default function PublicResearchDetailPage() {
                                         <p className="text-sm text-muted-foreground">Chưa có file PDF.</p>
                                     ) : (
                                         detail.file_attachments.map((file) => (
+<<<<<<< HEAD
                                             <DownloadFile key={file.file_id} researchId={detail.research_id} file={file}/>
+=======
+                                            <DownloadFile key={file.file_id} researchId={detail.research_id} file={file} />
+>>>>>>> 81b8f47b8207f1112da7e824e3abcecee4919224
                                         ))
                                     )}
                                 </div>
@@ -191,7 +207,11 @@ function Meta({ label, value }: { label: string; value: string }) {
 
 function DownloadFile({ researchId, file }: { researchId: string; file: PublicFile }) {
     const router = useRouter()
+<<<<<<< HEAD
     const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated)
+=======
+    const isAuthenticated = useAppSelector(selectIsAuthenticated)
+>>>>>>> 81b8f47b8207f1112da7e824e3abcecee4919224
     const [loading, setLoading] = useState(false)
 
     const handleDownload = async () => {
