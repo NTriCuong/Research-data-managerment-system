@@ -188,10 +188,8 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
 
     const fetchResearchers = async () => {
         try {
-            // getResearchers() đang return response.data.items
             const res = await referenceService.getResearchers();
-
-            setResearchers(res);
+            setResearchers(res.items);
         } catch (error) {
             console.error(error);
         }
@@ -352,6 +350,19 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
         }
     };
     const handleSaveDraft = async () => {
+        if (!formData.title.trim()) {
+            toast.error("Vui lòng nhập tiêu đề nghiên cứu")
+            return
+        }
+        if (!formData.output_type_id) {
+            toast.error("Vui lòng chọn loại sản phẩm")
+            return
+        }
+        if (!formData.department_id) {
+            toast.error("Vui lòng chọn đơn vị")
+            return
+        }
+
         try {
             const payload = {
                 title: formData.title,
