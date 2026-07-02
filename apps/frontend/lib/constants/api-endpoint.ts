@@ -70,4 +70,9 @@ export const API_ENDPOINT = {
         REGISTER_TOKEN: 'api/v1/notifications/register-token',
         MARK_READ: (notificationId: string) => `api/v1/notifications/${notificationId}/read`,
     },
+    LOGS: {
+        AUDIT: 'api/v1/logs/audit',
+        LOGIN: 'api/v1/logs/login',
+        WORKFLOW: 'api/v1/logs/workflow',
+    },
 }
