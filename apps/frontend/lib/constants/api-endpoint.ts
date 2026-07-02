@@ -27,13 +27,24 @@ export const API_ENDPOINT = {
     // reference dùng chung 
     OUTPUT_TYPE: {
         GET: 'api/v1/reference/output-types/',
+        POST: 'api/v1/reference/output-types/',
+        PUT: (outPutTypeId: string) => `api/v1/reference/output-types/${outPutTypeId}`,
+        DELETE: (outPutTypeId: string) => `api/v1/reference/output-types/${outPutTypeId}`,
+        GET_DETAIL: (outPutTypeId: string) => `api/v1/reference/output-types/${outPutTypeId}`
     },
     DEPARTMENT: {
         GET: 'api/v1/reference/departments',
+        POST: 'api/v1/reference/department',
+        PUT: (departmentId: string) => `api/v1/reference/department/${departmentId}`,
+        DELETE: (departmentId: string) => `api/v1/reference/department/${departmentId}`,
+        GET_DETAIL: (departmentId: string) => `api/v1/reference/department/${departmentId}`
     },
     RESEARCHERS: {
         GET: 'api/v1/reference/researchers',
         POST: 'api/v1/reference/researchers',
+        GET_DETAIL: (id: string) => `api/v1/reference/researchers/${id}`,
+        PUT: (id: string) => `api/v1/reference/researchers/${id}`,
+        DELETE: (id: string) => `api/v1/reference/researchers/${id}`,
     },
     KEYWORD: {
         GET: 'api/v1/reference/keywords',
