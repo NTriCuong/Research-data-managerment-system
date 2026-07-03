@@ -96,7 +96,7 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
         : notifications;
 
     return (
-        <div ref={dropdownRef} style={{ position: "relative" }}>
+        <div ref={dropdownRef} style={{ position: "relative", display: "flex", alignItems: "center" }}>
             <button
                 type="button"
                 aria-label="Notifications"

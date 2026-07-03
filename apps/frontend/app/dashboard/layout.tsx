@@ -12,9 +12,8 @@ import {
 import { useAppSelector } from "@/lib/hooks/hooks";
 import { selectCurrentUser } from "@/store/slice/auth.slice";
 import {
+  BarChart3,
   Building2,
-  CheckCheck,
-  ClipboardList,
   FileText,
   House,
   Layers3,
@@ -47,11 +46,16 @@ const items_super_admin: AppSidebarItem[] = [
   { label: "Nhật ký", href: "/dashboard/superadmin/logs", icon: ScrollText },
 ];
 
+const items_manager: AppSidebarItem[] = [
+  { label: "Báo cáo", href: "/dashboard/reports", icon: BarChart3 },
+];
+
 const ROLE_SIDEBAR_ITEMS: Record<string, AppSidebarItem[]> = {
   "Data Entry User": items_data_entry,
   "Metadata Reviewer": items_reviewer,
   "Metadata Approver": items_approver,
   "Super Administrator": items_super_admin,
+  "Research Manager": items_manager,
 };
 
 export default function DashboardLayout({

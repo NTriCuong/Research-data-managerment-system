@@ -75,4 +75,12 @@ export const API_ENDPOINT = {
         LOGIN: 'api/v1/logs/login',
         WORKFLOW: 'api/v1/logs/workflow',
     },
+    REPORTS: {
+        TOTAL_CORE_REPOSITORIES: 'api/v1/reports/total-core-repositories',
+        PENDING_STATUS: 'api/v1/reports/pending-status',
+        TOTAL_RESEARCHERS: 'api/v1/reports/total-researchers',
+        METADATA_QUALITY: 'api/v1/reports/metadata-quality',
+        STATUS_BREAKDOWN: 'api/v1/reports/status-breakdown',
+        TOP_DEPARTMENTS: 'api/v1/reports/top-departments',
+    },
 }
