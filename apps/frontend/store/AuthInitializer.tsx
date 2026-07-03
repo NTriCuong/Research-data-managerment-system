@@ -1,6 +1,6 @@
 'use client'
 
-import { clearCredentials, setCredentials } from '@/store/slice/auth.slice'
+import { clearCredentials, selectIsAuthenticated, setCredentials } from '@/store/slice/auth.slice'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { authService } from '@/services/auth/auth.service'
@@ -13,7 +13,7 @@ const isPublicPath = (pathname: string) =>
 
 export default function AuthInitializer() {
     const dispatch = useAppDispatch()
-    const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated)
+    const isAuthenticated = useAppSelector(selectIsAuthenticated)
     const router = useRouter()
     const pathname = usePathname()
 

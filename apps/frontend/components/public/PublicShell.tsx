@@ -9,11 +9,12 @@ import { LogIn, LayoutDashboard } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAppSelector } from "@/lib/hooks/hooks"
 import { getRoleHomePath } from "@/lib/auth/routes"
+import { selectCurrentUser, selectIsAuthenticated } from "@/store/slice/auth.slice"
 
 export function PublicShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname()
-    const currentUser = useAppSelector((state) => state.auth.currentUser)
-    const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated)
+    const currentUser = useAppSelector(selectCurrentUser)
+    const isAuthenticated = useAppSelector(selectIsAuthenticated)
     const dashboardHref = currentUser ? getRoleHomePath(currentUser.role_name) : "/dashboard"
 
     return (
@@ -22,9 +23,9 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
                 <div className="mx-auto flex h-28 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
                     <Link href="/" className="flex items-center gap-3">
                         <Image src="/logo-stu-white.svg" alt="STU" width={112} height={32} priority className="h-24 w-auto" />
-                            <h1 className="scroll-m-20 text-center text-4xl font-extrabold tracking-tigh text-mist-50">
+                        <h1 className="scroll-m-20 text-center text-4xl font-extrabold tracking-tigh text-mist-50">
                             Cổng dữ liệu nghiên cứu khoa học
-                            </h1>
+                        </h1>
                     </Link>
                     <nav className="flex items-center gap-1" aria-label="Điều hướng public">
                         <Button asChild variant={pathname === "/" ? "secondary" : "ghost"} size="lg">
