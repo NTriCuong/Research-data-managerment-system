@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, DateTime, text
+from sqlalchemy import ForeignKey, DateTime, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -30,12 +30,6 @@ class UserNotification(Base):
         ForeignKey("auth.users.user_id"),
         nullable=False,
         index=True
-    )
-
-    is_read: Mapped[bool] = mapped_column(
-        Boolean,
-        default=False,
-        nullable=False
     )
 
     read_at: Mapped[datetime | None] = mapped_column(
