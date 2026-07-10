@@ -1,9 +1,9 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Text, ForeignKey, TIMESTAMP, text, Boolean
+from sqlalchemy import String, Text, ForeignKey, TIMESTAMP, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from app.database.base import Base
 
@@ -38,12 +38,8 @@ class FCMNotification(Base):
         nullable=True
     )
 
-    is_read: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        server_default=text("false"),
-        default=False,
-    )
+    payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         server_default=text("now()")

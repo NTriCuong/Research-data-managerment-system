@@ -1,63 +1,101 @@
 import uuid
+from datetime import datetime, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.reference.notification import FCMNotification as Notification
-from app.models.reference.user_notification import UserNotification
 from app.models.reference.user_device import UserDevice
+from app.models.reference.user_notification import UserNotification
 
 
 class NotificationRepository:
 
-    async def create(
+    async def create_for_recipients(
         self,
         db: AsyncSession,
-        notification: Notification,
-    ) -> Notification:
+        *,
+        title: str,
+        message: str,
+        notification_type: str,
+        action_url: str | None,
+        sender_user_id: uuid.UUID | None,
+        payload: dict | None,
+        recipient_user_ids: list[uuid.UUID],
+    ) -> Notification | None:
+        recipient_ids = list(dict.fromkeys(recipient_user_ids))
+        if not recipient_ids:
+            return None
+
+        notification = Notification(
+            title=title,
+            message=message,
+            notification_type=notification_type,
+            action_url=action_url,
+            sender_user_id=sender_user_id,
+            payload=payload,
+        )
         db.add(notification)
         await db.flush()
-        await db.refresh(notification)
+
+        db.add_all(
+            UserNotification(notification_id=notification.id, user_id=recipient_id)
+            for recipient_id in recipient_ids
+        )
+        await db.flush()
         return notification
 
     async def get_by_user(
         self,
         db: AsyncSession,
+        *,
         user_id: uuid.UUID,
+        limit: int,
+        offset: int,
+        unread_only: bool,
     ) -> list:
-        result = await db.execute(
-            select(Notification, UserNotification.is_read)
-            .join(UserNotification, UserNotification.notification_id == Notification.id)
+        stmt = (
+            select(
+                UserNotification.id,
+                Notification.notification_type,
+                Notification.title,
+                Notification.message,
+                Notification.action_url,
+                UserNotification.read_at,
+                Notification.created_at,
+            )
+            .join(Notification, Notification.id == UserNotification.notification_id)
             .where(UserNotification.user_id == user_id)
             .order_by(Notification.created_at.desc())
+            .offset(offset)
+            .limit(limit)
         )
+        if unread_only:
+            stmt = stmt.where(UserNotification.read_at.is_(None))
+        result = await db.execute(stmt)
         return result.all()
 
-
-class UserNotificationRepository:
-
-    async def bulk_create(
+    async def mark_read(
         self,
         db: AsyncSession,
-        user_notifications,
-    ) -> None:
-        if user_notifications:
-            db.add_all(user_notifications)
-            await db.flush()
-
-    async def mark_as_read(
-        self,
-        db: AsyncSession,
-        notification_id: uuid.UUID,
+        *,
+        user_notification_id: uuid.UUID,
         user_id: uuid.UUID,
-    ) -> None:
-        await db.execute(
-            update(UserNotification)
-            .where(UserNotification.notification_id == notification_id)
+    ) -> tuple[UserNotification, Notification] | None:
+        stmt = (
+            select(UserNotification, Notification)
+            .join(Notification, Notification.id == UserNotification.notification_id)
+            .where(UserNotification.id == user_notification_id)
             .where(UserNotification.user_id == user_id)
-            .values(is_read=True)
         )
-        await db.commit()
+        row = (await db.execute(stmt)).one_or_none()
+        if row is None:
+            return None
+        user_notification, notification = row
+        if user_notification.read_at is None:
+            user_notification.read_at = datetime.now(timezone.utc)
+            await db.flush()
+        return user_notification, notification
 
 
 class DeviceRepository:

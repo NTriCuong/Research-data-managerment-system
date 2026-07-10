@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models.auth.user import User
-from app.models.enum import AccessLevel, FileStatus, WorkflowStatus
+from app.models.enum import AccessLevel, FileStatus, NotificationType, WorkflowStatus
 from app.models.staging.stg_file_attachment import StgFileAttachment
 from app.models.reference.research_domain import ResearchDomain
 from app.models.reference.keyword import Keyword
@@ -38,8 +38,7 @@ from app.schemas.staging_metadata import (
 from app.services.logs.audit_service import audit_service
 from app.services.storage.file_service import file_service
 from app.services.logs.workflow_service import workflow_service
-from app.services.notifications.notification_service import notification_service
-from app.services.notification.notification_service import push_to_roles
+from app.services.notification.notification_service import notification_service, push_to_roles
 from fastapi.encoders import jsonable_encoder
 from pydantic import AnyUrl
 from app.core.config import settings
@@ -224,7 +223,7 @@ class StagingService:
             db,
             role_codes=["REVIEWER", "SUPER_ADMIN"],
             actor_user_id=current_user.user_id,
-            event_type="staging.submitted",
+            event_type=NotificationType.PENDING_REVIEW.value,
             title=title,
             message=message,
             target_url=f"{settings.FRONTEND_URL}/dashboard/review/researches/{obj.staging_id}",

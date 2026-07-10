@@ -5,7 +5,7 @@ from app.core.exceptions import BadRequestException, NotFoundException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.auth.user import User
-from app.models.enum import WorkflowStatus
+from app.models.enum import NotificationType, WorkflowStatus
 from app.models.staging.stg_research_object import StgResearchObject
 from app.repositories.staging_review_repository import StagingReviewRepository
 from app.schemas.auth import MessageResponse
@@ -13,9 +13,8 @@ from app.schemas.staging_metadata import StagingResearchObjectOut
 from app.schemas.staging_review import ForwardToApprovalRequest, RequestRevisionRequest
 from app.services.logs.audit_service import audit_service
 from app.services.logs.workflow_service import workflow_service
-from app.services.notifications.notification_service import notification_service
 from app.core.config import settings
-from app.services.notification.notification_service import push_to_users, push_to_roles
+from app.services.notification.notification_service import notification_service, push_to_users, push_to_roles
 
 
 class StagingReviewService:
@@ -87,7 +86,7 @@ class StagingReviewService:
             db,
             recipient_user_id=obj.created_by,
             actor_user_id=current_user.user_id,
-            event_type="staging.revision_requested",
+            event_type=NotificationType.REQUEST_REVISION.value,
             title=title,
             message=message,
             target_url=f"{settings.FRONTEND_URL}/dashboard/data-entry/researches/{obj.staging_id}",
@@ -148,7 +147,7 @@ class StagingReviewService:
             db,
             role_codes=["APPROVER", "SUPER_ADMIN"],
             actor_user_id=current_user.user_id,
-            event_type="staging.forwarded_to_approval",
+            event_type=NotificationType.PENDING_APPROVAL.value,
             title=title,
             message=message,
             target_url=f"{settings.FRONTEND_URL}/dashboard/approval/researches/{obj.staging_id}",
