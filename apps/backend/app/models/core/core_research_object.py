@@ -56,7 +56,7 @@ class CoreResearchObject(Base):
     metadata_versions: Mapped[list["CoreMetadataVersion"]] = relationship("CoreMetadataVersion", back_populates="research_object", cascade="all, delete-orphan")
     # views
     views: Mapped[list["CoreResearchObjectView"]] = relationship(
-        "CoreResearchObjectView",
+        "ResearchObjectView",
         back_populates="research_object",
         cascade="all, delete-orphan"
     )

@@ -27,4 +27,4 @@ from app.models.logs.workflow_history import WorkflowHistory
 from app.models.reference.notification import FCMNotification 
 from app.models.reference.user_device import UserDevice  
 from app.models.reference.user_notification import UserNotification  
-from app.models.core.core_research_object_view import CoreResearchObjectView
+from app.models.logs.research_object_views import ResearchObjectView
