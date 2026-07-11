@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ResearchCover } from "@/components/public/ResearchCover"
 import type { PublicResearchItem } from "@/services/public-search/public-search.service"
+import { clientEnv } from "@/lib/env/client.env"
 
 const formatDate = (value: string) =>
     new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value))
@@ -19,9 +20,11 @@ export function ResearchCard({
     const authorNames = research.authors.map((author) => author.full_name).join(", ")
 
     return (
-        <article className={variant === "row" ? "rounded-lg border border-border bg-card p-3 text-card-foreground transition-colors hover:border-foreground/25 sm:p-4" : "rounded-lg border border-border bg-card p-3 text-card-foreground transition-colors hover:border-foreground/25 sm:p-4"}>
+        <article className={variant === "row" ? "rounded-lg border-2 border-border bg-card-foreground/5 p-3 text-card-foreground transition-colors hover:border-foreground/25 sm:p-4 " : "rounded-lg border-2 border-border bg-card-foreground/5 p-3 text-card-foreground transition-colors hover:border-foreground/25 sm:p-4"}>
             <div className="flex gap-4">
-                <ResearchCover src={research.cover_image_url} title={research.title} variant={variant} />
+                <Link href={`/researches/${research.research_id}`} aria-label={`Xem chi tiết: ${research.title}`}>
+                    <ResearchCover src={research.cover_image_url ? research.cover_image_url : clientEnv.NEXT_PUBLIC_COVER_RESEARCH_URL} title={research.title} variant={variant} />
+                </Link>
                 <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                         <Badge variant="secondary">{research.output_type.name}</Badge>
@@ -64,9 +67,6 @@ export function ResearchCard({
                             </Badge>
                         ))}
                     </div>
-                    <Button asChild variant="outline" size="sm" className="mt-4 bg-blue-500 text-white hover:bg-blue-600">
-                        <Link href={`/researches/${research.research_id}`}>Xem chi tiết</Link>
-                    </Button>
                 </div>
             </div>
         </article>

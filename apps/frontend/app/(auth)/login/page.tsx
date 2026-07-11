@@ -91,9 +91,16 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-2 px-4 text-sm font-medium rounded-lg bg-zinc-800 text-white hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          className="w-full py-2 px-4 text-sm font-medium rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
         >
           {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push('/')}
+          className="w-full py-2 px-4 text-sm font-medium rounded-lg border border-zinc-500 text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        >
+          Quay lại trang chủ
         </button>
       </form>
     </>

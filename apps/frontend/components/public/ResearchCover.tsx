@@ -1,8 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { FileText } from "lucide-react"
-
 import { cn } from "@/lib/utils"
 
 export function ResearchCover({
@@ -16,12 +14,12 @@ export function ResearchCover({
 }) {
     const [failed, setFailed] = useState(false)
     const showImage = src && !failed
-
+    console.log("src", src) 
     return (
         <div
             className={cn(
                 "relative shrink-0 overflow-hidden rounded-lg border border-border bg-muted",
-                variant === "card" ? "aspect-[3/4] w-24 sm:w-28" : "aspect-[3/4] w-24 sm:w-28"
+                variant === "card" ? "border-2 border-blue-400 w-32 sm:w-38" : "border-2 border-blue-400 w-28 sm:w-32"
             )}
         >
             {showImage ? (

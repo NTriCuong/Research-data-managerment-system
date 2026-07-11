@@ -26,8 +26,6 @@ export interface FileAccessLevelAssignment {
 
 export interface ApproveRequest {
     note?: string
-    access_level: "private" | "internal" | "public"
-    file_access_levels: FileAccessLevelAssignment[]
 }
 
 export const approverService = {

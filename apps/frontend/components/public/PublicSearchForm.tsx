@@ -35,8 +35,8 @@ export function PublicSearchForm({ initialQuery = "" }: { initialQuery?: string 
                 placeholder="Nhập từ khóa cần tìm kiếm..."
                 className="h-10 flex-1"
             />
-            <Button type="submit" className="h-10 bg-blue-500">
-                <Search data-icon="inline-start" />
+            <Button type="submit" className="h-10 bg-blue-400 text-primary-foreground hover:bg-blue-500 focus-visible:ring-blue-300" size="lg">
+                <Search data-icon="inline-start"/>
                 Tìm kiếm
             </Button>
         </form>
