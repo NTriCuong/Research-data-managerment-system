@@ -24,6 +24,12 @@ export const API_ENDPOINT = {
         APPROVE: (stagingId: string) => `/api/v1/core-approve/${stagingId}/approve`,
         REJECT: (stagingId: string) => `/api/v1/core-approve/${stagingId}/reject`,
     },
+    CORE_REPOSITORY: {
+        GET: '/api/v1/core-repository',
+        GET_DETAIL: (researchId: string) => `/api/v1/core-repository/${researchId}`,
+        FILES: (researchId: string) => `/api/v1/core-repository/${researchId}/files`,
+        VERSIONS: (researchId: string) => `/api/v1/core-repository/${researchId}/versions`,
+    },
     // reference dùng chung 
     OUTPUT_TYPE: {
         GET: 'api/v1/reference/output-types/',

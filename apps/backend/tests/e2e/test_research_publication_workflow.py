@@ -138,6 +138,7 @@ async def test_full_publication_and_approved_revision_workflow(workflow_context,
             "abstract": "End-to-end research metadata",
             "output_type_id": str(context.output_type.output_type_id),
             "department_id": str(context.department.department_id),
+            "access_level": "public",
             "year": 2026,
             "domain_ids": [str(context.domain.domain_id)],
             "keyword_ids": [str(context.keyword.keyword_id)],
@@ -155,6 +156,7 @@ async def test_full_publication_and_approved_revision_workflow(workflow_context,
     upload_response = await client.post(
         f"{prefix}/staging-metadata/{staging_id}/files",
         files={"file": ("e2e-evidence.pdf", b"e2e-pdf-content", "application/pdf")},
+        data={"access_level": "public"},
     )
     assert upload_response.status_code == 201, upload_response.text
     file_id = upload_response.json()["file_id"]

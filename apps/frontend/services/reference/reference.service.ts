@@ -1,7 +1,7 @@
 
 import axiosInstance from "@/lib/axios/axios.instance";
 import { API_ENDPOINT } from "@/lib/constants/api-endpoint";
-import type { StagingResearchObject } from "@/services/data-entry/data-entry.service";
+import type { AccessLevel, StagingResearchObject } from "@/services/data-entry/data-entry.service";
 
 export interface PaginatedResponse<T> {
     items: T[];
@@ -97,7 +97,7 @@ export interface StagingFile {
     file_status: string;
     uploaded_by: string;
     uploaded_at: string;
-    access_level: string;
+    access_level: AccessLevel;
 }
 
 export interface StagingAuthorDetail {
@@ -434,9 +434,10 @@ export const referenceService = {
         return response.data;
     },
 
-    async uploadStagingFile(stagingId: string, file: File) {
+    async uploadStagingFile(stagingId: string, file: File, accessLevel: AccessLevel) {
         const formData = new FormData();
         formData.append("file", file);
+        formData.append("access_level", accessLevel);
 
         const response = await axiosInstance.post<StagingFile>(
             API_ENDPOINT.DATA_ENTRY.FILES(stagingId),

@@ -19,7 +19,6 @@ class FileAccessLevelAssignment(BaseModel):
 
 class ApproveRequest(BaseModel):
     note: str | None = Field(default=None, max_length=1000)
-    access_level: AccessLevel
     file_access_levels: list[FileAccessLevelAssignment] = Field(default_factory=list)
 
 

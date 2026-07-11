@@ -10,14 +10,6 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 
-type AccessLevel = "private" | "internal" | "public"
-
-const ACCESS_LEVEL_OPTIONS: { value: AccessLevel; label: string }[] = [
-    { value: 'private', label: 'Riêng tư (Private)' },
-    { value: 'internal', label: 'Nội bộ (Internal)' },
-    { value: 'public', label: 'Công khai (Public)' },
-]
-
 function formatDateTime(value: string | null) {
     if (!value) return '-'
     return new Date(value).toLocaleString('vi-VN')
@@ -38,8 +30,6 @@ export default function ApprovalResearchDetailPage() {
     const [openApproveModal, setOpenApproveModal] = useState(false)
     const [openRejectModal, setOpenRejectModal] = useState(false)
     const [approveNote, setApproveNote] = useState('')
-    const [approveAccessLevel, setApproveAccessLevel] = useState<AccessLevel>('private')
-    const [fileAccessLevels, setFileAccessLevels] = useState<Record<string, AccessLevel>>({})
     const [rejectReason, setRejectReason] = useState('')
     const [submitting, setSubmitting] = useState(false)
 
@@ -70,15 +60,7 @@ export default function ApprovalResearchDetailPage() {
     const canAct = detail?.workflow_status === 'pending_approval'
 
     const handleOpenApproveModal = () => {
-        if (detail) {
-            setFileAccessLevels(Object.fromEntries(detail.files.map((f) => [f.file_id, approveAccessLevel])))
-        }
         setOpenApproveModal(true)
-    }
-
-    const handleApplyAccessLevelToAllFiles = () => {
-        if (!detail) return
-        setFileAccessLevels(Object.fromEntries(detail.files.map((f) => [f.file_id, approveAccessLevel])))
     }
 
     const handleApprove = async () => {
@@ -87,11 +69,6 @@ export default function ApprovalResearchDetailPage() {
         try {
             const payload: ApproveRequest = {
                 note: approveNote || undefined,
-                access_level: approveAccessLevel,
-                file_access_levels: detail.files.map((f) => ({
-                    file_id: f.file_id,
-                    access_level: fileAccessLevels[f.file_id] ?? approveAccessLevel,
-                })),
             }
             await approverService.approveRecord(stagingId, payload)
             toast.success('Phê duyệt và xuất bản vào core thành công')
@@ -207,54 +184,6 @@ export default function ApprovalResearchDetailPage() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
                     <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-lg">
                         <h2 className="text-lg font-semibold">Duyệt bản ghi vào core</h2>
-
-                        <p className="mt-4 text-sm font-medium text-gray-700">Mức truy cập chung (Access Level)</p>
-                        <select
-                            className="mt-2 w-full rounded-lg border px-3 py-2 text-sm"
-                            value={approveAccessLevel}
-                            onChange={(e) => setApproveAccessLevel(e.target.value as AccessLevel)}
-                        >
-                            {ACCESS_LEVEL_OPTIONS.map((opt) => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                        </select>
-
-                        {detail.files.length > 0 && (
-                            <div className="mt-4">
-                                <div className="flex items-center justify-between">
-                                    <p className="text-sm font-medium text-gray-700">Mức truy cập theo tệp</p>
-                                    <button
-                                        type="button"
-                                        onClick={handleApplyAccessLevelToAllFiles}
-                                        className="cursor-pointer text-xs text-blue-600 hover:underline"
-                                    >
-                                        Áp dụng mức chung cho tất cả
-                                    </button>
-                                </div>
-
-                                <ul className="mt-2 divide-y divide-gray-100 rounded-lg border border-gray-100">
-                                    {detail.files.map((file) => (
-                                        <li key={file.file_id} className="flex items-center justify-between gap-3 px-3 py-2">
-                                            <span className="truncate text-sm text-gray-800">{file.original_filename}</span>
-                                            <select
-                                                className="rounded-md border px-2 py-1 text-xs"
-                                                value={fileAccessLevels[file.file_id] ?? approveAccessLevel}
-                                                onChange={(e) =>
-                                                    setFileAccessLevels((prev) => ({
-                                                        ...prev,
-                                                        [file.file_id]: e.target.value as AccessLevel,
-                                                    }))
-                                                }
-                                            >
-                                                {ACCESS_LEVEL_OPTIONS.map((opt) => (
-                                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                                ))}
-                                            </select>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
 
                         <p className="mt-4 text-sm font-medium text-gray-700">Ghi chú (không bắt buộc)</p>
                         <textarea

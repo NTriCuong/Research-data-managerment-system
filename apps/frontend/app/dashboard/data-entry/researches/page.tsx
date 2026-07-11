@@ -191,7 +191,7 @@ export default function Researches() {
                     <input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Tìm theo tiêu đề..."
+                        placeholder="Tìm kiếm từ khóa..."
                         className="w-64 rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm focus:border-blue-400 focus:outline-none"
                     />
                 </div>
@@ -203,7 +203,7 @@ export default function Researches() {
                     setSearch(value)
                     setPage(1)
                 }}
-                searchPlaceholder="Tìm kiếm ..."
+                searchPlaceholder="Tìm kiếm từ khóa..."
                 selects={filterSelects}
                 resultCount={filteredData.length}
                 onReset={resetFilters}

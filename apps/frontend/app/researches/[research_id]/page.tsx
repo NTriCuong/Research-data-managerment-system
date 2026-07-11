@@ -129,7 +129,6 @@ export default function PublicResearchDetailPage() {
                                     ))}
                                 </div>
                             </div>
-
                             <div className="rounded-lg border border-border bg-card p-4">
                                 <h2 className="font-semibold text-foreground">Từ khóa</h2>
                                 <div className="mt-3 flex flex-wrap gap-2">

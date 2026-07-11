@@ -227,7 +227,7 @@ def test_list_workflow_history_passes_pagination(client, sample_user, monkeypatc
     assert captured["offset"] == 4
 
 
-def test_upload_endpoint_passes_file_without_access_level_to_service(client, sample_user, monkeypatch):
+def test_upload_endpoint_passes_file_and_access_level_to_service(client, sample_user, monkeypatch):
     _override_user_with_role(client, sample_user, "DATA_ENTRY")
     db = _FakeDbSession()
     client.app.dependency_overrides[get_db] = _fake_db_provider(db)
@@ -245,12 +245,13 @@ def test_upload_endpoint_passes_file_without_access_level_to_service(client, sam
     response = client.post(
         f"{settings.API_V1_PREFIX}/staging-metadata/{staging_id}/files",
         files={"file": ("evidence.pdf", b"pdf-content", "application/pdf")},
+        data={"access_level": "public"},
     )
 
     assert response.status_code == 201
     assert response.json()["original_filename"] == "evidence.pdf"
     assert captured["staging_id"] == staging_id
-    assert "access_level" not in captured
+    assert captured["access_level"].value == "public"
     assert captured["file"].filename == "evidence.pdf"
     assert captured["file_bytes"] == b"pdf-content"
     assert db.commit_count == 0

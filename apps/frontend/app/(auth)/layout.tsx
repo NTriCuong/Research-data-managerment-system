@@ -12,7 +12,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           priority
           className="mx-auto h-28 w-auto"
         />
-        <p className="text-sm text-zinc-500 mt-1">Research Data Management System</p>
+        <p className="text-sm text-zinc-500 mt-1">Cổng dữ liệu nghiên cứu khoa học trường Đại học Công Nghệ Sài Gòn</p>
       </div>
 
       <div className="w-full max-w-sm bg-white rounded-xl shadow-sm border border-zinc-200 p-8">

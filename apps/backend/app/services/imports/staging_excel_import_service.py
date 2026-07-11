@@ -180,7 +180,7 @@ class StagingExcelImportService:
             relation=self._optional(row, "relation"),
             coverage=self._optional(row, "coverage"),
             rights=self._optional(row, "rights"),
-            access_level=AccessLevel.internal,
+            access_level=self._required_access_level(row, "access_level"),
             workflow_status=WorkflowStatus.draft,
             created_by=current_user.user_id,
         )
@@ -265,7 +265,7 @@ class StagingExcelImportService:
             file_size_bytes=self._positive_int(row, "file_size_bytes"),
             checksum_sha256=self._optional(row, "checksum_sha256"),
             uploaded_by=current_user.user_id,
-            access_level=AccessLevel.internal,
+            access_level=self._required_access_level(row, "access_level"),
         )
 
     async def _read_workbook(self, file: IncomingFile) -> ParsedWorkbook:
@@ -332,6 +332,7 @@ class StagingExcelImportService:
             "output_type_id": obj.output_type_id is not None,
             "department_id": obj.department_id is not None,
             "year": obj.year is not None,
+            "access_level": obj.access_level is not None,
             "authors": author_count > 0,
             "domains": domain_count > 0,
             "keywords": keyword_count > 0,
@@ -453,6 +454,14 @@ class StagingExcelImportService:
             return date.fromisoformat(value)
         except ValueError as exc:
             raise ValueError(f"{key} phải sử dụng định dạng YYYY-MM-DD") from exc
+
+    def _required_access_level(self, row: dict[str, str], key: str) -> AccessLevel:
+        value = self._required(row, key).lower()
+        try:
+            return AccessLevel(value)
+        except ValueError as exc:
+            allowed = ", ".join(item.value for item in AccessLevel)
+            raise ValueError(f"{key} role không hợp lệ. Các giá trị cho phép: {allowed}") from exc
 
     def _normalize_header(self, value: str) -> str:
         return re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")

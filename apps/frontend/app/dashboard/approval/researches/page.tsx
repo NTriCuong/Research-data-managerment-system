@@ -166,9 +166,9 @@ export default function ApprovalResearches() {
         <div className="space-y-6 p-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-semibold text-gray-900">Nghiên cứu chờ phê duyệt</h1>
+                    <h1 className="text-2xl font-semibold text-gray-900">Chờ phê duyệt</h1>
                     <p className="mt-1 text-sm text-gray-500">
-                        {dataResearch.length} bản ghi đang chờ phê duyệt
+                        {dataResearch.length} tài liệu đang chờ phê duyệt
                     </p>
                 </div>
 
@@ -177,7 +177,7 @@ export default function ApprovalResearches() {
                     <input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Tìm theo tiêu đề..."
+                        placeholder="Tìm kiếm từ khóa..."
                         className="w-64 rounded-lg border border-gray-200 py-2 pl-9 pr-3 text-sm focus:border-blue-400 focus:outline-none"
                     />
                 </div>
@@ -189,7 +189,7 @@ export default function ApprovalResearches() {
                     setSearch(value)
                     setPage(1)
                 }}
-                searchPlaceholder="Tim theo tieu de hoac ma staging"
+                searchPlaceholder="Tìm kiếm từ khóa..."
                 selects={filterSelects}
                 resultCount={filteredData.length}
                 onReset={resetFilters}
