@@ -54,3 +54,9 @@ class CoreResearchObject(Base):
     keywords: Mapped[list["CoreResearchObjectKeyword"]] = relationship("CoreResearchObjectKeyword", back_populates="research_object", cascade="all, delete-orphan")
     file_attachments: Mapped[list["CoreFileAttachment"]] = relationship("CoreFileAttachment", back_populates="research_object", cascade="all, delete-orphan")
     metadata_versions: Mapped[list["CoreMetadataVersion"]] = relationship("CoreMetadataVersion", back_populates="research_object", cascade="all, delete-orphan")
+    # views
+    views: Mapped[list["CoreResearchObjectView"]] = relationship(
+        "ResearchObjectView",
+        back_populates="research_object",
+        cascade="all, delete-orphan"
+    )

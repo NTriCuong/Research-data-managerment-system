@@ -8,7 +8,7 @@ from app.database.session import get_db
 from app.models.auth.user import User
 from app.schemas.notification import NotificationOut
 from app.services.auth.deps import get_current_active_user
-from app.services.notifications.notification_service import notification_service
+from app.services.notification.notification_service import notification_service
 
 router = APIRouter()
 

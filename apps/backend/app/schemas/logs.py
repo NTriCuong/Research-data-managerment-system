@@ -52,3 +52,35 @@ class WorkflowLogOut(BaseModel):
     performed_at: datetime
     ip_address: IPvAnyAddress | None
     user_agent: str | None
+
+
+#views
+
+class AddResearchViewRequest(BaseModel):
+    research_id: UUID
+
+class ResearchViewResponse(BaseModel):
+    view_id: UUID
+    research_id: UUID
+    viewed_at: datetime
+
+    model_config = {
+        "from_attributes": True
+    }
+class CountViewsResponse(BaseModel):
+    research_id: UUID
+    total_views: int
+
+class MonthlyViewResponse(BaseModel):
+    month: int
+    count: int
+
+class YearlyViewResponse(BaseModel):
+    year: int
+    count: int
+
+class TopResearchViewResponse(BaseModel):
+    research_id: UUID
+    title: str
+    views: int
+

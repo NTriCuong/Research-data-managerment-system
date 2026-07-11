@@ -13,15 +13,14 @@ from app.models.core.core_research_object import CoreResearchObject
 from app.models.core.core_research_object_author import CoreResearchObjectAuthor
 from app.models.core.core_research_object_domain import CoreResearchObjectDomain
 from app.models.core.core_research_object_keyword import CoreResearchObjectKeyword
-from app.models.enum import AccessLevel, WorkflowStatus
+from app.models.enum import AccessLevel, NotificationType, WorkflowStatus
 from app.repositories.core_approve_repository import CoreApproveRepository
 from app.schemas.auth import MessageResponse
 from app.schemas.core_approve import ApproveRequest, PendingApprovalOut
 from app.services.logs.audit_service import audit_service
 from app.services.logs.workflow_service import workflow_service
-from app.services.notifications.notification_service import notification_service
 from app.core.config import settings
-from app.services.notification.notification_service import push_to_users
+from app.services.notification.notification_service import notification_service, push_to_users
 
 
 class CoreApproveService:
@@ -266,7 +265,7 @@ class CoreApproveService:
             db,
             recipient_user_id=staging_obj.created_by,
             actor_user_id=current_user.user_id,
-            event_type="staging.approved",
+            event_type=NotificationType.APPROVAL.value,
             title=title,
             message=message,
             target_url=f"{settings.FRONTEND_URL}/dashboard/data-entry/researches/{staging_obj.staging_id}",
@@ -321,7 +320,7 @@ class CoreApproveService:
             db,
             recipient_user_id=staging_obj.created_by,
             actor_user_id=current_user.user_id,
-            event_type="staging.rejected",
+            event_type=NotificationType.REJECTED.value,
             title=title,
             message=message,
             target_url=f"{settings.FRONTEND_URL}/dashboard/data-entry/researches/{staging_obj.staging_id}",
