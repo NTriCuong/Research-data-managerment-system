@@ -67,20 +67,13 @@ class ResearchViewResponse(BaseModel):
     model_config = {
         "from_attributes": True
     }
-class CountViewsResponse(BaseModel):
-    research_id: UUID
-    total_views: int
 
-class MonthlyViewResponse(BaseModel):
-    month: int
-    count: int
-
-class YearlyViewResponse(BaseModel):
-    year: int
-    count: int
 
 class TopResearchViewResponse(BaseModel):
     research_id: UUID
     title: str
     views: int
 
+class TotalViewsByYearResponse(BaseModel):
+    month: int
+    count: int
