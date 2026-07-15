@@ -102,26 +102,30 @@ function ResearchesContent() {
 
     return (
         <PublicShell>
-            <section className="border-b border-border bg-muted/25">
+            <section className="border-b border-border">
                 <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-                    <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                        <div>
-                            <h1 className="text-2xl font-semibold text-foreground">Bộ lọc</h1>
+                    <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+                        <div className="w-full pb-1 md:w-auto">
+                            <h1 className="text-2xl font-semibold text-foreground text-left">
+                                Bộ lọc
+                            </h1>
                         </div>
-                        <Button asChild variant="outline" size="sm">
-                            <Link href="/researches">
-                                <RotateCcw size={16} />
-                                Đặt lại
-                            </Link>
-                        </Button>
-                    </div>
-                    <div className="mt-5">
-                        <PublicSearchForm initialQuery={q} />
+                        <div className="flex w-full flex-col gap-2 md:w-1/2 lg:w-3/4">
+                            <div className="flex justify-end">
+                                <Button asChild variant="outline" size="sm">
+                                    <Link href="/researches" className="flex items-center gap-2">
+                                        <RotateCcw size={16} />
+                                        Đặt lại
+                                    </Link>
+                                </Button>
+                            </div>
+                            <PublicSearchForm initialQuery={q} />
+                        </div>
                     </div>
                 </div>
             </section>
 
-            <section className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-6 sm:px-6 lg:grid-cols-[280px_1fr] lg:px-8 bg-accent-foreground/5">
+            <section className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-6 sm:px-6 lg:grid-cols-[280px_1fr] lg:px-8">
                 <aside className="h-fit rounded-lg border border-border bg-card p-4">
                     <div className="mb-4 flex items-center gap-2">
                         <SlidersHorizontal className="size-4" />

@@ -22,12 +22,18 @@ import { useState } from "react"
 export const description = "A line chart"
 
 const chartData = [
-    { month: "January", desktop: 186 },
-    { month: "February", desktop: 305 },
-    { month: "March", desktop: 237 },
-    { month: "April", desktop: 73 },
-    { month: "May", desktop: 209 },
-    { month: "June", desktop: 214 },
+    { month: "1", desktop: 186 },
+    { month: "2", desktop: 305 },
+    { month: "3", desktop: 237 },
+    { month: "4", desktop: 73 },
+    { month: "5", desktop: 209 },
+    { month: "6", desktop: 414 },
+    { month: "7", desktop: 314 },
+    { month: "8", desktop: 514 },
+    { month: "9", desktop: 214 },
+    { month: "10", desktop: 114 },
+    { month: "11", desktop: 114 },
+    { month: "12", desktop: 214 },
 ]
 
 const chartConfig = {

@@ -133,7 +133,6 @@ class CoreApproveService:
         payload: ApproveRequest,
         current_user: User,
     ) -> MessageResponse:
-        access_level = payload.access_level
         file_access_levels = {item.file_id: item.access_level for item in payload.file_access_levels}
         repo = CoreApproveRepository(db)
         staging_obj = await repo.get_staging_by_id(staging_id, with_relations=True)
@@ -141,6 +140,7 @@ class CoreApproveService:
             raise NotFoundException("Không tìm thấy bản ghi tạm")
 
         self._assert_pending_approval(staging_obj.workflow_status)
+        access_level = payload.access_level or staging_obj.access_level
         unknown_file_ids = set(file_access_levels) - {file_obj.file_id for file_obj in staging_obj.file_attachments}
         if unknown_file_ids:
             raise BadRequestException("Một hoặc nhiều file_access_levels tham chiếu đến tệp không thuộc bản ghi tạm này")
@@ -212,7 +212,7 @@ class CoreApproveService:
                     checksum_sha256=f.checksum_sha256,
                     uploaded_by=f.uploaded_by,
                     uploaded_at=f.uploaded_at,
-                    access_level=file_access_levels.get(f.file_id, access_level),
+                    access_level=file_access_levels.get(f.file_id, f.access_level or access_level),
                 )
                 for f in staging_obj.file_attachments
             ]

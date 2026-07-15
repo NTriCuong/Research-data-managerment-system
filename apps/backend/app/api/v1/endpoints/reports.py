@@ -16,11 +16,9 @@ from app.schemas.reports import (
     TotalResearchersOut,
 )
 from app.schemas.logs import (
-    CountViewsResponse,
-    MonthlyViewResponse,
     ResearchViewResponse,
     TopResearchViewResponse,
-    YearlyViewResponse,
+    TotalViewsByYearResponse
 )
 from app.services.logs.research_view_report_service import (
     ResearchObjectViewService,
@@ -94,52 +92,6 @@ async def add_view(
     return await ResearchObjectViewService(db).add_view(
         research_id,
     )
-# Count views
-
-@router.get(
-    "/research-views/{research_id}/count",
-    response_model=CountViewsResponse,
-)
-async def count_views(
-    research_id: UUID,
-    _: User = Depends(require_roles(*ALLOWED_REPORT_ROLES)),
-    db: AsyncSession = Depends(get_db),
-) -> CountViewsResponse:
-    return await ResearchObjectViewService(db).count_views(
-        research_id,
-    )
-
-# Monthly statistics
-
-@router.get(
-    "/research-views/{research_id}/monthly",
-    response_model=list[MonthlyViewResponse],
-)
-async def count_views_by_month(
-    research_id: UUID,
-    year: int = Query(..., ge=2000),
-    _: User = Depends(require_roles(*ALLOWED_REPORT_ROLES)),
-    db: AsyncSession = Depends(get_db),
-) -> list[MonthlyViewResponse]:
-    return await ResearchObjectViewService(db).count_views_by_month(
-        research_id,
-        year,
-    )
-
-# Yearly statistics
-
-@router.get(
-    "/research-views/{research_id}/yearly",
-    response_model=list[YearlyViewResponse],
-)
-async def count_views_by_year(
-    research_id: UUID,
-    _: User = Depends(require_roles(*ALLOWED_REPORT_ROLES)),
-    db: AsyncSession = Depends(get_db),
-) -> list[YearlyViewResponse]:
-    return await ResearchObjectViewService(db).count_views_by_year(
-        research_id,
-    )
 
 # Top 10 by month
 @router.get(
@@ -193,3 +145,14 @@ async def top10_views_by_domain(
         year,
         limit,
     )
+#  tổng lượt xem theo tháng của tất cả research trong 1 năm
+@router.get(
+    "/research-views/yearly/{year}",
+    response_model=list[TotalViewsByYearResponse],
+)
+async def total_views_by_year(
+    year: int ,
+    _: User = Depends(require_roles(*ALLOWED_REPORT_ROLES)),
+    db: AsyncSession = Depends(get_db),
+) -> list[TotalViewsByYearResponse]:
+    return await ResearchObjectViewService(db).total_views_by_year(year)

@@ -1,17 +1,15 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import require_roles
 from app.database.session import get_db
 from app.models.auth.user import User
-from app.models.enum import WorkflowStatus
+from app.models.enum import AccessLevel, WorkflowStatus
 from app.schemas.auth import MessageResponse
 from app.schemas.files import IncomingFile
 from app.schemas.staging_metadata import (
-    BulkSubmitForReviewOut,
-    BulkSubmitForReviewRequest,
     CreateRevisionRequest,
     StagingFileOut,
     StagingResearchObjectCreate,
@@ -91,20 +89,6 @@ async def list_all_staging_file_metadata(
         limit=limit,
         offset=offset,
     )
-
-
-@router.post("/submit-bulk", response_model=BulkSubmitForReviewOut)
-async def bulk_submit_for_review(
-    payload: BulkSubmitForReviewRequest,
-    current_user: User = Depends(require_roles(*ALLOWED_EDITOR_ROLES)),
-    db: AsyncSession = Depends(get_db),
-) -> BulkSubmitForReviewOut:
-    result = await staging_service.bulk_submit_for_review(
-        db,
-        payload=payload,
-        current_user=current_user,
-    )
-    return result
 
 
 @router.get("/{staging_id}", response_model=StagingResearchObjectDetailOut)
@@ -214,6 +198,7 @@ async def list_staging_file_metadata(
 async def create_staging_file_metadata(
     staging_id: UUID,
     file: UploadFile = File(...),
+    access_level: AccessLevel = Form(...),
     current_user: User = Depends(require_roles(*ALLOWED_EDITOR_ROLES)),
     db: AsyncSession = Depends(get_db),
 ) -> StagingFileOut:
@@ -226,6 +211,7 @@ async def create_staging_file_metadata(
         db,
         staging_id=staging_id,
         file=incoming_file,
+        access_level=access_level,
         current_user=current_user,
     )
     return result

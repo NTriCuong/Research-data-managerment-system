@@ -135,8 +135,6 @@ export default function SuperAdminPage() {
                 <RecentLoginLogs />
                 <RecentAuditLogs />
             </div>
-
-
         </div>
     )
 }

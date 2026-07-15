@@ -20,9 +20,6 @@ from app.repositories.staging_metadata_repository import StagingRepository
 from app.schemas.auth import MessageResponse
 from app.schemas.files import IncomingFile
 from app.schemas.staging_metadata import (
-    BulkSubmitForReviewItemOut,
-    BulkSubmitForReviewOut,
-    BulkSubmitForReviewRequest,
     CreateRevisionRequest,
     StagingAuthorOut,
     StagingDomainOut,
@@ -132,6 +129,7 @@ class StagingService:
             "output_type_id": staging_obj.output_type_id is not None,
             "department_id": staging_obj.department_id is not None,
             "year": staging_obj.year is not None and 1900 <= staging_obj.year <= datetime.now(timezone.utc).year,
+            "access_level": staging_obj.access_level is not None,
             "authors": len(staging_obj.authors) > 0,
             "domains": len(staging_obj.domains) > 0,
             "keywords": len(staging_obj.keywords) > 0,
@@ -161,6 +159,8 @@ class StagingService:
             missing.append("department_id")
         if staging_obj.year is None:
             missing.append("year")
+        if staging_obj.access_level is None:
+            missing.append("access_level")
         if not staging_obj.domains:
             missing.append("domains")
         if not staging_obj.keywords:
@@ -221,7 +221,7 @@ class StagingService:
         message = f"Bài nghiên cứu '{obj.title}' đã được gửi để kiểm duyệt."
         await notification_service.notify_role(
             db,
-            role_codes=["REVIEWER", "SUPER_ADMIN"],
+            role_codes=["REVIEWER"],
             actor_user_id=current_user.user_id,
             event_type=NotificationType.PENDING_REVIEW.value,
             title=title,
@@ -246,6 +246,7 @@ class StagingService:
             title=payload.title,
             output_type_id=payload.output_type_id,
             department_id=payload.department_id,
+            access_level=payload.access_level,
             year=payload.year,
             description=payload.description,
             abstract=payload.abstract,
@@ -596,64 +597,6 @@ class StagingService:
         )
         return MessageResponse(message="Xóa bản nháp thành công")
 
-    async def bulk_submit_for_review(
-        self,
-        db: AsyncSession,
-        *,
-        payload: BulkSubmitForReviewRequest,
-        current_user: User,
-    ) -> BulkSubmitForReviewOut:
-        repo = StagingRepository(db)
-        now = datetime.now(timezone.utc)
-        results: list[BulkSubmitForReviewItemOut] = []
-        seen: set[UUID] = set()
-
-        for staging_id in payload.staging_ids:
-            if staging_id in seen:
-                results.append(
-                    BulkSubmitForReviewItemOut(
-                        staging_id=staging_id,
-                        success=False,
-                        message="staging_id bị trùng trong yêu cầu",
-                    )
-                )
-                continue
-            seen.add(staging_id)
-
-            try:
-                await self._submit_one_for_review(
-                    db,
-                    repo=repo,
-                    staging_id=staging_id,
-                    note=payload.note,
-                    current_user=current_user,
-                    now=now,
-                )
-            except AppException as exc:
-                results.append(
-                    BulkSubmitForReviewItemOut(
-                        staging_id=staging_id,
-                        success=False,
-                        message=str(exc.detail),
-                    )
-                )
-                continue
-
-            results.append(
-                BulkSubmitForReviewItemOut(
-                    staging_id=staging_id,
-                    success=True,
-                    message="Gửi xét duyệt thành công",
-                )
-            )
-
-        submitted_count = sum(1 for x in results if x.success)
-        return BulkSubmitForReviewOut(
-            submitted_count=submitted_count,
-            failed_count=len(results) - submitted_count,
-            results=results,
-        )
-
     async def create_revision_from_core(
         self,
         db: AsyncSession,
@@ -759,6 +702,7 @@ class StagingService:
         *,
         staging_id: UUID,
         file: IncomingFile,
+        access_level: AccessLevel,
         current_user: User,
     ) -> StagingFileOut:
         repo = StagingRepository(db)
@@ -771,7 +715,7 @@ class StagingService:
         uploaded = await file_service.prepare_file_upload(
             staging_id=staging_id,
             file=file,
-            access_level=AccessLevel.internal.value,
+            access_level=access_level.value,
         )
         file_obj = StgFileAttachment(
             staging_id=staging_id,

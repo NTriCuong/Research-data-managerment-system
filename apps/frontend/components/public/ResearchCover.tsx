@@ -1,8 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { FileText } from "lucide-react"
-
 import { cn } from "@/lib/utils"
 
 export function ResearchCover({
@@ -16,12 +14,12 @@ export function ResearchCover({
 }) {
     const [failed, setFailed] = useState(false)
     const showImage = src && !failed
-
+    console.log("src", src) 
     return (
         <div
             className={cn(
                 "relative shrink-0 overflow-hidden rounded-lg border border-border bg-muted",
-                variant === "card" ? "aspect-[3/4] w-24 sm:w-28" : "aspect-[3/4] w-24 sm:w-28"
+                variant === "card" ? "border-2 border-blue-400 w-32 sm:w-38" : "border-2 border-blue-400 w-28 sm:w-32"
             )}
         >
             {showImage ? (
@@ -36,7 +34,7 @@ export function ResearchCover({
             ) : (
                 <div className="flex h-full flex-col justify-between bg-background p-3">
                     <div className="flex items-center justify-between">
-                        <span className="rounded-sm bg-foreground px-1.5 py-0.5 text-[10px] font-semibold uppercase text-background">
+                        <span className="rounded-sm bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-background">
                             PDF
                         </span>
                     </div>

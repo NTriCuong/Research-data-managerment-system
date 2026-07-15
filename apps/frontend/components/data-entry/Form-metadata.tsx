@@ -10,7 +10,18 @@ import { toast } from 'sonner';
 import AddKeywordModal from "./add-keyword-modal";
 import AddDomainModal from "./add-research-domain-modal";
 import AsyncSelect from "react-select/async";
-import { FileText, CalendarRange, Tags, Users, Paperclip, Loader2, type LucideIcon } from "lucide-react";
+import { ArrowLeft, FileText, CalendarRange, Tags, Users, Paperclip, Loader2, Trash2, Upload, X, type LucideIcon } from "lucide-react";
+import {
+    Attachment,
+    AttachmentAction,
+    AttachmentActions,
+    AttachmentContent,
+    AttachmentDescription,
+    AttachmentGroup,
+    AttachmentMedia,
+    AttachmentTitle,
+} from "@/components/ui/attachment";
+import {Spinner} from "@/components/ui/spinner";
 
 const AUTHOR_ROLES = [
     { value: "creator", label: "Người tạo (tác giả chính)" },
@@ -18,6 +29,14 @@ const AUTHOR_ROLES = [
     { value: "supervisor", label: "Người hướng dẫn" },
     { value: "student_member", label: "Thành viên (sinh viên)" },
     { value: "corresponding_author", label: "Tác giả liên hệ" },
+];
+
+type AccessLevel = "private" | "internal" | "public";
+
+const ACCESS_LEVEL_OPTIONS: { value: AccessLevel; label: string }[] = [
+    { value: "private", label: "Riêng tư" },
+    { value: "internal", label: "Nội bộ" },
+    { value: "public", label: "Công khai" },
 ];
 
 type AuthorForm = {
@@ -29,10 +48,20 @@ type AuthorForm = {
     author_role: string;
 };
 
+const createEmptyAuthor = (author_order = 1): AuthorForm => ({
+    researcher_id: null,
+    full_name: "",
+    email: "",
+    affiliation: "",
+    author_order,
+    author_role: "creator",
+});
+
 type MetadataFormState = {
     title: string;
     output_type_id: string;
     department_id: string;
+    access_level: AccessLevel | "";
     year: number | null;
     description: string;
     abstract: string;
@@ -78,7 +107,7 @@ function FormSectionCard({
                 <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
                     <Icon size={18} className="text-gray-400" />
                     {title}
-                </h2>
+                </h2>   
                 {action}
             </div>
             {children}
@@ -115,6 +144,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
         title: initialDetail?.title ?? "",
         output_type_id: initialDetail?.output_type_id ?? "",
         department_id: initialDetail?.department_id ?? "",
+        access_level: initialDetail?.access_level ?? "",
         year: initialDetail?.year ?? null,
         description: initialDetail?.description ?? "",
         abstract: initialDetail?.abstract ?? "",
@@ -143,14 +173,14 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
     const [outputTypes, setOutputTypes] = useState<any[]>([]);
     const [researchers, setResearchers] = useState<any[]>([]);
     const [authors, setAuthors] = useState<AuthorForm[]>(
-        initialDetail?.authors.map(a => ({
+        initialDetail?.authors.length ? initialDetail.authors.map(a => ({
             researcher_id: a.researcher_id,
             full_name: a.full_name,
             email: a.email ?? "",
             affiliation: a.affiliation ?? "",
             author_order: a.author_order,
             author_role: a.author_role,
-        })) ?? []
+        })) : [createEmptyAuthor()]
     );
 
     const [domains, setDomains] = useState<{ value: string; label: string }[]>([]);
@@ -283,15 +313,34 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
     const handleAddAuthor = () => {
         setAuthors(prev => [
             ...prev,
-            {
-                researcher_id: null,
-                full_name: "",
-                email: "",
-                affiliation: "",
-                author_order: prev.length + 1,
-                author_role: "creator",
-            }
+            createEmptyAuthor(prev.length + 1)
         ]);
+    };
+
+    const handleRemoveAuthor = (index: number) => {
+        if (authors.length <= 1) {
+            toast.error("Research phải có ít nhất một tác giả");
+            return;
+        }
+
+        const removedAuthor = authors[index];
+        setAuthors(prev =>
+            prev
+                .filter((_, itemIndex) => itemIndex !== index)
+                .map((author, itemIndex) => ({ ...author, author_order: itemIndex + 1 }))
+        );
+        toast("Đã xóa tác giả", {
+            action: {
+                label: "Hoàn tác",
+                onClick: () => {
+                    setAuthors(prev => {
+                        const restored = [...prev];
+                        restored.splice(index, 0, removedAuthor);
+                        return restored.map((author, itemIndex) => ({ ...author, author_order: itemIndex + 1 }));
+                    });
+                },
+            },
+        });
     };
 
     const fetchFiles = async (id: string) => {
@@ -324,10 +373,14 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
             toast.error("Vui lòng chọn tệp cần đính kèm");
             return;
         }
+        if (!formData.access_level) {
+            toast.error("Vui lòng chọn mức truy cập trước khi tải tệp");
+            return;
+        }
 
         setUploadingFile(true);
         try {
-            const uploaded = await referenceService.uploadStagingFile(stagingId, selectedFile);
+            const uploaded = await referenceService.uploadStagingFile(stagingId, selectedFile, formData.access_level);
             setFiles(prev => [...prev, uploaded]);
             setSelectedFile(null);
             toast.success("Tải tệp lên thành công");
@@ -362,12 +415,26 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
             toast.error("Vui lòng chọn đơn vị")
             return
         }
+        if (!formData.access_level) {
+            toast.error("Vui lòng chọn mức truy cập")
+            return
+        }
+
+        if (authors.length === 0) {
+            toast.error("Research phải có ít nhất một tác giả")
+            return
+        }
+        if (authors.some(author => !author.researcher_id)) {
+            toast.error("Vui lòng chọn nhà nghiên cứu cho từng tác giả")
+            return
+        }
 
         try {
             const payload = {
                 title: formData.title,
                 output_type_id: formData.output_type_id,
                 department_id: formData.department_id,
+                access_level: formData.access_level,
                 year: formData.year,
                 description: formData.description,
                 abstract: formData.abstract,
@@ -395,13 +462,18 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
             } else {
                 const res = await referenceService.createMetadata(payload);
                 setStagingId(res.staging_id);
-                toast.success("Save draft thành công");
+                toast.success("Lưu bản nháp thành công");
             }
             setIsDraftSaved(true);
+            router.push("/dashboard/data-entry/researches");
         } catch (error) {
             console.error(error);
             toast.error(parseAxiosError(error).message);
         }
+    };
+
+    const handleCancel = () => {
+        router.push("/dashboard/data-entry/researches");
     };
 
     const handleSubmit = () => {
@@ -449,11 +521,12 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
             />
 
             <div className="mx-auto max-w-5xl space-y-6 p-6">
+
                 <p className="text-sm text-gray-500">
                     Các trường có dấu<span className="font-medium text-red-500"> *</span> là bắt buộc.
                 </p>
 
-                <FormSectionCard icon={FileText} title="Thông tin metadata (Metadata Information)">
+                <FormSectionCard icon={FileText} title="Thông tin bài nghiên cứu (Research Metadata)">
                     <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                         <div className="md:col-span-2">
                             <label className="mb-2 block text-sm font-medium text-gray-700">
@@ -509,7 +582,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                                 className="w-full rounded-lg border px-3 py-2"
                                 value={formData.department_id}
                                 onChange={(e) =>
-                                    setFormData((prev) => ({
+                                    setFormData((prev) => ({    
                                         ...prev,
                                         department_id: e.target.value,
                                     }))
@@ -530,7 +603,31 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
 
                         <div>
                             <label className="mb-2 block text-sm font-medium text-gray-700">
-                                Năm (Year)
+                                Mức truy cập (Access Level)<RequiredMark />
+                            </label>
+
+                            <select
+                                className="w-full rounded-lg border px-3 py-2"
+                                value={formData.access_level}
+                                onChange={(e) =>
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        access_level: e.target.value as AccessLevel | "",
+                                    }))
+                                }
+                            >
+                                <option value="">Chọn mức truy cập</option>
+                                {ACCESS_LEVEL_OPTIONS.map((item) => (
+                                    <option key={item.value} value={item.value}>
+                                        {item.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Năm (Year)<RequiredMark />
                             </label>
 
                             <select
@@ -799,7 +896,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                         {/* Domain */}
                         <div>
                             <label className="mb-2 block text-sm font-medium text-gray-700">
-                                Phạm vi (Domain)
+                                Phạm vi (Domain)<RequiredMark />
                             </label>
 
                             <AsyncSelect
@@ -835,7 +932,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                         {/* Keyword */}
                         <div>
                             <label className="mb-2 block text-sm font-medium text-gray-700">
-                                Từ khóa (Keyword)
+                                Từ khóa (Keyword)<RequiredMark />
                             </label>
 
                             <AsyncSelect
@@ -890,13 +987,25 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                         )}
                         {authors.map((author, index) => (
                             <div key={index} className="rounded-lg border border-gray-200 p-5">
+                                <div className="mb-4 flex items-center justify-between gap-3">
+                                    <p className="text-sm font-medium text-gray-700">Tác giả {index + 1}</p>
+                                    <button
+                                        type="button"
+                                        disabled={authors.length <= 1}
+                                        onClick={() => handleRemoveAuthor(index)}
+                                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-300 disabled:hover:bg-transparent"
+                                    >
+                                        <Trash2 size={14} />
+                                        Xóa
+                                    </button>
+                                </div>
 
                                 <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
 
                                     {/* ===================== RESEARCHER ===================== */}
                                     <div>
                                         <label className="mb-2 block text-sm font-medium text-gray-700">
-                                            Nhà nghiên cứu (Researcher)
+                                            Nhà nghiên cứu (Researcher)<RequiredMark />
                                         </label>
 
                                         <Select
@@ -954,7 +1063,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                                     {/* ===================== ROLE ===================== */}
                                     <div>
                                         <label className="mb-2 block text-sm font-medium text-gray-700">
-                                            Vai trò (Role)
+                                            Vai trò (Role)<RequiredMark />
                                         </label>
 
                                         <select
@@ -993,27 +1102,14 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                                         <input
                                             className="w-full rounded-lg border px-3 py-2"
                                             value={author.email}
-                                            onChange={(e) => {
-                                                const value = e.target.value;
-
-                                                setAuthors(prev => {
-                                                    const updated = [...prev];
-
-                                                    updated[index] = {
-                                                        ...updated[index],
-                                                        email: value,
-                                                    };
-
-                                                    return updated;
-                                                });
-                                            }}
+                                            disabled={true}
                                         />
                                     </div>
 
                                     {/* ===================== AFFILIATION ===================== */}
                                     <div>
                                         <label className="mb-2 block text-sm font-medium text-gray-700">
-                                            Đơn vị công tác (Affiliation)
+                                            Đơn vị công tác (Affiliation)<RequiredMark />
                                         </label>
 
                                         <input
@@ -1043,61 +1139,87 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                 </FormSectionCard>
 
                 <FormSectionCard icon={Paperclip} title="Tệp đính kèm (Attachments)">
-                    {!stagingId && (
-                        <p className="mb-4 text-sm text-gray-500">
-                            Lưu bản nháp trước khi đính kèm tệp.
-                        </p>
-                    )}
-
-                    <div className="flex items-center gap-3">
-                        <input
-                            type="file"
-                            disabled={!stagingId || uploadingFile}
-                            onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
-                            className="block rounded-lg border px-3 py-2 text-sm"
-                        />
-
-                        <button
-                            type="button"
-                            disabled={!stagingId || !selectedFile || uploadingFile}
-                            onClick={handleUploadFile}
-                            className="cursor-pointer rounded-lg bg-blue-600 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:bg-gray-300"
-                        >
-                            {uploadingFile ? "Đang tải lên..." : "Tải lên"}
-                        </button>
+                    <div className={!stagingId ? "pointer-events-none opacity-50" : ""} aria-disabled={!stagingId}>
+                        <Attachment state={stagingId ? (uploadingFile ? "uploading" : "idle") : "idle"} className="w-full">
+                            <AttachmentMedia>
+                                <Paperclip size={18} />
+                            </AttachmentMedia>
+                            <AttachmentContent>
+                                <AttachmentTitle>{selectedFile ? selectedFile.name : "Chọn tệp đính kèm"}</AttachmentTitle>
+                                <AttachmentDescription>
+                                    {stagingId
+                                        ? selectedFile
+                                            ? `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB`
+                                            : "Có thể tải tệp sau khi metadata đã được lưu nháp"
+                                        : "Lưu metadata trước để bật file attachment"}
+                                </AttachmentDescription>
+                            </AttachmentContent>
+                            <AttachmentActions className="gap-2">
+                                {selectedFile && (
+                                    <AttachmentAction type="button" onClick={() => setSelectedFile(null)} aria-label="Bỏ chọn tệp">
+                                        <X size={14} />
+                                    </AttachmentAction>
+                                )}
+                                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-gray-50">
+                                    <Paperclip size={14} />
+                                    Chọn
+                                    <input
+                                        type="file"
+                                        disabled={!stagingId || uploadingFile}
+                                        onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+                                        className="sr-only"
+                                    />
+                                </label>
+                                <AttachmentAction
+                                    type="button"
+                                    size="sm"
+                                    disabled={!stagingId || !selectedFile || uploadingFile}
+                                    onClick={handleUploadFile}
+                                    className="gap-1.5"
+                                    aria-label="Tải tệp lên"
+                                >
+                                    {uploadingFile ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                                    Tải lên
+                                </AttachmentAction>
+                            </AttachmentActions>
+                        </Attachment>
                     </div>
 
-                    {stagingId && !selectedFile && (
-                        <p className="mt-2 text-xs text-gray-400">
-                            Chọn một tệp ở trên để bật nút Tải lên.
-                        </p>
-                    )}
-
                     {files.length > 0 && (
-                        <ul className="mt-5 divide-y divide-gray-100 rounded-lg border border-gray-100">
+                        <AttachmentGroup className="mt-5">
                             {files.map((file) => (
-                                <li
-                                    key={file.file_id}
-                                    className="flex items-center justify-between px-4 py-3 text-sm"
-                                >
-                                    <span className="truncate">{file.original_filename}</span>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => handleDeleteFile(file.file_id)}
-                                        className="cursor-pointer text-red-600 hover:underline"
-                                    >
-                                        Xoá
-                                    </button>
-                                </li>
+                                <Attachment key={file.file_id} state="done" className="w-full max-w-full" orientation="vertical">
+                                    <AttachmentMedia>
+                                        <FileText size={18} />
+                                    </AttachmentMedia>
+                                    <AttachmentContent>
+                                        <AttachmentTitle>{file.original_filename}</AttachmentTitle>
+                                        <AttachmentDescription>
+                                            {(file.file_size_bytes / 1024 / 1024).toFixed(2)} MB
+                                        </AttachmentDescription>
+                                    </AttachmentContent>
+                                    <AttachmentActions>
+                                        <AttachmentAction type="button" onClick={() => handleDeleteFile(file.file_id)} aria-label="Xóa tệp">
+                                            <X size={14} />
+                                        </AttachmentAction>
+                                    </AttachmentActions>
+                                </Attachment>
                             ))}
-                        </ul>
+                        </AttachmentGroup>
                     )}
                 </FormSectionCard>
             </div>
 
             <div className="sticky bottom-0 border-t border-gray-200 bg-white px-6 py-4 shadow-[0_-2px_8px_rgba(0,0,0,0.04)]">
-                <div className="mx-auto flex max-w-5xl justify-end gap-3">
+                <div className="mx-auto flex max-w-5xl flex-wrap justify-end gap-3">
+                    <button
+                        type="button"
+                        onClick={handleCancel}
+                        className="cursor-pointer rounded-lg border px-5 py-2 text-sm font-medium hover:bg-gray-50"
+                    >
+                        Hủy
+                    </button>
+
                     <button
                         type="button"
                         onClick={handleSaveDraft}
@@ -1120,7 +1242,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
             {openSubmitModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
                     <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
-                        <h2 className="text-lg font-semibold">Gửi yêu cầu phê duyệt đến review</h2>
+                        <h2 className="text-lg font-semibold">Gửi yêu cầu kiểm duyệt</h2>
 
                         <p className="mt-2 text-sm text-gray-500">
                             Ghi chú gửi kèm

@@ -47,16 +47,16 @@ export default function ChangePasswordPage() {
   return (
     <>
       <div className="mb-6">
-        <h2 className="text-lg font-semibold text-zinc-800">Change password</h2>
-        <p className="text-sm text-zinc-500 mt-1">Update your account password</p>
+        <h2 className="text-lg font-semibold text-zinc-800">Đổi mật khẩu</h2>
+        <p className="text-sm text-zinc-500 mt-1">Cập nhật mật khẩu tài khoản của bạn</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {(
           [
-            { name: 'current_password', label: 'Current password' },
-            { name: 'new_password', label: 'New password' },
-            { name: 'confirm_password', label: 'Confirm new password' },
+            { name: 'current_password', label: 'Mật khẩu hiện tại' },
+            { name: 'new_password', label: 'Mật khẩu mới' },
+            { name: 'confirm_password', label: 'Xác nhận mật khẩu mới' },
           ] as const
         ).map(({ name, label }) => (
           <div key={name}>
@@ -84,9 +84,9 @@ export default function ChangePasswordPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-2 px-4 text-sm font-medium rounded-lg bg-zinc-800 text-white hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          className="w-full py-2 px-4 text-sm font-medium rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
         >
-          {loading ? 'Updating...' : 'Update password'}
+          {loading ? 'Đang cập nhật...' : 'Cập nhật mật khẩu'}
         </button>
 
         <button
@@ -94,7 +94,7 @@ export default function ChangePasswordPage() {
           onClick={() => router.back()}
           className="w-full py-2 px-4 text-sm font-medium rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50 transition"
         >
-          Cancel
+          Hủy
         </button>
       </form>
     </>

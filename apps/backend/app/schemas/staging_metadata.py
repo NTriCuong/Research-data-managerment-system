@@ -34,6 +34,7 @@ class StagingResearchObjectCreate(BaseModel):
     title: str = Field(min_length=1, max_length=500)
     output_type_id: UUID
     department_id: UUID
+    access_level: AccessLevel
     year: int | None = Field(default=None, ge=1900, le=2100)
     description: str | None = None
     abstract: str | None = None
@@ -58,16 +59,8 @@ class StagingResearchObjectCreate(BaseModel):
     @classmethod
     def reject_name_based_references(cls, data):
         if isinstance(data, dict):
-            unsupported = {"domain_name", "keyword_name"} & set(data)
-            if unsupported:
-                fields = ", ".join(sorted(unsupported))
-                raise ValueError(f"{fields} không được hỗ trợ; hãy dùng domain_ids/keyword_ids đã tồn tại")
-        return data
-
-    @model_validator(mode="before")
-    @classmethod
-    def reject_name_based_references(cls, data):
-        if isinstance(data, dict):
+            if "access_level" in data and data["access_level"] is None:
+                raise ValueError("access_level không được để trống")
             unsupported = {"domain_name", "keyword_name"} & set(data)
             if unsupported:
                 fields = ", ".join(sorted(unsupported))
@@ -79,6 +72,7 @@ class StagingResearchObjectUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=500)
     output_type_id: UUID | None = None
     department_id: UUID | None = None
+    access_level: AccessLevel | None = None
     year: int | None = Field(default=None, ge=1900, le=2100)
     description: str | None = None
     abstract: str | None = None
@@ -103,6 +97,8 @@ class StagingResearchObjectUpdate(BaseModel):
     @classmethod
     def reject_name_based_references(cls, data):
         if isinstance(data, dict):
+            if "access_level" in data and data["access_level"] is None:
+                raise ValueError("access_level không được để trống")
             unsupported = {"domain_name", "keyword_name"} & set(data)
             if unsupported:
                 fields = ", ".join(sorted(unsupported))
@@ -132,23 +128,6 @@ class StagingResearchObjectOut(BaseModel):
 
 class SubmitForReviewRequest(BaseModel):
     note: str | None = Field(default=None, max_length=1000)
-
-
-class BulkSubmitForReviewRequest(BaseModel):
-    staging_ids: list[UUID] = Field(min_length=1, max_length=100)
-    note: str | None = Field(default=None, max_length=1000)
-
-
-class BulkSubmitForReviewItemOut(BaseModel):
-    staging_id: UUID
-    success: bool
-    message: str
-
-
-class BulkSubmitForReviewOut(BaseModel):
-    submitted_count: int
-    failed_count: int
-    results: list[BulkSubmitForReviewItemOut]
 
 
 class CreateRevisionRequest(BaseModel):

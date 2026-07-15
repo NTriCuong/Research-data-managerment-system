@@ -38,6 +38,7 @@ const items_approver: AppSidebarItem[] = [
 ];
 
 const items_super_admin: AppSidebarItem[] = [
+  { label: "Tổng quan", href: "/dashboard/superadmin/", icon: House },
   { label: "Người dùng", href: "/dashboard/superadmin/users", icon: Users },
   { label: "Kho nghiên cứu", href: "/dashboard/superadmin/researches", icon: FileText },
   { label: "Đơn vị", href: "/dashboard/superadmin/departments", icon: Building2 },

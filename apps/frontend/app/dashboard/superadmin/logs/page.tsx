@@ -10,9 +10,9 @@ import WorkflowLogTab from '@/components/superadmin/logs/workflow-log-tab'
 type Tab = 'audit' | 'login' | 'workflow'
 
 const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
-    { key: 'audit', label: 'nhật ký kiểm tra', icon: ClipboardList },
-    { key: 'login', label: 'Đăng nhập', icon: LogIn },
-    { key: 'workflow', label: 'quy trình làm việc', icon: GitBranch },
+    { key: 'audit', label: 'Nhật ký', icon: ClipboardList },
+    { key: 'login', label: 'Nhật ký đăng nhập', icon: LogIn },
+    { key: 'workflow', label: 'Nhật ký quy trình làm việc', icon: GitBranch },
 ]
 
 export default function SuperAdminLogsPage() {
