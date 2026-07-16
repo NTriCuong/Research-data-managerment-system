@@ -1,6 +1,37 @@
 import axiosInstance from '@/lib/axios/axios.instance'
 import { API_ENDPOINT } from '@/lib/constants/api-endpoint'
 
+function extractFilename(contentDisposition: string | undefined, fallback: string): string {
+    if (!contentDisposition) return fallback
+    const match = /filename="?([^"]+)"?/.exec(contentDisposition)
+    return match?.[1] ?? fallback
+}
+
+function triggerBrowserDownload(blob: Blob, filename: string) {
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+}
+
+async function downloadExcel(url: string, fallbackFilename: string) {
+    try {
+        const res = await axiosInstance.get(url, { responseType: 'blob' })
+        const filename = extractFilename(res.headers['content-disposition'], fallbackFilename)
+        triggerBrowserDownload(new Blob([res.data]), filename)
+    } catch (err: any) {
+        // responseType 'blob' làm lỗi từ server (json) bị giữ dạng Blob, cần đọc lại thành JSON để hiện đúng message.
+        if (err?.response?.data instanceof Blob && err.response.data.type.includes('json')) {
+            err.response.data = JSON.parse(await err.response.data.text())
+        }
+        throw err
+    }
+}
+
 export interface TotalCoreRepositories {
     total_core_repositories: number
 }
@@ -58,5 +89,25 @@ export const reportService = {
     async getTopDepartments(limit = 10): Promise<TopDepartmentItem[]> {
         const res = await axiosInstance.get<TopDepartmentItem[]>(API_ENDPOINT.REPORTS.TOP_DEPARTMENTS, { params: { limit } })
         return res.data
+    },
+
+    // ─── Xuất excel ────────────────────────────────────────────────────────
+    async exportAuthorProfile(researcherId: string) {
+        await downloadExcel(API_ENDPOINT.REPORTS.EXPORT_AUTHOR_PROFILE(researcherId), 'ho-so-tac-gia.xlsx')
+    },
+    async exportResearchesByResearcher(researcherId: string) {
+        await downloadExcel(API_ENDPOINT.REPORTS.EXPORT_RESEARCHES_BY_RESEARCHER(researcherId), 'danh-sach-bai-nghien-cuu.xlsx')
+    },
+    async exportResearchesByYear(year: number) {
+        await downloadExcel(API_ENDPOINT.REPORTS.EXPORT_RESEARCHES_BY_YEAR(year), `danh-sach-bai-nghien-cuu-nam-${year}.xlsx`)
+    },
+    async exportResearchesByDepartment(departmentId: string) {
+        await downloadExcel(API_ENDPOINT.REPORTS.EXPORT_RESEARCHES_BY_DEPARTMENT(departmentId), 'danh-sach-bai-nghien-cuu-don-vi.xlsx')
+    },
+    async exportResearchesByDepartmentAndYear(departmentId: string, year: number) {
+        await downloadExcel(
+            API_ENDPOINT.REPORTS.EXPORT_RESEARCHES_BY_DEPARTMENT_YEAR(departmentId, year),
+            `danh-sach-bai-nghien-cuu-don-vi-nam-${year}.xlsx`
+        )
     },
 }
