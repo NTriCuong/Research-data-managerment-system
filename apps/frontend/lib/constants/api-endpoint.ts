@@ -51,6 +51,7 @@ export const API_ENDPOINT = {
         GET_DETAIL: (id: string) => `api/v1/reference/researchers/${id}`,
         PUT: (id: string) => `api/v1/reference/researchers/${id}`,
         DELETE: (id: string) => `api/v1/reference/researchers/${id}`,
+        SUGGESTIONS: 'api/v1/reference/researchers/suggestions',
     },
     KEYWORD: {
         GET: 'api/v1/reference/keywords',
@@ -99,5 +100,11 @@ export const API_ENDPOINT = {
         METADATA_QUALITY: 'api/v1/reports/metadata-quality',
         STATUS_BREAKDOWN: 'api/v1/reports/status-breakdown',
         TOP_DEPARTMENTS: 'api/v1/reports/top-departments',
+        EXPORT_AUTHOR_PROFILE: (researcherId: string) => `api/v1/reports/export/author-profile/${researcherId}`,
+        EXPORT_RESEARCHES_BY_YEAR: (year: number) => `api/v1/reports/export/researches-by-year/${year}`,
+        EXPORT_RESEARCHES_BY_DEPARTMENT: (departmentId: string) => `api/v1/reports/export/researches-by-department/${departmentId}`,
+        EXPORT_RESEARCHES_BY_DEPARTMENT_YEAR: (departmentId: string, year: number) =>
+            `api/v1/reports/export/researches-by-department/${departmentId}/year/${year}`,
+        EXPORT_RESEARCHES_BY_RESEARCHER: (researcherId: string) => `api/v1/reports/export/researches-by-researcher/${researcherId}`,
     },
 }

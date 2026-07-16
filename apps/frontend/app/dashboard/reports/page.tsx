@@ -22,6 +22,7 @@ import { LineChartMonth } from '@/components/report/chart/LineChartMonth'
 import { BarHorizontalChartMonth } from '@/components/report/chart/HorizontalChartMonth'
 import BarchartTopViewResearchByDomain from '@/components/report/chart/BarchartTopViewResearchByDomain'
 import BarChartTopResearchByYear from '@/components/report/chart/BarChartTopResearchByYear'
+import ExportCenterSection from '@/components/report/ExportCenterSection'
 
 
 
@@ -134,6 +135,8 @@ export default function ReportsPage() {
                 <BarChartTopResearchByYear />
                 <BarHorizontalChartMonth />
             </div>
+
+            <ExportCenterSection />
 
         </div>
     )
