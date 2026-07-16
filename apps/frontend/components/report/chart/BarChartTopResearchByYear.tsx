@@ -105,7 +105,7 @@ export default function BarChartTopResearchByYear({
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <Trophy className="h-4 w-4 text-amber-500" />
-                    Top nghiên cứu được xem nhiều nhất
+                    Top nghiên cứu được xem nhiều nhất năm
                 </CardTitle>
                 <CardAction>
                     <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
