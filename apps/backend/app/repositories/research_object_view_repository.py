@@ -20,64 +20,6 @@ class ResearchObjectViewRepository:
         await self.session.flush()
         return view
     
-# Tổng số lượt xem của research_id.
-    async def count_views(self, research_id: uuid.UUID) -> int:
-        stmt = (
-            select(func.count())
-            .select_from(ResearchObjectView)
-            .where(ResearchObjectView.research_id == research_id)
-        )
-        return await self.session.scalar(stmt) or 0
-# lượt xem từng tháng trong năm=?
-#         [
-#             {"month": 5, "count": 12},
-#             {"month": 6, "count": 30},
-#             {"month": 7, "count": 42},
-#         ]
-    async def count_views_by_month(
-        self, research_id: uuid.UUID, year: int
-    ) -> list[dict]:
-        stmt = (
-            select(
-                ResearchObjectView.viewed_month.label("month"),
-                func.count().label("count"),
-            )
-            .where(
-                ResearchObjectView.research_id == research_id,
-                ResearchObjectView.viewed_year == year,
-            )
-            .group_by(ResearchObjectView.viewed_month)
-            .order_by(ResearchObjectView.viewed_month.asc())
-        )
-        result = await self.session.execute(stmt)
-        return [
-            {"month": row.month, "count": row.count}
-            for row in result.all()
-        ]
-# lượt xem trong năm
-# [
-#             {"year": 2024, "count": 120},
-#             {"year": 2025, "count": 340},
-#             {"year": 2026, "count": 84},
-#         ]
-    async def count_views_by_year(
-        self, research_id: uuid.UUID
-    ) -> list[dict]:
-        stmt = (
-            select(
-                ResearchObjectView.viewed_year.label("year"),
-                func.count().label("count"),
-            )
-            .where(ResearchObjectView.research_id == research_id)
-            .group_by(ResearchObjectView.viewed_year)
-            .order_by(ResearchObjectView.viewed_year.asc())
-        )
-        result = await self.session.execute(stmt)
-        return [
-            {"year": row.year, "count": row.count}
-            for row in result.all()
-        ]
-    
     # top research lượt xem nhiều nhất tháng
     async def top10_views_by_month(
         self,
@@ -202,5 +144,19 @@ class ResearchObjectViewRepository:
             }
             for row in result
         ]
-
-
+    # tổng lượt xem theo tháng của tất cả research trong 1 năm
+    async def total_views_by_year(self, year: int) -> list[dict]:
+        stmt = (
+            select(
+                ResearchObjectView.viewed_month.label("month"),
+                func.count().label("count"),
+            )
+            .where(ResearchObjectView.viewed_year == year)
+            .group_by(ResearchObjectView.viewed_month)
+            .order_by(ResearchObjectView.viewed_month.asc())
+        )
+        result = await self.session.execute(stmt)
+        return [
+            {"month": row.month, "count": row.count}
+            for row in result.all()
+        ]

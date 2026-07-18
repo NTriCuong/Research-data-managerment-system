@@ -306,6 +306,13 @@ export const referenceService = {
         const response = await axiosInstance.delete(API_ENDPOINT.RESEARCHERS.DELETE(id))
         return response.data
     },
+
+    async suggestResearchers(q: string, limit = 10) {
+        const response = await axiosInstance.get<Researcher[]>(API_ENDPOINT.RESEARCHERS.SUGGESTIONS, {
+            params: { q: q || undefined, limit },
+        })
+        return response.data
+    },
     // Keywords
     async getKeywords(
         page = 1,

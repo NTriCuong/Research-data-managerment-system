@@ -18,6 +18,11 @@ import { Button } from '@/components/ui/button'
 import StatCard from '@/components/report/StatCard'
 import StatusBreakdownCard from '@/components/report/StatusBreakdownCard'
 import TopDepartmentsCard from '@/components/report/TopDepartmentCard'
+import { LineChartMonth } from '@/components/report/chart/LineChartMonth'
+import { BarHorizontalChartMonth } from '@/components/report/chart/HorizontalChartMonth'
+import BarchartTopViewResearchByDomain from '@/components/report/chart/BarchartTopViewResearchByDomain'
+import BarChartTopResearchByYear from '@/components/report/chart/BarChartTopResearchByYear'
+import ExportCenterSection from '@/components/report/ExportCenterSection'
 
 
 
@@ -122,6 +127,17 @@ export default function ReportsPage() {
                 <StatusBreakdownCard items={breakdown} loading={loading} />
                 <TopDepartmentsCard items={topDepts} loading={loading} />
             </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <LineChartMonth />
+                <BarchartTopViewResearchByDomain />
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <BarChartTopResearchByYear />
+                <BarHorizontalChartMonth />
+            </div>
+
+            <ExportCenterSection />
+
         </div>
     )
 }

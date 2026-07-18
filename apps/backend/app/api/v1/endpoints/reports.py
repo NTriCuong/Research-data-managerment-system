@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import status
 from uuid import UUID
@@ -16,15 +17,14 @@ from app.schemas.reports import (
     TotalResearchersOut,
 )
 from app.schemas.logs import (
-    CountViewsResponse,
-    MonthlyViewResponse,
     ResearchViewResponse,
     TopResearchViewResponse,
-    YearlyViewResponse,
+    TotalViewsByYearResponse
 )
 from app.services.logs.research_view_report_service import (
     ResearchObjectViewService,
 )
+from app.services.reports.export_service import export_service
 from app.services.reports.reports_service import report_service
 
 router = APIRouter()
@@ -80,6 +80,76 @@ async def top_contributing_departments(
 ) -> list[TopDepartmentItem]:
     return await report_service.report_top_contributing_department(db, limit=limit)
 
+# xuất excel profile của nhà nghiên cứu
+@router.get("/export/author-profile/{researcher_id}")
+async def export_author_profile(
+    researcher_id: UUID,
+    _: User = Depends(require_roles(*ALLOWED_REPORT_ROLES)),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    buffer, filename = await export_service.export_author_profile(db, researcher_id=researcher_id)
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/export/researches-by-year/{year}")
+async def export_researches_by_year(
+    year: int,
+    _: User = Depends(require_roles(*ALLOWED_REPORT_ROLES)),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    buffer, filename = await export_service.export_researches_by_year(db, year=year)
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+@router.get("/export/researches-by-department/{department_id}")
+async def export_researches_by_department(
+    department_id: UUID,
+    _: User = Depends(require_roles(*ALLOWED_REPORT_ROLES)),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    buffer, filename = await export_service.export_researches_by_department(db, department_id=department_id)
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/export/researches-by-department/{department_id}/year/{year}")
+async def export_researches_by_department_and_year(
+    department_id: UUID,
+    year: int,
+    _: User = Depends(require_roles(*ALLOWED_REPORT_ROLES)),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    buffer, filename = await export_service.export_researches_by_department_and_year(
+        db, department_id=department_id, year=year
+    )
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/export/researches-by-researcher/{researcher_id}")
+async def export_researches_by_researcher(
+    researcher_id: UUID,
+    _: User = Depends(require_roles(*ALLOWED_REPORT_ROLES)),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    buffer, filename = await export_service.export_researches_by_researcher(db, researcher_id=researcher_id)
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 # Add view
 @router.post(
@@ -92,52 +162,6 @@ async def add_view(
     db: AsyncSession = Depends(get_db),
 ) -> ResearchViewResponse:
     return await ResearchObjectViewService(db).add_view(
-        research_id,
-    )
-# Count views
-
-@router.get(
-    "/research-views/{research_id}/count",
-    response_model=CountViewsResponse,
-)
-async def count_views(
-    research_id: UUID,
-    _: User = Depends(require_roles(*ALLOWED_REPORT_ROLES)),
-    db: AsyncSession = Depends(get_db),
-) -> CountViewsResponse:
-    return await ResearchObjectViewService(db).count_views(
-        research_id,
-    )
-
-# Monthly statistics
-
-@router.get(
-    "/research-views/{research_id}/monthly",
-    response_model=list[MonthlyViewResponse],
-)
-async def count_views_by_month(
-    research_id: UUID,
-    year: int = Query(..., ge=2000),
-    _: User = Depends(require_roles(*ALLOWED_REPORT_ROLES)),
-    db: AsyncSession = Depends(get_db),
-) -> list[MonthlyViewResponse]:
-    return await ResearchObjectViewService(db).count_views_by_month(
-        research_id,
-        year,
-    )
-
-# Yearly statistics
-
-@router.get(
-    "/research-views/{research_id}/yearly",
-    response_model=list[YearlyViewResponse],
-)
-async def count_views_by_year(
-    research_id: UUID,
-    _: User = Depends(require_roles(*ALLOWED_REPORT_ROLES)),
-    db: AsyncSession = Depends(get_db),
-) -> list[YearlyViewResponse]:
-    return await ResearchObjectViewService(db).count_views_by_year(
         research_id,
     )
 
@@ -193,3 +217,16 @@ async def top10_views_by_domain(
         year,
         limit,
     )
+#  tổng lượt xem theo tháng của tất cả research trong 1 năm
+@router.get(
+    "/research-views/yearly/{year}",
+    response_model=list[TotalViewsByYearResponse],
+)
+async def total_views_by_year(
+    year: int ,
+    _: User = Depends(require_roles(*ALLOWED_REPORT_ROLES)),
+    db: AsyncSession = Depends(get_db),
+) -> list[TotalViewsByYearResponse]:
+    return await ResearchObjectViewService(db).total_views_by_year(year)
+
+

@@ -4,16 +4,18 @@ import { useAppDispatch, useAppSelector } from '@/lib/hooks/hooks'
 import { selectCurrentUser } from '@/store/slice/auth.slice'
 import { useRouter } from 'next/navigation'
 import StatCard from '@/components/report/StatCard'
-import { BookOpen, Clock, Layers, Users } from 'lucide-react'
+import { BookOpen, Clock, RefreshCw, Star, Users } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { PendingStatus, reportService, StatusBreakdownItem, TopDepartmentItem, TotalCoreRepositories, TotalResearchers } from '@/services/reports/report.service'
+import { MetadataQuality, PendingStatus, reportService, StatusBreakdownItem, TopDepartmentItem, TotalCoreRepositories, TotalResearchers } from '@/services/reports/report.service'
 import StatusBreakdownCard from '@/components/report/StatusBreakdownCard'
 import TopDepartmentsCard from '@/components/report/TopDepartmentCard'
 import { parseAxiosError } from '@/lib/axios/error-paser'
 import { toast } from 'sonner'
-import { referenceService } from '@/services/reference/reference.service'
 import RecentLoginLogs from '@/components/superadmin/RecentLoginLogs'
 import RecentAuditLogs from '@/components/superadmin/RecentAuditLogs'
+import { LineChartMonth } from '@/components/report/chart/LineChartMonth'
+import { BarHorizontalChartMonth } from '@/components/report/chart/HorizontalChartMonth'
+import { Button } from '@/components/ui/button'
 
 
 export default function SuperAdminPage() {
@@ -24,14 +26,15 @@ export default function SuperAdminPage() {
     const [totalRepos, setTotalRepos] = useState<TotalCoreRepositories | null>(null)
     const [pending, setPending] = useState<PendingStatus | null>(null)
     const [researchers, setResearchers] = useState<TotalResearchers | null>(null)
+    const [quality, setQuality] = useState<MetadataQuality | null>(null)
     const [breakdown, setBreakdown] = useState<StatusBreakdownItem[]>([])
     const [topDepts, setTopDepts] = useState<TopDepartmentItem[]>([])
     const [loading, setLoading] = useState(true)
-    const [outPutType, setOutPutType] = useState(0)
-
+    const [refreshing, setRefreshing] = useState(false)
 
     const fetchAll = async (isRefresh = false) => {
-        setLoading(true)
+        if (isRefresh) setRefreshing(true)
+        else setLoading(true)
         try {
             const [repos, pend, resrc, qual, bkdn, depts] = await Promise.all([
                 reportService.getTotalCoreRepositories(),
@@ -44,16 +47,14 @@ export default function SuperAdminPage() {
             setTotalRepos(repos)
             setPending(pend)
             setResearchers(resrc)
+            setQuality(qual)
             setBreakdown(bkdn)
             setTopDepts(depts)
-            // output type
-            const opt = referenceService.getOutputTypes();
-            console.log(opt);
-            setOutPutType(outPutType)
         } catch (err) {
             toast.error(parseAxiosError(err).message)
         } finally {
             setLoading(false)
+            setRefreshing(false)
         }
     }
 
@@ -74,6 +75,15 @@ export default function SuperAdminPage() {
                         Thống kê tổng quan hoạt động của hệ thống.
                     </p>
                 </div>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => fetchAll(true)}
+                    disabled={loading || refreshing}
+                >
+                    <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+                    Làm mới
+                </Button>
             </div>
 
             {/* Stat cards */}
@@ -102,13 +112,12 @@ export default function SuperAdminPage() {
                     iconColor="bg-purple-500"
                     loading={loading}
                 />
-
                 <StatCard
-                    icon={Layers}
-                    label="Loại sản phẩm nghiên cứu"
-                    value={pending?.total_pending ?? 0}
-                    sub={pending ? `Xét duyệt: ${pending.pending_review} · Phê duyệt: ${pending.pending_approval}` : undefined}
-                    iconColor="bg-yellow-800"
+                    icon={Star}
+                    label="Chất lượng metadata"
+                    value={quality ? `${Math.round(quality.avg_score)}/100` : '—'}
+                    sub={quality ? `Trên ${quality.total_records} bản ghi` : undefined}
+                    iconColor="bg-green-500"
                     loading={loading}
                 />
             </div>
@@ -117,6 +126,10 @@ export default function SuperAdminPage() {
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <StatusBreakdownCard items={breakdown} loading={loading} />
                 <TopDepartmentsCard items={topDepts} loading={loading} />
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <LineChartMonth />
+                <BarHorizontalChartMonth />
             </div>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <RecentLoginLogs />
