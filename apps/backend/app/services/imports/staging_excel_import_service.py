@@ -30,6 +30,7 @@ from app.schemas.imports import ImportRowError, StagingExcelImportResponse
 from app.schemas.files import IncomingFile
 from app.services.logs.audit_service import audit_service
 from app.services.logs.workflow_service import workflow_service
+from app.services.metadata_quality import calculate_staging_metadata_quality
 
 
 @dataclass(slots=True)
@@ -65,6 +66,7 @@ class StagingExcelImportService:
         refs = await self._preload_references(db)
         errors: list[ImportRowError] = []
         imported_projects: dict[str, StgResearchObject] = {}
+        imported_project_counts: dict[str, dict[str, int]] = {}
         imported_file_count = 0
         workbook_titles: set[str] = set()
         workbook_identifiers: set[str] = set()
@@ -90,7 +92,13 @@ class StagingExcelImportService:
                     action_code="IMPORT_EXCEL_DRAFT",
                     action_note=f"Excel import key: {import_key}",
                 )
-                self._set_quality_score(obj, domain_count=len(domains), keyword_count=len(keywords), author_count=len(authors))
+                imported_project_counts[import_key] = {
+                    "domain_count": len(domains),
+                    "keyword_count": len(keywords),
+                    "author_count": len(authors),
+                    "file_count": 0,
+                }
+                self._set_quality_score(obj, **imported_project_counts[import_key])
                 imported_projects[import_key] = obj
             except ValueError as exc:
                 errors.append(ImportRowError(sheet="projects", row_number=row_index, message=str(exc)))
@@ -102,6 +110,7 @@ class StagingExcelImportService:
                 if project is None:
                     raise ValueError(f"Không tìm thấy import_key cho tệp đính kèm: {import_key}")
                 db.add(self._build_file_attachment(row=row, staging_id=project.staging_id, current_user=current_user))
+                imported_project_counts[import_key]["file_count"] += 1
                 imported_file_count += 1
             except ValueError as exc:
                 errors.append(ImportRowError(sheet="file_attachments", row_number=row_index, message=str(exc)))
@@ -116,6 +125,8 @@ class StagingExcelImportService:
             )
 
         await db.flush()
+        for import_key, obj in imported_projects.items():
+            self._set_quality_score(obj, **imported_project_counts[import_key])
         await audit_service.write_log(
             db,
             actor_user_id=current_user.user_id,
@@ -326,21 +337,17 @@ class StagingExcelImportService:
         domain_count: int,
         keyword_count: int,
         author_count: int,
+        file_count: int = 0,
     ) -> None:
-        checks = {
-            "title": bool(obj.title and obj.title.strip()),
-            "output_type_id": obj.output_type_id is not None,
-            "department_id": obj.department_id is not None,
-            "year": obj.year is not None,
-            "access_level": obj.access_level is not None,
-            "authors": author_count > 0,
-            "domains": domain_count > 0,
-            "keywords": keyword_count > 0,
-        }
-        passed = sum(1 for ok in checks.values() if ok)
-        score = (Decimal(passed) * Decimal("100")) / Decimal(len(checks))
-        obj.metadata_quality_score = score.quantize(Decimal("0.01"))
-        obj.metadata_quality_detail = {"passed": passed, "total": len(checks), "checks": checks}
+        score, detail = calculate_staging_metadata_quality(
+            obj,
+            domain_count=domain_count,
+            keyword_count=keyword_count,
+            author_count=author_count,
+            file_count=file_count,
+        )
+        obj.metadata_quality_score = score
+        obj.metadata_quality_detail = detail
 
     def _map_output_types(self, rows: list[OutputType]) -> dict[str, OutputType]:
         result: dict[str, OutputType] = {}

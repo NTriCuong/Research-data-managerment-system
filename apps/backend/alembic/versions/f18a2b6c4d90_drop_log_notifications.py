@@ -20,14 +20,28 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Upgrade schema."""
     op.execute("DROP INDEX IF EXISTS log.idx_notifications_unread")
     op.execute("DROP INDEX IF EXISTS log.idx_notifications_recipient_created")
     op.execute("DROP TABLE IF EXISTS log.notifications")
 
-    op.add_column('notifications', sa.Column('payload', postgresql.JSONB(), nullable=True), schema='reference')
-    op.drop_column('notifications', 'is_read', schema='reference')
-    op.drop_column('user_notifications', 'is_read', schema='reference')
+    op.execute(
+        """
+        ALTER TABLE reference.notifications
+        ADD COLUMN IF NOT EXISTS payload JSONB
+        """
+    )
+    op.execute(
+        """
+        ALTER TABLE reference.notifications
+        DROP COLUMN IF EXISTS is_read
+        """
+    )
+    op.execute(
+        """
+        ALTER TABLE reference.user_notifications
+        DROP COLUMN IF EXISTS is_read
+        """
+    )
 
 
 def downgrade() -> None:

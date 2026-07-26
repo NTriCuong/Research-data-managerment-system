@@ -21,11 +21,12 @@ import {
   ScrollText,
   UserRoundSearch,
   Users,
-  ListTodo
+  ListTodo,
+  CircleGauge
 } from "lucide-react";
 
 const items_data_entry: AppSidebarItem[] = [
-  { label: "Tổng quan", href: "/dashboard/data-entry/researches", icon: House },
+  { label: "Tổng quan", href: "/dashboard/data-entry/researches", icon: CircleGauge },
   { label: "Nghiên cứu mới", href: "/dashboard/data-entry/new-entry", icon: Plus },
 ];
 
