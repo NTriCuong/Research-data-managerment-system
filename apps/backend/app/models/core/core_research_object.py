@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import TIMESTAMP, Boolean, CheckConstraint, Date, ForeignKey, Integer, Numeric, String, Text, text
+from sqlalchemy import TIMESTAMP, BigInteger, Boolean, CheckConstraint, Date, ForeignKey, Integer, Numeric, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -13,6 +13,8 @@ class CoreResearchObject(Base):
     __tablename__ = "research_objects"
     __table_args__ = (
         CheckConstraint("year BETWEEN 1900 AND 2100", name="ck_core_year_range"),
+        CheckConstraint("view_count >= 0", name="ck_core_research_objects_view_count_nonnegative"),
+        CheckConstraint("download_count >= 0", name="ck_core_research_objects_download_count_nonnegative"),
         {"schema": "core"},
     )
 
@@ -38,6 +40,8 @@ class CoreResearchObject(Base):
     access_level: Mapped[AccessLevel] = mapped_column(AccessLevelType, nullable=False, server_default="internal")
     metadata_quality_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True, server_default="0")
     metadata_quality_detail: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    view_count: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0")
+    download_count: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0")
     search_vector: Mapped[str | None] = mapped_column(TSVECTOR, nullable=True)
     version_no: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")

@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 
 from app.core.exceptions import AppException, BadRequestException, ForbiddenException, NotFoundException
@@ -33,6 +32,7 @@ from app.schemas.staging_metadata import (
     WorkflowHistoryOut,
 )
 from app.services.logs.audit_service import audit_service
+from app.services.metadata_quality import calculate_staging_metadata_quality
 from app.services.storage.file_service import file_service
 from app.services.logs.workflow_service import workflow_service
 from app.services.notification.notification_service import notification_service, push_to_roles
@@ -124,24 +124,9 @@ class StagingService:
         return resolved
 
     def _recalculate_metadata_quality(self, staging_obj: StgResearchObject) -> None:
-        checks: dict[str, bool] = {
-            "title": bool(staging_obj.title and staging_obj.title.strip()),
-            "output_type_id": staging_obj.output_type_id is not None,
-            "department_id": staging_obj.department_id is not None,
-            "year": staging_obj.year is not None and 1900 <= staging_obj.year <= datetime.now(timezone.utc).year,
-            "access_level": staging_obj.access_level is not None,
-            "authors": len(staging_obj.authors) > 0,
-            "domains": len(staging_obj.domains) > 0,
-            "keywords": len(staging_obj.keywords) > 0,
-        }
-        passed = sum(1 for ok in checks.values() if ok)
-        score = (Decimal(passed) * Decimal("100")) / Decimal(len(checks))
-        staging_obj.metadata_quality_score = score.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        staging_obj.metadata_quality_detail = {
-            "passed": passed,
-            "total": len(checks),
-            "checks": checks,
-        }
+        score, detail = calculate_staging_metadata_quality(staging_obj)
+        staging_obj.metadata_quality_score = score
+        staging_obj.metadata_quality_detail = detail
 
     def _assert_editable(self, staging_obj: StgResearchObject, user: User) -> None:
         if staging_obj.created_by != user.user_id and user.role.role_code != "SUPER_ADMIN":
@@ -311,6 +296,7 @@ class StagingService:
         )
         obj = await repo.get_by_id(obj.staging_id, with_relations=True) or obj
         self._recalculate_metadata_quality(obj)
+        await db.flush()
         await db.refresh(obj)
         return StagingResearchObjectOut.model_validate(obj)
 
@@ -693,6 +679,7 @@ class StagingService:
         )
         revision = await repo.get_by_id(revision.staging_id, with_relations=True) or revision
         self._recalculate_metadata_quality(revision)
+        await db.flush()
         await db.refresh(revision)
         return StagingResearchObjectOut.model_validate(revision)
 
@@ -749,6 +736,7 @@ class StagingService:
             new_value={"filename": uploaded["original_filename"], "workflow_status": obj.workflow_status.value},
             message="Uploaded staging evidence file metadata",
         )
+        obj = await repo.get_by_id(staging_id, with_relations=True) or obj
         self._recalculate_metadata_quality(obj)
         await db.refresh(file_obj)
         return StagingFileOut.model_validate(file_obj)
@@ -794,7 +782,7 @@ class StagingService:
         current_user: User,
     ) -> MessageResponse:
         repo = StagingRepository(db)
-        obj = await repo.get_by_id(staging_id)
+        obj = await repo.get_by_id(staging_id, with_relations=True)
         if obj is None or obj.deleted_at is not None:
             raise NotFoundException("Không tìm thấy bản ghi tạm")
         self._assert_editable(obj, current_user)
@@ -816,6 +804,7 @@ class StagingService:
             new_value={"file_status": FileStatus.deleted.value},
             message="Soft deleted staging evidence file",
         )
+        self._recalculate_metadata_quality(obj)
         return MessageResponse(message="Xóa tệp thành công")
 
     async def list_staging_workflow_history(

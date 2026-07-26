@@ -106,6 +106,7 @@ def _pending_staging_record(**overrides):
         "metadata_quality_score": None,
         "metadata_quality_detail": None,
         "update_reason": None,
+        "created_by": uuid4(),
         "authors": [
             _relation(
                 researcher_id=uuid4(),
@@ -164,6 +165,8 @@ def no_log_side_effects(monkeypatch):
 
     monkeypatch.setattr(approve_service_module.workflow_service, "write_history", _noop)
     monkeypatch.setattr(approve_service_module.audit_service, "write_log", _noop)
+    monkeypatch.setattr(approve_service_module.notification_service, "notify_user", _noop)
+    monkeypatch.setattr(approve_service_module, "push_to_users", _noop)
 
 
 def _fake_db_provider():
@@ -244,6 +247,13 @@ def test_approver_can_approve_record(client, sample_user, monkeypatch):
     assert captured["payload"].access_level.value == "private"
     assert captured["payload"].file_access_levels[0].file_id == staging_id
     assert captured["payload"].file_access_levels[0].access_level.value == "internal"
+
+
+def test_approve_request_allows_access_level_to_be_omitted():
+    payload = ApproveRequest(note="Use the staging access level")
+
+    assert payload.access_level is None
+    assert payload.file_access_levels == []
 
 
 @pytest.mark.anyio

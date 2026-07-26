@@ -10,6 +10,7 @@ export const API_ENDPOINT = {
         CREATE_METADATA: '/api/v1/staging-metadata',
         GET_METADATA_BY_STAGINGID: '/api/v1/staging-metadata', // dùng path param
         UPDATE_METADATA: (stagingId: string) => `/api/v1/staging-metadata/${stagingId}`,
+        DELETE_DRAFT: (stagingId: string) => `/api/v1/staging-metadata/${stagingId}`,
         SUBMIT_FOR_REVIEW: (stagingId: string) => `/api/v1/staging-metadata/${stagingId}/submit`,
         FILES: (stagingId: string) => `/api/v1/staging-metadata/${stagingId}/files`,
         DELETE_FILE: (stagingId: string, fileId: string) => `/api/v1/staging-metadata/${stagingId}/files/${fileId}`,

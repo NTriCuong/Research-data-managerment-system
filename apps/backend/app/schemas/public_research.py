@@ -52,6 +52,8 @@ class PublicResearchListItemOut(BaseModel):
     version_no: int
     approved_at: datetime
     metadata_quality_score: Decimal | None
+    view_count: int
+    download_count: int
 
 
 class PublicResearchListOut(BaseModel):

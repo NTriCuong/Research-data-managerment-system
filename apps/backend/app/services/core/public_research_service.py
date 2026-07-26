@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -147,6 +147,8 @@ class PublicResearchService:
             version_no=core_obj.version_no,
             approved_at=core_obj.approved_at,
             metadata_quality_score=core_obj.metadata_quality_score,
+            view_count=core_obj.view_count,
+            download_count=core_obj.download_count,
         )
 
     async def list_public_researches(
@@ -198,6 +200,15 @@ class PublicResearchService:
         if core_obj is None:
             raise NotFoundException("Không tìm thấy bài nghiên cứu public")
 
+        core_obj.view_count = (
+            await db.execute(
+                update(CoreResearchObject)
+                .where(CoreResearchObject.research_id == research_id)
+                .values(view_count=CoreResearchObject.view_count + 1)
+                .returning(CoreResearchObject.view_count)
+            )
+        ).scalar_one()
+
         active_public_files = [
             item
             for item in sorted(core_obj.file_attachments, key=lambda file: file.uploaded_at, reverse=True)
@@ -244,12 +255,19 @@ class PublicResearchService:
         if file_obj.mime_type != "application/pdf" and file_obj.file_extension != ".pdf":
             raise BadRequestException("Chỉ hỗ trợ download file PDF")
 
+        download_url = create_presigned_download_url(
+            object_key=file_obj.storage_path,
+            filename=file_obj.original_filename,
+            expires_in=DOWNLOAD_URL_TTL_SECONDS,
+        )
+        await db.execute(
+            update(CoreResearchObject)
+            .where(CoreResearchObject.research_id == research_id)
+            .values(download_count=CoreResearchObject.download_count + 1)
+        )
+
         return PublicResearchDownloadOut(
-            download_url=create_presigned_download_url(
-                object_key=file_obj.storage_path,
-                filename=file_obj.original_filename,
-                expires_in=DOWNLOAD_URL_TTL_SECONDS,
-            ),
+            download_url=download_url,
             expires_in=DOWNLOAD_URL_TTL_SECONDS,
         )
 

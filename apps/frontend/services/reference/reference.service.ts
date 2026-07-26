@@ -423,6 +423,13 @@ export const referenceService = {
 
         return response.data;
     },
+    async deleteDraft(stagingId: string) {
+        const response = await axiosInstance.delete(
+            API_ENDPOINT.DATA_ENTRY.DELETE_DRAFT(stagingId)
+        );
+
+        return response.data;
+    },
     submitForReview: (stagingId: string, note: string) => {
         return axiosInstance.post(
             API_ENDPOINT.DATA_ENTRY.SUBMIT_FOR_REVIEW(stagingId),

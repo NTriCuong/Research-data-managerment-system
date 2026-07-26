@@ -140,7 +140,7 @@ class CoreApproveService:
             raise NotFoundException("Không tìm thấy bản ghi tạm")
 
         self._assert_pending_approval(staging_obj.workflow_status)
-        access_level = payload.access_level or staging_obj.access_level
+        access_level = staging_obj.access_level
         unknown_file_ids = set(file_access_levels) - {file_obj.file_id for file_obj in staging_obj.file_attachments}
         if unknown_file_ids:
             raise BadRequestException("Một hoặc nhiều file_access_levels tham chiếu đến tệp không thuộc bản ghi tạm này")

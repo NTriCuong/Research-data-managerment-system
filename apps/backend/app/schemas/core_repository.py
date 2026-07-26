@@ -61,6 +61,8 @@ class CoreResearchObjectListOut(BaseModel):
     year: int | None
     access_level: AccessLevel
     metadata_quality_score: Decimal | None
+    view_count: int
+    download_count: int
     version_no: int
     is_current: bool
     approved_by: UUID

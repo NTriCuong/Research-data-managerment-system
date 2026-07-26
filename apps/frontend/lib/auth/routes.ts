@@ -3,6 +3,9 @@ export const PUBLIC_ROUTES = [
     "/login",
     "/register",
     "/about",
+    "/rules", 
+    "/guide", 
+    "/contact-details",
     "/change-password",
     "/verify-otp",
 ];

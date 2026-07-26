@@ -10,12 +10,17 @@ import { Button } from "@/components/ui/button"
 import { useAppSelector } from "@/lib/hooks/hooks"
 import { getRoleHomePath } from "@/lib/auth/routes"
 import { selectCurrentUser, selectIsAuthenticated } from "@/store/slice/auth.slice"
+import { cn } from "@/lib/utils"
 
 export function PublicShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname()
     const currentUser = useAppSelector(selectCurrentUser)
     const isAuthenticated = useAppSelector(selectIsAuthenticated)
     const dashboardHref = currentUser ? getRoleHomePath(currentUser.role_name) : "/dashboard"
+    const utilityLinkClass = (href: string) => cn(
+        "transition-colors hover:text-foreground",
+        pathname.startsWith(href) && "font-semibold text-foreground"
+    )
 
     return (
         <div className="flex min-h-screen flex-col bg-background">
@@ -23,9 +28,9 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
                 <div className="border-b border-gray-100 bg-white text-xs md:text-sm text-muted-foreground">
                     <div className="mx-auto flex h-10 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
                         <div className="flex gap-4">
-                            <Link href="/lien-he" className="hover:text-foreground transition-colors">Liên hệ</Link>
-                            <Link href="/quy-dinh" className="hover:text-foreground transition-colors">Quy định</Link>
-                            <Link href="/huong-dan" className="hover:text-foreground transition-colors">Hướng dẫn</Link>
+                            <Link href="/contact-details" className={utilityLinkClass("/lien-he")}>Liên hệ</Link>
+                            <Link href="/rules" className={utilityLinkClass("/quy-dinh")}>Quy định</Link>
+                            <Link href="/guide" className={utilityLinkClass("/huong-dan")}>Hướng dẫn</Link>
                         </div>
                         <div className="flex items-center gap-4">
                             <span className="text-gray-300">|</span>
@@ -43,7 +48,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
                             <Link href="/">Trang chủ</Link>
                         </Button>
                         <Button asChild variant={pathname.startsWith("/gioi-thieu") ? "secondary" : "ghost"} size="lg">
-                            <Link href="/gioi-thieu">Giới thiệu</Link>
+                            <Link href="/about">Giới thiệu</Link>
                         </Button>
                         <Button asChild variant={pathname.startsWith("/researches") ? "secondary" : "ghost"} size="lg">
                             <Link href="/researches">Bộ lọc</Link>
@@ -70,16 +75,16 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
             <footer className="border-t border-border bg-blue-400">
                 <div className="mx-auto grid w-full max-w-7xl gap-6 px-8 py-18 text-sm text-muted-foreground sm:px-6 md:grid-cols-4 lg:px-8">
                     <div>
-                        <p className="font-semibold text-amber-50">Phòng khoa học công nghệ</p>
+                        <p className="font-semibold text-amber-50">Phòng quản lý khoa học & sau đại học</p>
                         <p className="mt-2 text-amber-50">Trường Đại học Công nghệ Sài Gòn</p>
                     </div>
                     <div>
-                        <p className="font-medium text-amber-50">Liên hệ</p>
+                        <p className="font-semibold text-amber-50">Liên hệ</p>
                         <p className="mt-2 text-amber-50">Email: qlkh@stu.edu.vn</p>
                         <p className="text-amber-50">Điện thoại: (84.8) 3850 5520 - Ext: 206</p>
                     </div>
                     <div>
-                        <p className="font-medium text-amber-50">Địa chỉ</p>
+                        <p className="font-semibold text-amber-50">Địa chỉ</p>
                         <p className="mt-2 text-amber-50">180 Cao Lỗ, Phường 4, Quận 8, TP. Hồ Chí Minh</p>
                         <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3919.9544104264664!2d106.67525180913164!3d10.73799718936426!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x31752f62a90e5dbd%3A0x674d5126513db295!2zVHLGsOG7nW5nIMSQ4bqhaSBo4buNYyBDw7RuZyBuZ2jhu4cgU8OgaSBHw7Ju!5e0!3m2!1svi!2s!4v1783740818310!5m2!1svi!2s" className="mt-2 h-28 w-full border border-gray-300" ></iframe>
                     </div>
