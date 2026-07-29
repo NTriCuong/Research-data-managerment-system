@@ -36,12 +36,12 @@ services:
 
     networks:
 
-      - amaz-network
+      - rdms-network
 
     restart:
       unless-stopped
 networks:
 
-  amaz-network:
+  rdms-network:
 
     external: true
