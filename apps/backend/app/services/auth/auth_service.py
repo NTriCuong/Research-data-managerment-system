@@ -83,11 +83,11 @@ class AuthService:
         """Xác thực người dùng. Trả về (access_token, raw_refresh_token, user).
         Client phải đặt raw_refresh_token làm cookie HttpOnly.
         """
-        self._validate_token_lifetime_policy()
+        self._validate_token_lifetime_policy() # kiểm tra thời hạng token đã đúng chưa access token là 30p còn refresh là 7 ngày
         repo = AuthRepository(db)
-        user = await repo.find_user_by_email_or_username_with_role(username)
+        user = await repo.find_user_by_email_or_username_with_role(username) # tìm user
 
-        async def _log(login_result: str, reason: str | None = None) -> None:
+        async def _log(login_result: str, reason: str | None = None) -> None: # khai báo 1 hàm log để dùng chung 
             await login_log_service.write_log(
                 db,
                 login_result=login_result,
@@ -97,38 +97,38 @@ class AuthService:
                 ip_address=ip_address,
                 user_agent=user_agent,
             )
-
+# kiểm tra user 
         if user is None: 
-            await _log("failed", "user_not_found")
-            raise UnauthorizedException("Thông tin đăng nhập không hợp lệ")
+            await _log("failed", "Thông tin đăng nhập không hợp lệ")
+            raise UnauthorizedException("Thông tin người dùng đăng nhập không tồn tại")
 
         if user.deleted_at is not None:
-            await _log("failed", "account_deleted")
+            await _log("failed", "Tài khoản đã bị xóa")
             raise ForbiddenException("Tài khoản đã bị xóa")
 
         if user.status != UserStatus.active:
-            await _log("failed", "account_disabled")
+            await _log("failed", "Tài khoản đã bị vô hiệu hóa")
             raise ForbiddenException("Tài khoản đã bị vô hiệu hóa")
 
 
 
-        # Brute-force lockout
+        # Brute-force lockout tạm khoá thời gian lock_duration và max_login_attempts số lần tối đa sai mật khẩu 
         window_start = datetime.now(timezone.utc) - timedelta(minutes=settings.LOCK_DURATION)
         fail_count = await repo.count_failed_logins_since(user_id=user.user_id, window_start=window_start)
         if fail_count >= settings.MAX_LOGIN_ATTEMPTS:
-            await _log("failed", "account_locked")
+            await _log("failed", "Tài khoản bị tạm khoá do sai mật khẩu quá nhiều lần")
             raise TooManyRequestsException(
                 f"Đăng nhập thất bại quá nhiều lần. Vui lòng thử lại sau {settings.LOCK_DURATION} phút."
             )
 
         if not verify_password(password, user.password_hash): #kiểm tra với password hash trong db
-            await _log("failed", "wrong_password")
+            await _log("failed", "Thông tin đăng nhập không hợp lệ")
             raise UnauthorizedException("Thông tin đăng nhập không hợp lệ")
 
         # Issue tokens
         user.last_login_at = datetime.now(timezone.utc) # cập nhật thời gian đăng nhập cuối cùng
 
-        raw_rt, hashed_rt = create_refresh_token()
+        raw_rt, hashed_rt = create_refresh_token() # hàm trả về một tuple gồm 2 phần tử raw_rt(raw refresh token), hashed_rt(chuỗi hash của token)
         await repo.add_refresh_token(
             user_id=user.user_id,
             issued_at=datetime.now(timezone.utc), #token đươcj tạo lúc nào hay đăng nhập lúc nào 
@@ -155,7 +155,6 @@ class AuthService:
         role_id: UUID,
         department_id: UUID | None = None,
     ) -> User:
-        """Create a new user. Raises 409 if username or email is already taken."""
         repo = AuthRepository(db)
         if await repo.find_duplicate_user(username=username, email=email):
             raise ConflictException("Tên đăng nhập hoặc email đã tồn tại")
@@ -184,7 +183,7 @@ class AuthService:
 
         return user
 
-    # ── refresh_token ─────────────────────────────────────────────────────────
+    # ── refresh_token cấp session mới cho user ─────────────────────────────────────────────────────────
 
     async def refresh_token(
         self,
@@ -195,13 +194,16 @@ class AuthService:
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> tuple[str, str]:
-        """Token rotation: revoke old refresh token, issue new access + refresh pair.
-        Returns (new_access_token, new_raw_refresh_token).
+        """Xoay vòng token: thu hồi token làm mới cũ, cấp cặp token truy cập + làm mới mới.
+Trả về (new_access_token, new_raw_refresh_token).
         """
         repo = AuthRepository(db)
         self._validate_token_lifetime_policy()
+
         db_token.revoked_at = datetime.now(timezone.utc)
+
         raw_rt, hashed_rt = create_refresh_token()
+        
         await repo.add_refresh_token(
             user_id=user.user_id,
             issued_at=datetime.now(timezone.utc),

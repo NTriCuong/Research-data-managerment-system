@@ -41,7 +41,7 @@ ALLOWED_REFERENCE_CREATE_ROLES = ("SUPER_ADMIN", "DATA_ENTRY")
 async def list_departments(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)),
+    _: User = Depends(require_roles(*ALLOWED_REFERENCE_READ_ROLES)), # trong require_roles đã có kiểm tra curent_active_user rồi
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedResponse[DepartmentOut]:
     items, total = await department_service.list_departments(db, page=page, page_size=page_size)
