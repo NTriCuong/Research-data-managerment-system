@@ -6,11 +6,11 @@ from app.core.exceptions import ForbiddenException
 from app.models.auth.user import User
 from app.services.auth.deps import get_current_active_user
 
-
+ # lấy user
 async def get_current_user(current_user: User = Depends(get_current_active_user)) -> User:
     return current_user
 
-
+# RBAC truyền vào danh sách role trực tiếp
 def require_roles(*role_codes: str):
     allowed = set(role_codes)
 
@@ -21,8 +21,3 @@ def require_roles(*role_codes: str):
         return current_user
 
     return dependency
-
-
-def has_role(user: User, role_codes: Iterable[str]) -> bool:
-    user_role_code = user.role.role_code if user.role else None
-    return user_role_code in set(role_codes)

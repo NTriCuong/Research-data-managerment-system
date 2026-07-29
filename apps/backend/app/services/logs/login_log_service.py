@@ -21,20 +21,17 @@ class LoginLogService:
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> None:
-        try:
-            db.add(
-                LoginLog(
-                    user_id=user_id,
-                    username_attempted=username_attempted or "",
-                    login_result=login_result,
-                    failure_reason=failure_reason,
-                    ip_address=ip_address,
-                    user_agent=user_agent,
-                )
+        db.add(
+            LoginLog(
+                user_id=user_id,
+                username_attempted=username_attempted or "",
+                login_result=login_result,
+                failure_reason=failure_reason,
+                ip_address=ip_address,
+                user_agent=user_agent,
             )
-        except Exception:
-            logger.exception("Failed to write login log")
-            raise
+        )
+        await db.commit() #commit để dù cho log thất bại code trả exception thì dòng log vừa đwocj insert không bị mất
 
 login_log_service = LoginLogService()
 
