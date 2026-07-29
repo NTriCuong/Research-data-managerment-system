@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import AddKeywordModal from "./add-keyword-modal";
 import AddDomainModal from "./add-research-domain-modal";
 import AsyncSelect from "react-select/async";
-import { ArrowLeft, FileText, CalendarRange, Tags, Users, Paperclip, Loader2, Trash2, Upload, X, type LucideIcon } from "lucide-react";
+import { FileText, CalendarRange, Tags, Users, Paperclip, Loader2, Trash2, Upload, X, type LucideIcon } from "lucide-react";
 import {
     Attachment,
     AttachmentAction,
@@ -21,7 +21,6 @@ import {
     AttachmentMedia,
     AttachmentTitle,
 } from "@/components/ui/attachment";
-import {Spinner} from "@/components/ui/spinner";
 
 const AUTHOR_ROLES = [
     { value: "creator", label: "Người tạo (tác giả chính)" },
@@ -107,7 +106,7 @@ function FormSectionCard({
                 <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
                     <Icon size={18} className="text-gray-400" />
                     {title}
-                </h2>   
+                </h2>
                 {action}
             </div>
             {children}
@@ -582,7 +581,7 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                                 className="w-full rounded-lg border px-3 py-2"
                                 value={formData.department_id}
                                 onChange={(e) =>
-                                    setFormData((prev) => ({    
+                                    setFormData((prev) => ({
                                         ...prev,
                                         department_id: e.target.value,
                                     }))
@@ -1243,18 +1242,6 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
                     <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
                         <h2 className="text-lg font-semibold">Gửi yêu cầu kiểm duyệt</h2>
-
-                        <p className="mt-2 text-sm text-gray-500">
-                            Ghi chú gửi kèm
-                        </p>
-
-                        <textarea
-                            className="mt-4 w-full rounded-lg border p-2"
-                            rows={4}
-                            value={submitNote}
-                            onChange={(e) => setSubmitNote(e.target.value)}
-                            placeholder="Nhập ghi chú..."
-                        />
 
                         <div className="mt-5 flex justify-end gap-3">
                             <button

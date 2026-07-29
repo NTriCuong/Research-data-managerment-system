@@ -184,16 +184,6 @@ export default function ApprovalResearchDetailPage() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
                     <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-lg">
                         <h2 className="text-lg font-semibold">Duyệt bản ghi vào core</h2>
-
-                        <p className="mt-4 text-sm font-medium text-gray-700">Ghi chú (không bắt buộc)</p>
-                        <textarea
-                            className="mt-2 w-full rounded-lg border p-2"
-                            rows={3}
-                            value={approveNote}
-                            onChange={(e) => setApproveNote(e.target.value)}
-                            placeholder="Nhập ghi chú..."
-                        />
-
                         <div className="mt-5 flex justify-end gap-3">
                             <button
                                 className="cursor-pointer rounded-lg border px-4 py-2"
