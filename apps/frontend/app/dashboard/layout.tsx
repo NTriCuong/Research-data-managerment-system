@@ -7,7 +7,6 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import {
   SidebarInset,
   SidebarProvider,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useAppSelector } from "@/lib/hooks/hooks";
 import { selectCurrentUser } from "@/store/slice/auth.slice";
@@ -22,7 +21,8 @@ import {
   UserRoundSearch,
   Users,
   ListTodo,
-  CircleGauge
+  CircleGauge,
+  ShieldCheck
 } from "lucide-react";
 
 const items_data_entry: AppSidebarItem[] = [
@@ -35,7 +35,8 @@ const items_reviewer: AppSidebarItem[] = [
 ];
 
 const items_approver: AppSidebarItem[] = [
-  { label: "Kiểm duyệt", href: "/dashboard/approval/researches", icon: ListTodo },
+  { label: "Phê duyệt", href: "/dashboard/approval/researches", icon: ListTodo },
+  { label: "Quyền truy cập", href: "/dashboard/approval/file-permissions", icon: ShieldCheck },
 ];
 
 const items_super_admin: AppSidebarItem[] = [

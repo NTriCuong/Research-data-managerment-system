@@ -3,6 +3,7 @@ from email import message
 from uuid import UUID
 
 from app.core.exceptions import BadRequestException, NotFoundException
+from app.core.access_levels import is_access_level_allowed
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -140,10 +141,20 @@ class CoreApproveService:
             raise NotFoundException("Không tìm thấy bản ghi tạm")
 
         self._assert_pending_approval(staging_obj.workflow_status)
-        access_level = staging_obj.access_level
+        access_level = payload.access_level or staging_obj.access_level
         unknown_file_ids = set(file_access_levels) - {file_obj.file_id for file_obj in staging_obj.file_attachments}
         if unknown_file_ids:
             raise BadRequestException("Một hoặc nhiều file_access_levels tham chiếu đến tệp không thuộc bản ghi tạm này")
+        for file_obj in staging_obj.file_attachments:
+            target_file_access_level = file_access_levels.get(
+                file_obj.file_id,
+                file_obj.access_level or access_level,
+            )
+            if not is_access_level_allowed(target_file_access_level, access_level):
+                raise BadRequestException(
+                    f"Quyền truy cập của tệp '{file_obj.original_filename}' "
+                    "không được cao hơn quyền truy cập của bài nghiên cứu"
+                )
 
         now = datetime.now(timezone.utc)
         previous_status = staging_obj.workflow_status

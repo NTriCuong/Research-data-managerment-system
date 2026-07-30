@@ -30,9 +30,22 @@ export interface StagingResearchObject {
 }
 
 export const dataEntryService = {
-    // get research do data entry thêm
-    async getResearchData() {
-        const response = await axiosInstance.get<StagingResearchObject[]>(API_ENDPOINT.DATA_ENTRY.GET_RESEARCH_DATA)
+    async getResearchData(limit = 100, offset = 0) {
+        const response = await axiosInstance.get<StagingResearchObject[]>(
+            API_ENDPOINT.DATA_ENTRY.GET_RESEARCH_DATA,
+            { params: { limit, offset } }
+        )
         return response.data
-    }
+    },
+
+    async createRevision(researchId: string, updateReason: string) {
+        const response = await axiosInstance.post<StagingResearchObject>(
+            API_ENDPOINT.DATA_ENTRY.CREATE_REVISION,
+            {
+                research_id: researchId,
+                update_reason: updateReason,
+            }
+        )
+        return response.data
+    },
 }

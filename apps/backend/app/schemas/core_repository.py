@@ -39,6 +39,14 @@ class CoreFileOut(BaseModel):
     access_level: AccessLevel
 
 
+class CoreFileAccessLevelUpdate(BaseModel):
+    access_level: AccessLevel
+
+
+class CoreResearchAccessLevelUpdate(BaseModel):
+    access_level: AccessLevel
+
+
 class CoreMetadataVersionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

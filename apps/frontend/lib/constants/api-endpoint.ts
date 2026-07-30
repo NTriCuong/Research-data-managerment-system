@@ -12,6 +12,7 @@ export const API_ENDPOINT = {
         UPDATE_METADATA: (stagingId: string) => `/api/v1/staging-metadata/${stagingId}`,
         DELETE_DRAFT: (stagingId: string) => `/api/v1/staging-metadata/${stagingId}`,
         SUBMIT_FOR_REVIEW: (stagingId: string) => `/api/v1/staging-metadata/${stagingId}/submit`,
+        CREATE_REVISION: '/api/v1/staging-metadata/revisions',
         FILES: (stagingId: string) => `/api/v1/staging-metadata/${stagingId}/files`,
         DELETE_FILE: (stagingId: string, fileId: string) => `/api/v1/staging-metadata/${stagingId}/files/${fileId}`,
     },
@@ -27,8 +28,13 @@ export const API_ENDPOINT = {
     },
     CORE_REPOSITORY: {
         GET: '/api/v1/core-repository',
+        GET_MINE: '/api/v1/core-repository/mine',
         GET_DETAIL: (researchId: string) => `/api/v1/core-repository/${researchId}`,
+        UPDATE_ACCESS_LEVEL: (researchId: string) =>
+            `/api/v1/core-repository/${researchId}/access-level`,
         FILES: (researchId: string) => `/api/v1/core-repository/${researchId}/files`,
+        UPDATE_FILE_ACCESS_LEVEL: (researchId: string, fileId: string) =>
+            `/api/v1/core-repository/${researchId}/files/${fileId}/access-level`,
         VERSIONS: (researchId: string) => `/api/v1/core-repository/${researchId}/versions`,
     },
     // reference dùng chung 

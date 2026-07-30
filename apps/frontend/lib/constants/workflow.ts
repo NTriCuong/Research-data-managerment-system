@@ -27,3 +27,18 @@ export const ACCESS_LEVEL_BADGE_CLASS: Record<string, string> = {
     internal: 'bg-blue-50 text-blue-600',
     public: 'bg-green-50 text-green-600',
 }
+
+export const ACCESS_LEVEL_VALUES = ['private', 'internal', 'public'] as const
+
+const ACCESS_LEVEL_RANK: Record<(typeof ACCESS_LEVEL_VALUES)[number], number> = {
+    private: 0,
+    internal: 1,
+    public: 2,
+}
+
+export function isAccessLevelAllowed(
+    resourceAccessLevel: (typeof ACCESS_LEVEL_VALUES)[number],
+    containerAccessLevel: (typeof ACCESS_LEVEL_VALUES)[number]
+) {
+    return ACCESS_LEVEL_RANK[resourceAccessLevel] <= ACCESS_LEVEL_RANK[containerAccessLevel]
+}

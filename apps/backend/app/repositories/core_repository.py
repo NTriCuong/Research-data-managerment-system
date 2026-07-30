@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.core.core_research_object import CoreResearchObject
+from app.models.staging.stg_research_object import StgResearchObject
 
 
 class CoreRepository:
@@ -15,6 +16,27 @@ class CoreRepository:
         result = await self.db.execute(
             select(CoreResearchObject)
             .where(CoreResearchObject.deleted_at.is_(None))
+            .order_by(CoreResearchObject.approved_at.desc(), CoreResearchObject.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        return result.scalars().all()
+
+    async def list_core_records_by_creator(
+        self,
+        *,
+        creator_id: UUID,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> list[CoreResearchObject]:
+        result = await self.db.execute(
+            select(CoreResearchObject)
+            .join(
+                StgResearchObject,
+                StgResearchObject.staging_id == CoreResearchObject.source_staging_id,
+            )
+            .where(CoreResearchObject.deleted_at.is_(None))
+            .where(StgResearchObject.created_by == creator_id)
             .order_by(CoreResearchObject.approved_at.desc(), CoreResearchObject.created_at.desc())
             .offset(offset)
             .limit(limit)

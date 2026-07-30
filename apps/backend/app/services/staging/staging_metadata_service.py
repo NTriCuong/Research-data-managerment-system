@@ -595,6 +595,12 @@ class StagingService:
         if core_obj is None:
             raise NotFoundException("Không tìm thấy đối tượng nghiên cứu core")
 
+        active_revision = await repo.get_active_revision_for_core(research_id=core_obj.research_id)
+        if active_revision is not None:
+            raise BadRequestException(
+                "Bản ghi đã có một phiên bản cập nhật đang chờ xử lý"
+            )
+
         revision = StgResearchObject(
             title=core_obj.title,
             output_type_id=core_obj.output_type_id,

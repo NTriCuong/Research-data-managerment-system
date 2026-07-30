@@ -168,7 +168,7 @@ export default function ApprovalResearches() {
                 <div>
                     <h1 className="text-2xl font-semibold text-gray-900">Chờ phê duyệt</h1>
                     <p className="mt-1 text-sm text-gray-500">
-                        {dataResearch.length} tài liệu đang chờ phê duyệt
+                        {dataResearch.length} tài liệu đang chờ phê duyệt và công bố
                     </p>
                 </div>
 

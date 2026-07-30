@@ -86,6 +86,14 @@ export const coreRepositoryService = {
         return response.data
     },
 
+    async listMyCoreRecords(limit = 100, offset = 0) {
+        const response = await axiosInstance.get<CoreResearchObject[]>(
+            API_ENDPOINT.CORE_REPOSITORY.GET_MINE,
+            { params: { limit, offset } }
+        )
+        return response.data
+    },
+
     async getCoreRecord(researchId: string) {
         const response = await axiosInstance.get<CoreResearchObjectDetail>(
             API_ENDPOINT.CORE_REPOSITORY.GET_DETAIL(researchId)
@@ -93,8 +101,24 @@ export const coreRepositoryService = {
         return response.data
     },
 
+    async updateCoreResearchAccessLevel(researchId: string, accessLevel: AccessLevel) {
+        const response = await axiosInstance.patch<CoreResearchObject>(
+            API_ENDPOINT.CORE_REPOSITORY.UPDATE_ACCESS_LEVEL(researchId),
+            { access_level: accessLevel }
+        )
+        return response.data
+    },
+
     async listCoreFiles(researchId: string) {
         const response = await axiosInstance.get<CoreFile[]>(API_ENDPOINT.CORE_REPOSITORY.FILES(researchId))
+        return response.data
+    },
+
+    async updateCoreFileAccessLevel(researchId: string, fileId: string, accessLevel: AccessLevel) {
+        const response = await axiosInstance.patch<CoreFile>(
+            API_ENDPOINT.CORE_REPOSITORY.UPDATE_FILE_ACCESS_LEVEL(researchId, fileId),
+            { access_level: accessLevel }
+        )
         return response.data
     },
 

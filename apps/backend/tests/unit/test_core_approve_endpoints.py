@@ -7,6 +7,7 @@ from sqlalchemy.dialects import postgresql
 from app.api.v1.endpoints import core_approve as approve_endpoint
 from app.api.v1.endpoints import search as search_endpoint
 from app.core.config import settings
+from app.core.exceptions import BadRequestException
 from app.database.session import get_db
 from app.models.core.core_metadata_version import CoreMetadataVersion
 from app.models.core.core_research_object import CoreResearchObject
@@ -306,6 +307,43 @@ async def test_approve_revision_creates_metadata_version_for_new_snapshot(sample
     assert versions[0].metadata_snapshot["title"] == "Revised approved title"
     assert versions[0].metadata_snapshot["version_no"] == 2
     assert versions[0].change_reason == "Correct approved metadata"
+
+
+@pytest.mark.anyio
+async def test_approve_rejects_file_access_above_research_access(sample_user, monkeypatch):
+    file_id = uuid4()
+    staging_obj = _pending_staging_record(
+        access_level=AccessLevel.internal,
+        file_attachments=[
+            _relation(
+                file_id=file_id,
+                original_filename="public-evidence.pdf",
+                access_level=AccessLevel.public,
+            )
+        ],
+    )
+    _FakeCoreApproveRepository.staging_obj = staging_obj
+    _FakeCoreApproveRepository.core_obj = None
+    monkeypatch.setattr(approve_service_module, "CoreApproveRepository", _FakeCoreApproveRepository)
+
+    with pytest.raises(
+        BadRequestException,
+        match="không được cao hơn quyền truy cập của bài nghiên cứu",
+    ):
+        await core_approve_service.approve_record(
+            _ServiceFakeDbSession(),
+            staging_id=staging_obj.staging_id,
+            payload=ApproveRequest(
+                access_level=AccessLevel.internal,
+                file_access_levels=[
+                    {
+                        "file_id": file_id,
+                        "access_level": AccessLevel.public,
+                    }
+                ],
+            ),
+            current_user=sample_user,
+        )
 
 
 def test_approver_can_reject_record(client, sample_user, monkeypatch):
