@@ -2,111 +2,29 @@ services:
   postgres:
     image: postgres:16
     container_name: rdms-postgres
-    restart: unless-stopped
-    env_file:
-      - .env
+    restart: always
+
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+
     ports:
       - "${POSTGRES_PORT}:5432"
+
     volumes:
-      - rdms_postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+
     networks:
       - rdms-network
 
-  rabbitmq:
-    image: rabbitmq:3-management
-    container_name: rdms-rabbitmq
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
-    ports:
-      - "${RABBITMQ_PORT}:5672"
-      - "${RABBITMQ_MANAGEMENT_PORT}:15672"
-    networks:
-      - rdms-network
-
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
-    container_name: rdms-elasticsearch
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      discovery.type: single-node
-      xpack.security.enabled: "${ELASTICSEARCH_SECURITY_ENABLED}"
-      ES_JAVA_OPTS: "${ES_JAVA_OPTS}"
-    ports:
-      - "${ELASTICSEARCH_PORT}:9200"
-    volumes:
-      - rdms_elasticsearch_data:/usr/share/elasticsearch/data
-    networks:
-      - rdms-network
-
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.15.3
-    container_name: rdms-kibana
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      ELASTICSEARCH_HOSTS: ${ELASTICSEARCH_HOSTS}
-    ports:
-      - "${KIBANA_PORT}:5601"
-    depends_on:
-      - elasticsearch
-    networks:
-      - rdms-network
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: rdms-backend
-    restart: unless-stopped
-    env_file:
-      - ./backend/.env
-    ports:
-      - "${BACKEND_PORT}:8000"
-    depends_on:
-      - postgres
-      - rabbitmq
-      - elasticsearch
-    volumes:
-      - ./backend:/app
-      - rdms_backup_data:/app/backups
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    networks:
-      - rdms-network
-
-  search-worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: rdms-search-worker
-    restart: unless-stopped
-    env_file:
-      - ./backend/.env
-    depends_on:
-      - postgres
-      - rabbitmq
-      - elasticsearch
-    volumes:
-      - ./backend:/app
-    command: python -m app.workers.search_worker
-    networks:
-      - rdms-network
-
-volumes:
-  rdms_postgres_data:
-  rdms_elasticsearch_data:
-  rdms_backup_data:
 
 networks:
   rdms-network:
+    name: rdms-network
     driver: bridge
+
+
+volumes:
+  postgres_data:
+    name: rdms-volumes
