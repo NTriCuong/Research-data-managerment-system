@@ -2,10 +2,15 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
+
 from app.api.v1.endpoints import staging_metadata as metadata_endpoint
 from app.core.config import settings
+from app.core.exceptions import BadRequestException
 from app.database.session import get_db
+from app.schemas.staging_metadata import CreateRevisionRequest
 from app.services.auth import deps as auth_deps
+from app.services.staging import staging_metadata_service as staging_service_module
 
 
 class _FakeDbSession:
@@ -292,3 +297,34 @@ def test_reviewer_cannot_upload_staging_file(client, sample_user):
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Bạn không có đủ quyền để thực hiện thao tác này"
+
+
+@pytest.mark.asyncio
+async def test_create_revision_rejects_when_core_has_an_active_revision(sample_user, monkeypatch):
+    expected_research_id = uuid4()
+    active_revision_id = uuid4()
+
+    class _FakeRevisionRepository:
+        async def get_core_by_id_with_relations(self, requested_research_id):
+            assert requested_research_id == expected_research_id
+            return SimpleNamespace(research_id=expected_research_id)
+
+        async def get_active_revision_for_core(self, *, research_id: object):
+            assert research_id == expected_research_id
+            return SimpleNamespace(staging_id=active_revision_id)
+
+    monkeypatch.setattr(
+        staging_service_module,
+        "StagingRepository",
+        lambda _db: _FakeRevisionRepository(),
+    )
+
+    with pytest.raises(BadRequestException, match="phiên bản cập nhật đang chờ xử lý"):
+        await staging_service_module.staging_service.create_revision_from_core(
+            object(),
+            payload=CreateRevisionRequest(
+                research_id=expected_research_id,
+                update_reason="Cập nhật metadata",
+            ),
+            current_user=sample_user,
+        )

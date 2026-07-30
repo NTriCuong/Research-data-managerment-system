@@ -144,6 +144,26 @@ class StagingRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_active_revision_for_core(self, *, research_id: UUID) -> StgResearchObject | None:
+        result = await self.db.execute(
+            select(StgResearchObject)
+            .where(StgResearchObject.source_core_research_id == research_id)
+            .where(StgResearchObject.deleted_at.is_(None))
+            .where(
+                StgResearchObject.workflow_status.in_(
+                    (
+                        WorkflowStatus.draft,
+                        WorkflowStatus.pending_review,
+                        WorkflowStatus.revision_required,
+                        WorkflowStatus.pending_approval,
+                    )
+                )
+            )
+            .order_by(StgResearchObject.created_at.desc())
+            .limit(1)
+        )
+        return result.scalar_one_or_none()
+
     async def add_file_attachment(self, file_obj: StgFileAttachment) -> StgFileAttachment:
         self.db.add(file_obj)
         await self.db.flush()

@@ -1,4 +1,5 @@
 import type { StagingResearchObjectDetail } from "@/services/reference/reference.service"
+import { ACCESS_LEVEL_LABEL } from "@/lib/constants/workflow"
 
 function formatDate(value: string | null) {
     if (!value) return '-'
@@ -121,9 +122,14 @@ export default function StagingDetailView({ detail, departmentMap, outputTypeMap
                         <li className="px-4 py-3 text-sm text-gray-400">Không có tệp</li>
                     )}
                     {detail.files.map((file) => (
-                        <li key={file.file_id} className="flex items-center justify-between px-4 py-3 text-sm">
+                        <li key={file.file_id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
                             <span className="truncate text-gray-800">{file.original_filename}</span>
-                            <span className="text-gray-400">{formatFileSize(file.file_size_bytes)}</span>
+                            <span className="flex shrink-0 items-center gap-3">
+                                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-600">
+                                    {ACCESS_LEVEL_LABEL[file.access_level] ?? file.access_level}
+                                </span>
+                                <span className="text-gray-400">{formatFileSize(file.file_size_bytes)}</span>
+                            </span>
                         </li>
                     ))}
                 </ul>
