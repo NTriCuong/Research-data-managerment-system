@@ -4,6 +4,9 @@ from uuid import UUID
 from app.core.exceptions import AppException, BadRequestException, ForbiddenException, NotFoundException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from app.database.session import AsyncSessionLocal
+from fastapi import BackgroundTasks
+
 
 from app.models.auth.user import User
 from app.models.enum import AccessLevel, FileStatus, NotificationType, WorkflowStatus
@@ -158,6 +161,47 @@ class StagingService:
         if missing:
             raise BadRequestException(f"Thiếu metadata bắt buộc trước khi gửi: {', '.join(missing)}")
 
+
+ #notification submit cho review
+    async def notify_reviewers_background(
+        self,
+        *,
+        actor_user_id: UUID,
+        staging_id: UUID,
+        title: str,
+        message: str,
+    ) -> None:
+        async with AsyncSessionLocal() as db:
+            try:
+                await notification_service.notify_role(
+                    db,
+                    role_codes=["REVIEWER"],
+                    actor_user_id=actor_user_id,
+                    event_type=NotificationType.PENDING_REVIEW.value,
+                    title=title,
+                    message=message,
+                    target_url=f"{settings.FRONTEND_URL}/dashboard/review/researches/{staging_id}",
+                    payload={
+                        "staging_id": str(staging_id),
+                        "workflow_status": WorkflowStatus.pending_review.value,
+                    },
+                )
+
+                # Lưu notification vào DB
+                await db.commit()
+
+                # Gửi FCM
+                await push_to_roles(
+                    db,
+                    ["REVIEWER", "SUPER_ADMIN"],
+                    title,
+                    message,
+                )
+
+            except Exception:
+                await db.rollback()
+                logger.exception("Failed to notify reviewers")
+
     async def _submit_one_for_review(
         self,
         db: AsyncSession,
@@ -166,22 +210,32 @@ class StagingService:
         staging_id: UUID,
         note: str | None,
         current_user: User,
+        background_tasks: BackgroundTasks,
         now: datetime | None = None,
     ) -> None:
-        obj = await repo.get_by_id(staging_id, with_relations=True)
+
+        obj = await repo.get_by_id(
+            staging_id,
+            with_relations=True,
+        )
+
         if obj is None or obj.deleted_at is not None:
             raise NotFoundException("Không tìm thấy bản ghi tạm")
+
         self._assert_editable(obj, current_user)
         self._validate_before_submit(obj)
+
         if not await repo.has_active_file_attachment(staging_id=staging_id):
             raise BadRequestException("Cần đính kèm ít nhất một tệp trước khi gửi")
 
         old_status = obj.workflow_status
         submitted_at = now or datetime.now(timezone.utc)
+
         obj.workflow_status = WorkflowStatus.pending_review
         obj.submitted_by = current_user.user_id
         obj.submitted_at = submitted_at
         obj.updated_at = submitted_at
+
         await workflow_service.write_history(
             db,
             staging_id=obj.staging_id,
@@ -191,6 +245,7 @@ class StagingService:
             action_code="SUBMIT_FOR_REVIEW",
             action_note=note,
         )
+
         await audit_service.write_log(
             db,
             actor_user_id=current_user.user_id,
@@ -198,26 +253,27 @@ class StagingService:
             target_schema="staging",
             target_table="research_objects",
             target_id=obj.staging_id,
-            old_value={"workflow_status": old_status.value},
-            new_value={"workflow_status": WorkflowStatus.pending_review.value, "note": note},
+            old_value={
+                "workflow_status": old_status.value,
+            },
+            new_value={
+                "workflow_status": WorkflowStatus.pending_review.value,
+                "note": note,
+            },
             message="Submitted staging record for review",
         )
+
         title = "Có bài nghiên cứu mới cần kiểm duyệt"
         message = f"Bài nghiên cứu '{obj.title}' đã được gửi để kiểm duyệt."
-        await notification_service.notify_role(
-            db,
-            role_codes=["REVIEWER"],
+
+        background_tasks.add_task(
+            self.notify_reviewers_background,
             actor_user_id=current_user.user_id,
-            event_type=NotificationType.PENDING_REVIEW.value,
+            staging_id=obj.staging_id,
             title=title,
             message=message,
-            target_url=f"{settings.FRONTEND_URL}/dashboard/review/researches/{obj.staging_id}",
-            payload={
-                "staging_id": str(obj.staging_id),
-                "workflow_status": WorkflowStatus.pending_review.value,
-            },
         )
-        await push_to_roles(db, ["REVIEWER", "SUPER_ADMIN"], title, message)
+    
 
     async def create_staging_research_object(
         self,
@@ -541,18 +597,33 @@ class StagingService:
         staging_id: UUID,
         payload: SubmitForReviewRequest,
         current_user: User,
+        background_tasks: BackgroundTasks,
     ) -> MessageResponse:
+
         repo = StagingRepository(db)
 
-        await self._submit_one_for_review(
-            db,
-            repo=repo,
-            staging_id=staging_id,
-            note=payload.note,
-            current_user=current_user,
-        )
-        return MessageResponse(message="Gửi xét duyệt thành công")
+        try:
+            await self._submit_one_for_review(
+                db,
+                repo=repo,
+                staging_id=staging_id,
+                note=payload.note,
+                current_user=current_user,
+                background_tasks=background_tasks,
+            )
 
+            await db.commit()
+
+            return MessageResponse(
+                message="Gửi xét duyệt thành công"
+            )
+
+        except Exception:
+            await db.rollback()
+            raise
+
+
+        
     async def delete_draft_staging_record(
         self,
         db: AsyncSession,
