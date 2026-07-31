@@ -6,6 +6,8 @@ from app.core.exceptions import BadRequestException, NotFoundException
 from app.core.access_levels import is_access_level_allowed
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import BackgroundTasks
+from app.database.session import AsyncSessionLocal
 
 from app.models.auth.user import User
 from app.models.core.core_file_attachment import CoreFileAttachment
@@ -126,225 +128,514 @@ class CoreApproveService:
         rows = await repo.list_pending_approval_records(limit=limit, offset=offset)
         return [PendingApprovalOut.model_validate(x) for x in rows]
 
+    async def _refresh_search_vector(self, db: AsyncSession, *, research_id: UUID) -> None:
+            await db.execute(self._REFRESH_SEARCH_VECTOR_SQL, {"research_id": str(research_id)})
+
     async def approve_record(
         self,
         db: AsyncSession,
         *,
         staging_id: UUID,
         payload: ApproveRequest,
+        background_tasks: BackgroundTasks,
         current_user: User,
     ) -> MessageResponse:
-        file_access_levels = {item.file_id: item.access_level for item in payload.file_access_levels}
-        repo = CoreApproveRepository(db)
-        staging_obj = await repo.get_staging_by_id(staging_id, with_relations=True)
-        if staging_obj is None or staging_obj.deleted_at is not None:
-            raise NotFoundException("Không tìm thấy bản ghi tạm")
+        try:
+            file_access_levels = {
+                item.file_id: item.access_level
+                for item in payload.file_access_levels
+            }
+            repo = CoreApproveRepository(db)
 
-        self._assert_pending_approval(staging_obj.workflow_status)
-        access_level = staging_obj.access_level
-        unknown_file_ids = set(file_access_levels) - {file_obj.file_id for file_obj in staging_obj.file_attachments}
-        if unknown_file_ids:
-            raise BadRequestException("Một hoặc nhiều file_access_levels tham chiếu đến tệp không thuộc bản ghi tạm này")
-        for file_obj in staging_obj.file_attachments:
-            target_file_access_level = file_access_levels.get(
-                file_obj.file_id,
-                file_obj.access_level or access_level,
+            staging_obj = await repo.get_staging_by_id(
+                staging_id,
+                with_relations=True,
             )
-            if not is_access_level_allowed(target_file_access_level, access_level):
+
+            if staging_obj is None or staging_obj.deleted_at is not None:
+                raise NotFoundException("Không tìm thấy bản ghi tạm")
+
+
+            self._assert_pending_approval(
+                staging_obj.workflow_status
+            )
+
+
+            access_level = staging_obj.access_level
+
+
+            unknown_file_ids = (
+                set(file_access_levels)
+                - {
+                    file_obj.file_id
+                    for file_obj in staging_obj.file_attachments
+                }
+            )
+
+            if unknown_file_ids:
                 raise BadRequestException(
-                    f"Quyền truy cập của tệp '{file_obj.original_filename}' "
-                    "không được cao hơn quyền truy cập của bài nghiên cứu"
+                    "Một hoặc nhiều file_access_levels "
+                    "tham chiếu đến tệp không thuộc bản ghi tạm này"
                 )
 
-        now = datetime.now(timezone.utc)
-        previous_status = staging_obj.workflow_status
 
-        if staging_obj.source_core_research_id is None:
-            core_obj = CoreResearchObject(
-                source_staging_id=staging_obj.staging_id,
-                approved_by=current_user.user_id,
-                approved_at=now,
-                access_level=access_level,
-                version_no=1,
-                is_current=True,
-                authors=[],
-                domains=[],
-                keywords=[],
-                file_attachments=[],
+            for file_obj in staging_obj.file_attachments:
+
+                target_file_access_level = file_access_levels.get(
+                    file_obj.file_id,
+                    file_obj.access_level or access_level,
+                )
+
+                if not is_access_level_allowed(
+                    target_file_access_level,
+                    access_level,
+                ):
+                    raise BadRequestException(
+                        f"Quyền truy cập của tệp "
+                        f"'{file_obj.original_filename}' "
+                        "không được cao hơn quyền truy cập "
+                        "của bài nghiên cứu"
+                    )
+
+
+            now = datetime.now(timezone.utc)
+
+            previous_status = staging_obj.workflow_status
+
+            # CREATE / UPDATE CORE RESEARCH
+
+            if staging_obj.source_core_research_id is None:
+
+                core_obj = CoreResearchObject(
+                    source_staging_id=staging_obj.staging_id,
+                    approved_by=current_user.user_id,
+                    approved_at=now,
+                    access_level=access_level,
+                    version_no=1,
+                    is_current=True,
+                    authors=[],
+                    domains=[],
+                    keywords=[],
+                    file_attachments=[],
+                )
+
+                self._copy_staging_into_core(
+                    staging_obj,
+                    core_obj,
+                    now,
+                    current_user.user_id,
+                )
+
+                db.add(core_obj)
+
+                await db.flush()
+
+
+            else:
+
+                core_obj = await repo.get_core_by_id(
+                    staging_obj.source_core_research_id,
+                    with_relations=True,
+                )
+
+                if core_obj is None or core_obj.deleted_at is not None:
+                    raise NotFoundException(
+                        "Không tìm thấy bản ghi core nguồn"
+                    )
+
+
+                core_obj.version_no += 1
+
+
+                self._copy_staging_into_core(
+                    staging_obj,
+                    core_obj,
+                    now,
+                    current_user.user_id,
+                )
+
+
+                core_obj.authors.clear()
+                core_obj.domains.clear()
+                core_obj.keywords.clear()
+                core_obj.file_attachments.clear()
+
+
+                await db.flush()
+
+            core_obj.access_level = access_level
+
+            # authors
+
+            core_obj.authors.extend(
+                [
+                    CoreResearchObjectAuthor(
+                        research_id=core_obj.research_id,
+                        researcher_id=a.researcher_id,
+                        full_name=a.full_name,
+                        email=a.email,
+                        affiliation=a.affiliation,
+                        author_order=a.author_order,
+                        author_role=a.author_role,
+                    )
+                    for a in staging_obj.authors
+                ]
             )
-            self._copy_staging_into_core(staging_obj, core_obj, now, current_user.user_id)
-            db.add(core_obj)
-            await db.flush()
-        else:
-            core_obj = await repo.get_core_by_id(staging_obj.source_core_research_id, with_relations=True)
-            if core_obj is None or core_obj.deleted_at is not None:
-                raise NotFoundException("Không tìm thấy bản ghi core nguồn")
 
-            core_obj.version_no += 1
-            self._copy_staging_into_core(staging_obj, core_obj, now, current_user.user_id)
 
-            core_obj.authors.clear()
-            core_obj.domains.clear()
-            core_obj.keywords.clear()
-            core_obj.file_attachments.clear()
-            await db.flush()
+            # domains
 
-        core_obj.access_level = access_level
-        core_obj.authors.extend(
-            [
-                CoreResearchObjectAuthor(
-                    research_id=core_obj.research_id,
-                    researcher_id=a.researcher_id,
-                    full_name=a.full_name,
-                    email=a.email,
-                    affiliation=a.affiliation,
-                    author_order=a.author_order,
-                    author_role=a.author_role,
-                )
-                for a in staging_obj.authors
-            ]
-        )
-        core_obj.domains.extend(
-            [CoreResearchObjectDomain(research_id=core_obj.research_id, domain_id=d.domain_id) for d in staging_obj.domains]
-        )
-        core_obj.keywords.extend(
-            [CoreResearchObjectKeyword(research_id=core_obj.research_id, keyword_id=k.keyword_id) for k in staging_obj.keywords]
-        )
-        core_obj.file_attachments.extend(
-            [
-                CoreFileAttachment(
-                    research_id=core_obj.research_id,
-                    original_filename=f.original_filename,
-                    stored_filename=f.stored_filename,
-                    storage_path=f.storage_path,
-                    mime_type=f.mime_type,
-                    file_extension=f.file_extension,
-                    file_size_bytes=f.file_size_bytes,
-                    checksum_sha256=f.checksum_sha256,
-                    uploaded_by=f.uploaded_by,
-                    uploaded_at=f.uploaded_at,
-                    access_level=file_access_levels.get(f.file_id, f.access_level or access_level),
-                )
-                for f in staging_obj.file_attachments
-            ]
-        )
-        db.add(
-            self._metadata_version_for(
-                core_obj=core_obj,
-                staging_obj=staging_obj,
-                current_user=current_user,
-                created_at=now,
-                note=payload.note,
+            core_obj.domains.extend(
+                [
+                    CoreResearchObjectDomain(
+                        research_id=core_obj.research_id,
+                        domain_id=d.domain_id,
+                    )
+                    for d in staging_obj.domains
+                ]
             )
-        )
 
-        staging_obj.workflow_status = WorkflowStatus.approved
-        staging_obj.approved_by = current_user.user_id
-        staging_obj.approved_at = now
-        staging_obj.updated_at = now
 
-        await workflow_service.write_history(
-            db,
-            staging_id=staging_obj.staging_id,
-            research_id=core_obj.research_id,
-            performed_by=current_user.user_id,
-            from_status=previous_status,
-            to_status=WorkflowStatus.approved,
-            action_code="APPROVE_RECORD",
-            action_note=payload.note,
-        )
-        await audit_service.write_log(
-            db,
-            actor_user_id=current_user.user_id,
-            action_code="APPROVE_RECORD",
-            target_schema="staging",
-            target_table="research_objects",
-            target_id=staging_obj.staging_id,
-            old_value={"workflow_status": previous_status.value},
-            new_value={
-                "workflow_status": WorkflowStatus.approved.value,
-                "research_id": str(core_obj.research_id),
-                "access_level": access_level.value,
-            },
-            message="Approver approved staging record and published to core",
-        )
-        await db.flush()
-        await self._refresh_search_vector(db, research_id=core_obj.research_id)
-        title = "Bài nghiên cứu đã được phê duyệt"
-        message = f"Bài nghiên cứu '{staging_obj.title}' đã được phê duyệt và xuất bản vào core."
-        await notification_service.notify_user(
-            db,
-            recipient_user_id=staging_obj.created_by,
-            actor_user_id=current_user.user_id,
-            event_type=NotificationType.APPROVAL.value,
-            title=title,
-            message=message,
-            target_url=f"{settings.FRONTEND_URL}/dashboard/data-entry/researches/{staging_obj.staging_id}",
-            payload={
-                "staging_id": str(staging_obj.staging_id),
-                "research_id": str(core_obj.research_id),
-                "workflow_status": WorkflowStatus.approved.value,
-            },
-        )
-        await push_to_users(db, [staging_obj.created_by], title, message)
-        return MessageResponse(message="Phê duyệt và xuất bản bản ghi vào core thành công")
+            # keywords
 
-    async def reject_record(self, db: AsyncSession, *, staging_id: UUID, reason: str, current_user: User) -> MessageResponse:
-        repo = CoreApproveRepository(db)
-        staging_obj = await repo.get_staging_by_id(staging_id)
-        if staging_obj is None or staging_obj.deleted_at is not None:
-            raise NotFoundException("Không tìm thấy bản ghi tạm")
+            core_obj.keywords.extend(
+                [
+                    CoreResearchObjectKeyword(
+                        research_id=core_obj.research_id,
+                        keyword_id=k.keyword_id,
+                    )
+                    for k in staging_obj.keywords
+                ]
+            )
 
-        self._assert_pending_approval(staging_obj.workflow_status)
-        now = datetime.now(timezone.utc)
-        previous_status = staging_obj.workflow_status
 
-        staging_obj.workflow_status = WorkflowStatus.rejected
-        staging_obj.rejection_reason = reason
-        staging_obj.approved_by = current_user.user_id
-        staging_obj.approved_at = now
-        staging_obj.updated_at = now
+            # files
 
-        await workflow_service.write_history(
-            db,
-            staging_id=staging_obj.staging_id,
-            performed_by=current_user.user_id,
-            from_status=previous_status,
-            to_status=WorkflowStatus.rejected,
-            action_code="REJECT_RECORD",
-            action_note=reason,
-        )
-        await audit_service.write_log(
-            db,
-            actor_user_id=current_user.user_id,
-            action_code="REJECT_RECORD",
-            target_schema="staging",
-            target_table="research_objects",
-            target_id=staging_obj.staging_id,
-            old_value={"workflow_status": previous_status.value},
-            new_value={"workflow_status": WorkflowStatus.rejected.value, "rejection_reason": reason},
-            message="Approver rejected staging record",
-        )
-        title = "Bài nghiên cứu bị từ chối"
-        message = f"Bài nghiên cứu '{staging_obj.title}' bị từ chối: {reason}"
-        await notification_service.notify_user(
-            db,
-            recipient_user_id=staging_obj.created_by,
-            actor_user_id=current_user.user_id,
-            event_type=NotificationType.REJECTED.value,
-            title=title,
-            message=message,
-            target_url=f"{settings.FRONTEND_URL}/dashboard/data-entry/researches/{staging_obj.staging_id}",
-            payload={
-                "staging_id": str(staging_obj.staging_id),
-                "workflow_status": WorkflowStatus.rejected.value,
-                "reason": reason,
-            },
-        )
-        await push_to_users(db, [staging_obj.created_by], title, message)
-        return MessageResponse(message="Từ chối bản ghi thành công")
+            core_obj.file_attachments.extend(
+                [
+                    CoreFileAttachment(
+                        research_id=core_obj.research_id,
+                        original_filename=f.original_filename,
+                        stored_filename=f.stored_filename,
+                        storage_path=f.storage_path,
+                        mime_type=f.mime_type,
+                        file_extension=f.file_extension,
+                        file_size_bytes=f.file_size_bytes,
+                        checksum_sha256=f.checksum_sha256,
+                        uploaded_by=f.uploaded_by,
+                        uploaded_at=f.uploaded_at,
+                        access_level=file_access_levels.get(
+                            f.file_id,
+                            f.access_level or access_level,
+                        ),
+                    )
+                    for f in staging_obj.file_attachments
+                ]
+            )
 
-    async def _refresh_search_vector(self, db: AsyncSession, *, research_id: UUID) -> None:
-        await db.execute(self._REFRESH_SEARCH_VECTOR_SQL, {"research_id": str(research_id)})
+
+            # metadata version
+
+            db.add(
+                self._metadata_version_for(
+                    core_obj=core_obj,
+                    staging_obj=staging_obj,
+                    current_user=current_user,
+                    created_at=now,
+                    note=payload.note,
+                )
+            )
+
+
+            # UPDATE WORKFLOW STATUS
+
+            staging_obj.workflow_status = WorkflowStatus.approved
+            staging_obj.approved_by = current_user.user_id
+            staging_obj.approved_at = now
+            staging_obj.updated_at = now
+
+
+
+            await workflow_service.write_history(
+                db,
+                staging_id=staging_obj.staging_id,
+                research_id=core_obj.research_id,
+                performed_by=current_user.user_id,
+                from_status=previous_status,
+                to_status=WorkflowStatus.approved,
+                action_code="APPROVE_RECORD",
+                action_note=payload.note,
+            )
+
+
+            await audit_service.write_log(
+                db,
+                actor_user_id=current_user.user_id,
+                action_code="APPROVE_RECORD",
+                target_schema="staging",
+                target_table="research_objects",
+                target_id=staging_obj.staging_id,
+                old_value={
+                    "workflow_status": previous_status.value,
+                },
+                new_value={
+                    "workflow_status": WorkflowStatus.approved.value,
+                    "research_id": str(core_obj.research_id),
+                    "access_level": access_level.value,
+                },
+                message=(
+                    "Approver approved staging record "
+                    "and published to core"
+                ),
+            )
+
+
+            await db.flush()
+
+
+            await self._refresh_search_vector(
+                db,
+                research_id=core_obj.research_id,
+            )
+
+
+            await db.commit()
+
+
+
+            title = "Bài nghiên cứu đã được phê duyệt"
+
+            message = (
+                f"Bài nghiên cứu '{staging_obj.title}' "
+                "đã được phê duyệt và xuất bản vào core."
+            )
+
+
+            background_tasks.add_task(
+                self.notify_approval_background,
+                recipient_user_id=staging_obj.created_by,
+                actor_user_id=current_user.user_id,
+                staging_id=staging_obj.staging_id,
+                research_id=core_obj.research_id,
+                title=title,
+                message=message,
+            )
+
+
+            return MessageResponse(
+                message="Phê duyệt và xuất bản bản ghi vào core thành công"
+            )
+
+        except Exception:
+            await db.rollback()
+            raise
+
+
+    async def notify_approval_background(
+        self,
+        *,
+        recipient_user_id: UUID,
+        actor_user_id: UUID,
+        staging_id: UUID,
+        research_id: UUID,
+        title: str,
+        message: str,
+    ) -> None:
+
+        async with AsyncSessionLocal() as db:
+
+            try:
+
+                await notification_service.notify_user(
+                    db,
+                    recipient_user_id=recipient_user_id,
+                    actor_user_id=actor_user_id,
+                    event_type=NotificationType.APPROVAL.value,
+                    title=title,
+                    message=message,
+                    target_url=(
+                        f"{settings.FRONTEND_URL}"
+                        f"/dashboard/data-entry/researches/{staging_id}"
+                    ),
+                    payload={
+                        "staging_id": str(staging_id),
+                        "research_id": str(research_id),
+                        "workflow_status": (
+                            WorkflowStatus.approved.value
+                        ),
+                    },
+                )
+
+                await db.commit()
+
+
+                await push_to_users(
+                    db,
+                    [recipient_user_id],
+                    title,
+                    message,
+                )
+            except Exception:
+                await db.rollback()
+
+
+    async def reject_record(
+        self,
+        db: AsyncSession,
+        *,
+        staging_id: UUID,
+        reason: str,
+        background_tasks: BackgroundTasks,
+        current_user: User,
+    ) -> MessageResponse:
+
+        try:
+            repo = CoreApproveRepository(db)
+
+            staging_obj = await repo.get_staging_by_id(staging_id)
+
+            if staging_obj is None or staging_obj.deleted_at is not None:
+                raise NotFoundException(
+                    "Không tìm thấy bản ghi tạm"
+                )
+
+
+            self._assert_pending_approval(
+                staging_obj.workflow_status
+            )
+
+
+            if not reason.strip():
+                raise BadRequestException(
+                    "Lý do từ chối không được để trống"
+                )
+
+
+            now = datetime.now(timezone.utc)
+
+            previous_status = staging_obj.workflow_status
+
+
+            staging_obj.workflow_status = WorkflowStatus.rejected
+            staging_obj.rejection_reason = reason
+            staging_obj.approved_by = current_user.user_id
+            staging_obj.approved_at = now
+            staging_obj.updated_at = now
+
+
+
+            await workflow_service.write_history(
+                db,
+                staging_id=staging_obj.staging_id,
+                performed_by=current_user.user_id,
+                from_status=previous_status,
+                to_status=WorkflowStatus.rejected,
+                action_code="REJECT_RECORD",
+                action_note=reason,
+            )
+
+
+
+            await audit_service.write_log(
+                db,
+                actor_user_id=current_user.user_id,
+                action_code="REJECT_RECORD",
+                target_schema="staging",
+                target_table="research_objects",
+                target_id=staging_obj.staging_id,
+                old_value={
+                    "workflow_status": previous_status.value,
+                },
+                new_value={
+                    "workflow_status": WorkflowStatus.rejected.value,
+                    "rejection_reason": reason,
+                },
+                message="Approver rejected staging record",
+            )
+
+
+            await db.commit()
+
+
+
+            title = "Bài nghiên cứu bị từ chối"
+
+            message = (
+                f"Bài nghiên cứu '{staging_obj.title}' "
+                f"bị từ chối: {reason}"
+            )
+
+
+            background_tasks.add_task(
+                self.notify_rejection_background,
+                recipient_user_id=staging_obj.created_by,
+                actor_user_id=current_user.user_id,
+                staging_id=staging_obj.staging_id,
+                title=title,
+                message=message,
+                reason=reason,
+            )
+
+
+            return MessageResponse(
+                message="Từ chối bản ghi thành công"
+            )
+
+
+        except Exception:
+            await db.rollback()
+            raise   
+
+
+    async def notify_rejection_background(
+        self,
+        *,
+        recipient_user_id: UUID,
+        actor_user_id: UUID,
+        staging_id: UUID,
+        title: str,
+        message: str,
+        reason: str,
+    ) -> None:
+
+        async with AsyncSessionLocal() as db:
+
+            try:
+
+                await notification_service.notify_user(
+                    db,
+                    recipient_user_id=recipient_user_id,
+                    actor_user_id=actor_user_id,
+                    event_type=NotificationType.REJECTED.value,
+                    title=title,
+                    message=message,
+                    target_url=(
+                        f"{settings.FRONTEND_URL}"
+                        f"/dashboard/data-entry/researches/{staging_id}"
+                    ),
+                    payload={
+                        "staging_id": str(staging_id),
+                        "workflow_status": (
+                            WorkflowStatus.rejected.value
+                        ),
+                        "reason": reason,
+                    },
+                )
+
+
+                await db.commit()
+
+
+                await push_to_users(
+                    db,
+                    [recipient_user_id],
+                    title,
+                    message,
+                )
+
+
+            except Exception:
+
+                await db.rollback()
 
 core_approve_service = CoreApproveService()

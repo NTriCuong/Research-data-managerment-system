@@ -2,6 +2,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import BackgroundTasks
+
 
 from app.core.permissions import require_roles
 from app.database.session import get_db
@@ -138,6 +140,7 @@ async def delete_draft_staging_record(
 async def submit_for_review(
     staging_id: UUID,
     payload: SubmitForReviewRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(require_roles(*ALLOWED_EDITOR_ROLES)),
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponse:
@@ -146,6 +149,7 @@ async def submit_for_review(
         staging_id=staging_id,
         payload=payload,
         current_user=current_user,
+        background_tasks=background_tasks
     )
     return result
 
