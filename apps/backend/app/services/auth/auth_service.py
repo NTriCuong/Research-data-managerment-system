@@ -1,7 +1,11 @@
+import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
-from http.client import HTTPException
 from uuid import UUID
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
 from app.core.exceptions import (
     BadRequestException,
     ConfigurationException,
@@ -11,9 +15,7 @@ from app.core.exceptions import (
     TooManyRequestsException,
     UnauthorizedException,
 )
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.config import settings
+from app.models.auth.otp_verification import OtpVerification
 from app.models.auth.refresh_token import RefreshToken
 from app.models.auth.role import Role
 from app.models.auth.user import User
@@ -26,9 +28,20 @@ from app.services.auth.security import (
     refresh_token_expires_at,
     verify_password,
 )
-
 from app.services.logs.audit_service import audit_service
 from app.services.logs.login_log_service import login_log_service
+from app.services.notification.email_service import email_service
+
+OTP_TTL_MINUTES = 5
+
+
+def _hash_otp(otp: str) -> str:
+    return hashlib.sha256(f"{otp}{settings.OTP_SALT}".encode()).hexdigest()
+
+
+def _generate_otp() -> str:
+    return f"{secrets.randbelow(1_000_000):06d}"
+
 
 class AuthService:
     @staticmethod
@@ -83,11 +96,11 @@ class AuthService:
         """Xác thực người dùng. Trả về (access_token, raw_refresh_token, user).
         Client phải đặt raw_refresh_token làm cookie HttpOnly.
         """
-        self._validate_token_lifetime_policy() # kiểm tra thời hạng token đã đúng chưa access token là 30p còn refresh là 7 ngày
+        self._validate_token_lifetime_policy()
         repo = AuthRepository(db)
-        user = await repo.find_user_by_email_or_username_with_role(username) # tìm user
+        user = await repo.find_user_by_email_or_username_with_role(username)
 
-        async def _log(login_result: str, reason: str | None = None) -> None: # khai báo 1 hàm log để dùng chung 
+        async def _log(login_result: str, reason: str | None = None) -> None:
             await login_log_service.write_log(
                 db,
                 login_result=login_result,
@@ -97,8 +110,8 @@ class AuthService:
                 ip_address=ip_address,
                 user_agent=user_agent,
             )
-# kiểm tra user 
-        if user is None: 
+
+        if user is None:
             await _log("failed", "Thông tin đăng nhập không hợp lệ")
             raise UnauthorizedException("Thông tin người dùng đăng nhập không tồn tại")
 
@@ -110,9 +123,6 @@ class AuthService:
             await _log("failed", "Tài khoản đã bị vô hiệu hóa")
             raise ForbiddenException("Tài khoản đã bị vô hiệu hóa")
 
-
-
-        # Brute-force lockout tạm khoá thời gian lock_duration và max_login_attempts số lần tối đa sai mật khẩu 
         window_start = datetime.now(timezone.utc) - timedelta(minutes=settings.LOCK_DURATION)
         fail_count = await repo.count_failed_logins_since(user_id=user.user_id, window_start=window_start)
         if fail_count >= settings.MAX_LOGIN_ATTEMPTS:
@@ -121,19 +131,18 @@ class AuthService:
                 f"Đăng nhập thất bại quá nhiều lần. Vui lòng thử lại sau {settings.LOCK_DURATION} phút."
             )
 
-        if not verify_password(password, user.password_hash): #kiểm tra với password hash trong db
+        if not verify_password(password, user.password_hash):
             await _log("failed", "Thông tin đăng nhập không hợp lệ")
             raise UnauthorizedException("Thông tin đăng nhập không hợp lệ")
 
-        # Issue tokens
-        user.last_login_at = datetime.now(timezone.utc) # cập nhật thời gian đăng nhập cuối cùng
+        user.last_login_at = datetime.now(timezone.utc)
 
-        raw_rt, hashed_rt = create_refresh_token() # hàm trả về một tuple gồm 2 phần tử raw_rt(raw refresh token), hashed_rt(chuỗi hash của token)
+        raw_rt, hashed_rt = create_refresh_token()
         await repo.add_refresh_token(
             user_id=user.user_id,
-            issued_at=datetime.now(timezone.utc), #token đươcj tạo lúc nào hay đăng nhập lúc nào 
+            issued_at=datetime.now(timezone.utc),
             token_hash=hashed_rt,
-            expires_at=refresh_token_expires_at(), # thời gian hết hạng
+            expires_at=refresh_token_expires_at(),
             ip_address=ip_address,
             user_agent=user_agent,
         )
@@ -159,7 +168,7 @@ class AuthService:
         if await repo.find_duplicate_user(username=username, email=email):
             raise ConflictException("Tên đăng nhập hoặc email đã tồn tại")
 
-        user = User( # tạo user mới
+        user = User(
             username=username,
             email=email,
             password_hash=hash_password(password),
@@ -168,7 +177,7 @@ class AuthService:
             department_id=department_id,
         )
         user = await repo.create_user(user)
-        await db.flush()  # sau dòng này user.user_id đã có
+        await db.flush()
 
         await audit_service.write_log(
             db,
@@ -183,19 +192,19 @@ class AuthService:
 
         return user
 
-    # ── refresh_token cấp session mới cho user ─────────────────────────────────────────────────────────
+    # ── refresh_token ─────────────────────────────────────────────────────────
 
     async def refresh_token(
         self,
         db: AsyncSession,
         *,
-        db_token: RefreshToken, #dependencies injection
+        db_token: RefreshToken,
         user: User,
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> tuple[str, str]:
         """Xoay vòng token: thu hồi token làm mới cũ, cấp cặp token truy cập + làm mới mới.
-Trả về (new_access_token, new_raw_refresh_token).
+        Trả về (new_access_token, new_raw_refresh_token).
         """
         repo = AuthRepository(db)
         self._validate_token_lifetime_policy()
@@ -203,7 +212,7 @@ Trả về (new_access_token, new_raw_refresh_token).
         db_token.revoked_at = datetime.now(timezone.utc)
 
         raw_rt, hashed_rt = create_refresh_token()
-        
+
         await repo.add_refresh_token(
             user_id=user.user_id,
             issued_at=datetime.now(timezone.utc),
@@ -244,23 +253,70 @@ Trả về (new_access_token, new_raw_refresh_token).
             token.revoked_at = now
         return len(tokens)
 
-    # ── change_password ───────────────────────────────────────────────────────
+    # ── change_password ──────────────────────────────────────────────────────
 
-    async def change_password(
+    async def request_change_password(
         self,
         db: AsyncSession,
         *,
         user: User,
-        old_password: str,
+        current_password: str,
         new_password: str,
     ) -> None:
-        """Verify mật khẩu cũ, cập nhật hash, revoke toàn bộ session."""
-        if not verify_password(old_password, user.password_hash):
+        if not verify_password(current_password, user.password_hash):
             raise BadRequestException("Mật khẩu hiện tại không chính xác")
 
-        user.password_hash = hash_password(new_password)
+        if current_password == new_password:
+            raise BadRequestException("Mật khẩu mới không được trùng mật khẩu cũ")
+
+        repo = AuthRepository(db)
+        await repo.delete_otp_by_user(user.user_id)
+
+        otp_code = _generate_otp()
+        repo.add_otp(
+            OtpVerification(
+                user_id=user.user_id,
+                otp_hash=_hash_otp(otp_code),
+                old_password_hash=user.password_hash,
+                new_password_hash=hash_password(new_password),
+                expires_at=datetime.now(timezone.utc) + timedelta(minutes=OTP_TTL_MINUTES),
+            )
+        )
+        await db.commit()
+
+        await email_service.send_email(
+            to_email=user.email,
+            subject="Mã xác thực đổi mật khẩu",
+            body=f"Mã OTP của bạn là: {otp_code}. Mã có hiệu lực trong {OTP_TTL_MINUTES} phút.",
+        )
+
+    async def confirm_change_password(
+        self,
+        db: AsyncSession,
+        *,
+        user: User,
+        otp_code: str,
+    ) -> None:
+        repo = AuthRepository(db)
+        otp_row = await repo.find_latest_otp_by_user(user.user_id)
+
+        if not otp_row or otp_row.expires_at < datetime.now(timezone.utc):
+            raise BadRequestException("Mã OTP không tồn tại hoặc đã hết hạn")
+
+        if _hash_otp(otp_code) != otp_row.otp_hash:
+            raise BadRequestException("Mã OTP không chính xác")
+
+        if user.password_hash != otp_row.old_password_hash:
+            raise BadRequestException("Mật khẩu đã bị thay đổi, vui lòng thực hiện lại từ đầu")
+
+        deleted_count = await repo.delete_otp_by_id(otp_row.id)
+        if deleted_count == 0:
+            raise BadRequestException("Mã OTP đã được sử dụng")
+
+        user.password_hash = otp_row.new_password_hash
         user.updated_at = datetime.now(timezone.utc)
         await self.revoke_all_sessions(db, user_id=user.user_id)
+        await db.commit()
 
         await audit_service.write_log(
             db,
@@ -271,6 +327,8 @@ Trả về (new_access_token, new_raw_refresh_token).
             target_id=user.user_id,
             result="success",
         )
+
+    # ── admin user management ────────────────────────────────────────────────
 
     async def create_user(
         self,
@@ -462,5 +520,6 @@ Trả về (new_access_token, new_raw_refresh_token).
             result="success",
             message="Admin reset user password",
         )
+
 
 auth_service = AuthService()

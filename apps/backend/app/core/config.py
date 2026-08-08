@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     CLOUDFLARE_R2_SECRET_ACCESS_KEY: str 
     CLOUDFLARE_R2_BUCKET_NAME: str 
     CLOUDFLARE_R2_PUBLIC_BASE_URL: str | None = None
+    OTP_SALT: str
+
 
     password_min_length: int = 8
     SECRET_KEY: str

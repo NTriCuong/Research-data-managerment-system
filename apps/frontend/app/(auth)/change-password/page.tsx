@@ -1,8 +1,7 @@
 'use client'
 
-import axiosInstance from '@/lib/axios/axios.instance'
 import { parseAxiosError } from '@/lib/axios/error-paser'
-import { API_ENDPOINT } from '@/lib/constants/api-endpoint'
+import { authService } from '@/services/auth/auth.service'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
@@ -26,17 +25,14 @@ export default function ChangePasswordPage() {
     setError('')
 
     if (form.new_password !== form.confirm_password) {
-      setError('New passwords do not match')
+      setError('Mật khẩu mới không khớp')
       return
     }
 
     setLoading(true)
     try {
-      await axiosInstance.post(API_ENDPOINT.AUTH.CHANGE_PASSWORD, {
-        current_password: form.current_password,
-        new_password: form.new_password,
-      })
-      router.push('/auth/login')
+      await authService.requestChangePassword(form.current_password, form.new_password)
+      router.push('/verify-otp?flow=change-password')
     } catch (err) {
       setError(parseAxiosError(err).message)
     } finally {
@@ -86,7 +82,7 @@ export default function ChangePasswordPage() {
           disabled={loading}
           className="w-full py-2 px-4 text-sm font-medium rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
         >
-          {loading ? 'Đang cập nhật...' : 'Cập nhật mật khẩu'}
+          {loading ? 'Đang gửi mã OTP...' : 'Tiếp tục'}
         </button>
 
         <button

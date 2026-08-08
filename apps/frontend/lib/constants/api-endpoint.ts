@@ -3,7 +3,8 @@ export const API_ENDPOINT = {
         LOGIN: 'api/v1/auth/login',
         LOGOUT: 'api/v1/auth/logout',
         REFRESH: 'api/v1/auth/refresh',
-        CHANGE_PASSWORD: 'api/v1/auth/change-password',
+        CHANGE_PASSWORD_REQUEST: '/api/v1/auth/change-password/request',
+        CHANGE_PASSWORD_CONFIRM: '/api/v1/auth/change-password/confirm',
     },
     DATA_ENTRY: {
         GET_RESEARCH_DATA: 'api/v1/staging-metadata/mine',

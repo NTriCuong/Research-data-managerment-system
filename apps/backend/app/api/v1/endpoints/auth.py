@@ -8,7 +8,15 @@ from app.core.config import settings
 from app.database.session import get_db
 from app.models.auth.user import User
 from app.core.permissions import require_roles
-from app.schemas.auth import AdminResetPasswordRequest, ChangePasswordRequest, LoginRequest, MessageResponse, TokenResponse, UserTokenOut
+from app.schemas.auth import (
+    AdminResetPasswordRequest,
+    ChangePasswordConfirmRequest,
+    ChangePasswordRequest,
+    LoginRequest,
+    MessageResponse,
+    TokenResponse,
+    UserTokenOut,
+)
 from app.services.auth.auth_service import auth_service
 from app.services.auth.deps import get_current_active_user, get_valid_refresh_token
 
@@ -117,17 +125,31 @@ async def logout(
     return MessageResponse(message="Đăng xuất thành công")
 
 
-@router.post("/change-password", response_model=MessageResponse)
-async def change_password(
+@router.post("/change-password/request", response_model=MessageResponse)
+async def request_change_password(
     payload: ChangePasswordRequest,
-    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ) -> MessageResponse:
-    await auth_service.change_password(
+    await auth_service.request_change_password(
         db,
         user=current_user,
-        old_password=payload.current_password,
+        current_password=payload.current_password,
         new_password=payload.new_password,
+    )
+    return MessageResponse(message="Mã OTP đã được gửi đến email của bạn")
+
+
+@router.post("/change-password/confirm", response_model=MessageResponse)
+async def confirm_change_password(
+    payload: ChangePasswordConfirmRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> MessageResponse:
+    await auth_service.confirm_change_password(
+        db,
+        user=current_user,
+        otp_code=payload.otp_code,
     )
     return MessageResponse(message="Đổi mật khẩu thành công")
 

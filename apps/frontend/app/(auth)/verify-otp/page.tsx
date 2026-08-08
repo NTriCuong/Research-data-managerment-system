@@ -1,12 +1,18 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import { useRef, useState } from 'react'
+import { parseAxiosError } from '@/lib/axios/error-paser'
+import { authService } from '@/services/auth/auth.service'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 const OTP_LENGTH = 6
 
-export default function VerifyOtpPage() {
+function VerifyOtpForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const flow = searchParams.get('flow') // 'change-password' hiện tại; sau này có thể thêm flow khác
+
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''))
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -41,18 +47,22 @@ export default function VerifyOtpPage() {
     e.preventDefault()
     const otp = digits.join('')
     if (otp.length < OTP_LENGTH) {
-      setError('Please enter the complete OTP code')
+      setError('Vui lòng nhập đủ 6 số OTP')
       return
     }
     setError('')
     setLoading(true)
     try {
-      // TODO: call verify OTP API
-      console.log('OTP submitted:', otp)
-      router.push('/')
-    } catch {
-      setError('Invalid or expired OTP code')
-    } finally {
+      if (flow === 'change-password') {
+        await authService.confirmChangePassword(otp)
+        toast.success('Xác thực thành công, đổi mật khẩu hoàn tất')
+        setTimeout(() => {
+          router.push('/auth/login')
+        }, 1000)
+        return // không setLoading(false) ngay, giữ trạng thái loading trong lúc chờ redirect
+      }
+    } catch (err) {
+      setError(parseAxiosError(err).message)
       setLoading(false)
     }
   }
@@ -60,9 +70,9 @@ export default function VerifyOtpPage() {
   return (
     <>
       <div className="mb-6">
-        <h2 className="text-lg font-semibold text-zinc-800">Verify OTP</h2>
+        <h2 className="text-lg font-semibold text-zinc-800">Xác thực OTP</h2>
         <p className="text-sm text-zinc-500 mt-1">
-          Enter the 6-digit code sent to your email
+          Nhập mã 6 số đã được gửi đến email của bạn
         </p>
       </div>
 
@@ -94,20 +104,17 @@ export default function VerifyOtpPage() {
           disabled={loading}
           className="w-full py-2 px-4 text-sm font-medium rounded-lg bg-zinc-800 text-white hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
         >
-          {loading ? 'Verifying...' : 'Verify'}
+          {loading ? 'Đang xác thực...' : 'Xác nhận'}
         </button>
-
-        <p className="text-center text-sm text-zinc-500">
-          Did not receive a code?{' '}
-          <button
-            type="button"
-            className="text-zinc-800 font-medium hover:underline"
-            onClick={() => console.log('Resend OTP')}
-          >
-            Resend
-          </button>
-        </p>
       </form>
     </>
+  )
+}
+
+export default function VerifyOtpPage() {
+  return (
+    <Suspense fallback={null}>
+      <VerifyOtpForm />
+    </Suspense>
   )
 }

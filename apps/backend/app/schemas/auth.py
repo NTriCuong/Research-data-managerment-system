@@ -33,6 +33,9 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 
+class ChangePasswordConfirmRequest(BaseModel):
+    otp_code: str
+
+
 class AdminResetPasswordRequest(BaseModel):
     new_password: str
-

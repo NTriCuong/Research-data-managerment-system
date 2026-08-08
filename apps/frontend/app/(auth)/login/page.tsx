@@ -79,26 +79,26 @@ export default function LoginPage() {
           </p>
         )}
 
-        <div className="text-right">
-          <Link
+        <div className="text-right" >
+          {/* <Link
             href="/change-password"
             className="text-sm text-zinc-500 hover:text-zinc-800 hover:underline transition"
           >
             Quên mật khẩu?
-          </Link>
+          </Link> */}
         </div>
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-2 px-4 text-sm font-medium rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          className=" mt-6 w-full py-2 px-4 text-sm font-medium rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
         >
           {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
         </button>
         <button
           type="button"
           onClick={() => router.push('/')}
-          className="w-full py-2 px-4 text-sm font-medium rounded-lg border border-zinc-500 text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          className="w-full  py-2 px-4 text-sm font-medium rounded-lg border border-zinc-500 text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
         >
           Quay lại trang chủ
         </button>
