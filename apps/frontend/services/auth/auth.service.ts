@@ -30,4 +30,26 @@ export const authService = {
         )
         return response.data
     },
+    async requestChangePassword(current_password: string, new_password: string) {
+        try {
+            const response = await axiosInstance.post(API_ENDPOINT.AUTH.CHANGE_PASSWORD_REQUEST, {
+                current_password,
+                new_password,
+            })
+            return response.data
+        } catch (error) {
+            throw parseAxiosError(error)
+        }
+    },
+
+    async confirmChangePassword(otp_code: string) {
+        try {
+            const response = await axiosInstance.post(API_ENDPOINT.AUTH.CHANGE_PASSWORD_CONFIRM, {
+                otp_code,
+            })
+            return response.data
+        } catch (error) {
+            throw parseAxiosError(error)
+        }
+    },
 }
