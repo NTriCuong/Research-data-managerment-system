@@ -1,10 +1,11 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.auth.otp_verification import OtpVerification
 from app.models.auth.refresh_token import RefreshToken
 from app.models.auth.role import Role
 from app.models.auth.user import User
@@ -154,6 +155,30 @@ class AuthRepository:
             .where(RefreshToken.revoked_at.is_(None))
         )
         return result.scalars().all()
+
+    # ── otp_verification ─────────────────────────────────────────────────
+
+    async def delete_otp_by_user(self, user_id: UUID) -> None:
+        await self.db.execute(
+            delete(OtpVerification).where(OtpVerification.user_id == user_id)
+        )
+
+    def add_otp(self, otp: OtpVerification) -> None:
+        self.db.add(otp)
+
+    async def find_latest_otp_by_user(self, user_id: UUID) -> OtpVerification | None:
+        result = await self.db.execute(
+            select(OtpVerification)
+            .where(OtpVerification.user_id == user_id)
+            .order_by(OtpVerification.created_at.desc())
+        )
+        return result.scalar_one_or_none()
+
+    async def delete_otp_by_id(self, otp_id: UUID) -> int:
+        result = await self.db.execute(
+            delete(OtpVerification).where(OtpVerification.id == otp_id)
+        )
+        return result.rowcount
 
 
 auth_repository = AuthRepository

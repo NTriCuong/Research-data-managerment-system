@@ -1,6 +1,9 @@
 import uuid
 from datetime import datetime
 
+from app.models.auth.refresh_token import RefreshToken
+from app.models.auth.role import Role
+from app.models.reference.department import Department
 from sqlalchemy import TIMESTAMP, ForeignKey, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -9,6 +12,7 @@ from app.database.base import Base
 from app.models.enum import UserStatus, UserStatusType
 from app.models.reference.user_notification import UserNotification
 from app.models.reference.user_device import UserDevice
+from app.models.auth.otp_verification import OtpVerification
 
 
 class User(Base):
@@ -39,6 +43,12 @@ class User(Base):
 
     devices: Mapped[list["UserDevice"]] = relationship(
         "UserDevice",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
+    otp_verifications: Mapped[list["OtpVerification"]] = relationship(
+        "OtpVerification",
         back_populates="user",
         cascade="all, delete-orphan"
     )

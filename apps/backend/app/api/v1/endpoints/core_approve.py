@@ -2,6 +2,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import BackgroundTasks
+
 
 from app.core.permissions import require_roles
 from app.database.session import get_db
@@ -29,6 +31,7 @@ async def list_pending_approval_records(
 async def approve_record(
     staging_id: UUID,
     payload: ApproveRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(require_roles(*ALLOWED_APPROVER_ROLES)),
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponse:
@@ -37,6 +40,7 @@ async def approve_record(
         staging_id=staging_id,
         payload=payload,
         current_user=current_user,
+        background_tasks=background_tasks
     )
     return result
 
@@ -45,6 +49,7 @@ async def approve_record(
 async def reject_record(
     staging_id: UUID,
     payload: RejectApprovalRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(require_roles(*ALLOWED_APPROVER_ROLES)),
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponse:
@@ -53,5 +58,6 @@ async def reject_record(
         staging_id=staging_id,
         reason=payload.reason,
         current_user=current_user,
+        background_tasks=background_tasks
     )
     return result

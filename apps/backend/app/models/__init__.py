@@ -28,3 +28,5 @@ from app.models.reference.notification import FCMNotification
 from app.models.reference.user_device import UserDevice  
 from app.models.reference.user_notification import UserNotification  
 from app.models.logs.research_object_views import ResearchObjectView
+ # otp
+from app.models.auth.otp_verification import OtpVerification
