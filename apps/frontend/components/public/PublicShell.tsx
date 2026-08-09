@@ -47,11 +47,11 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
                         <Button asChild variant={pathname === "/" ? "secondary" : "ghost"} size="lg">
                             <Link href="/">Trang chủ</Link>
                         </Button>
-                        <Button asChild variant={pathname.startsWith("/gioi-thieu") ? "secondary" : "ghost"} size="lg">
+                        <Button asChild variant={pathname.startsWith("/about") ? "secondary" : "ghost"} size="lg">
                             <Link href="/about">Giới thiệu</Link>
                         </Button>
                         <Button asChild variant={pathname.startsWith("/researches") ? "secondary" : "ghost"} size="lg">
-                            <Link href="/researches">Bộ lọc</Link>
+                            <Link href="/researches">Khám phá</Link>
                         </Button>
                         {isAuthenticated ? (
                             <Button asChild variant="outline" size="lg">

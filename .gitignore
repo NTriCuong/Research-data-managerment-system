@@ -11,6 +11,9 @@ yarn-error.log*
 
 # environment
 .env
+.env.*
+!.env.example
+!.env.*.example
 
 # Python / FastAPI
 apps/backend/.venv/
@@ -31,6 +34,12 @@ coverage/
 
 # Misc
 *.log
+
+# Deployment runtime data
+deploy/backups/
+deploy/nginx/certs/
+deploy/elasticsearch/certs/*
+!deploy/elasticsearch/certs/README.md
 
 
 venv/

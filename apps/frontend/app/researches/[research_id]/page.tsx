@@ -4,13 +4,20 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Download, ExternalLink, FileText, Lock, Users } from "lucide-react"
+import { ArrowLeft, BarChart3, Download, ExternalLink, FileText, Lock, Users } from "lucide-react"
+import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from "recharts"
 import { toast } from "sonner"
 
 import { PublicShell } from "@/components/public/PublicShell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+    ChartContainer,
+    ChartTooltip,
+    ChartTooltipContent,
+    type ChartConfig,
+} from "@/components/ui/chart"
 import {
     publicSearchService,
     type PublicFile,
@@ -27,6 +34,13 @@ const formatFileSize = (bytes: number) => {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
+
+const engagementChartConfig = {
+    count: {
+        label: "Số lượt",
+        color: "#2563eb",
+    },
+} satisfies ChartConfig
 
 export default function PublicResearchDetailPage() {
     const params = useParams<{ research_id: string }>()
@@ -68,7 +82,6 @@ export default function PublicResearchDetailPage() {
                                 <div className="flex flex-wrap items-center gap-2">
                                     <Badge variant="secondary">{detail.output_type.name}</Badge>
                                     {detail.year ? <Badge variant="outline">{detail.year}</Badge> : null}
-                                    <Badge variant="outline">Phiên bản {detail.version_no}</Badge>
                                 </div>
                                 <h1 className="mt-4 text-2xl font-semibold leading-9 text-foreground">
                                     {detail.title}
@@ -154,6 +167,11 @@ export default function PublicResearchDetailPage() {
                                 </div>
                             </div>
 
+                            <ResearchEngagementChart
+                                viewCount={detail.view_count}
+                                downloadCount={detail.download_count}
+                            />
+
                             <div className="rounded-lg border border-border bg-card p-4">
                                 <h2 className="font-semibold text-foreground">Thông tin khác</h2>
                                 <dl className="mt-3 grid gap-2 text-sm text-muted-foreground">
@@ -168,6 +186,43 @@ export default function PublicResearchDetailPage() {
                 )}
             </div>
         </PublicShell>
+    )
+}
+
+function ResearchEngagementChart({ viewCount, downloadCount }: { viewCount: number; downloadCount: number }) {
+    const data = [
+        { metric: "Truy cập", count: viewCount, fill: "#2563eb" },
+        { metric: "Tải file", count: downloadCount, fill: "#16a34a" },
+    ]
+
+    return (
+        <div className="rounded-lg border border-border bg-card p-4">
+            <h2 className="flex items-center gap-2 font-semibold text-foreground">
+                <BarChart3 className="size-4" />
+                Mức độ quan tâm
+            </h2>
+            <ChartContainer config={engagementChartConfig} className="mt-3 aspect-auto h-44 w-full">
+                <BarChart accessibilityLayer data={data} layout="vertical" margin={{ left: 8, right: 12 }}>
+                    <CartesianGrid horizontal={false} />
+                    <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
+                    <YAxis
+                        dataKey="metric"
+                        type="category"
+                        tickLine={false}
+                        axisLine={false}
+                        width={64}
+                    />
+                    <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                    <Bar dataKey="count" radius={4}>
+                        {data.map((item) => <Cell key={item.metric} fill={item.fill} />)}
+                    </Bar>
+                </BarChart>
+            </ChartContainer>
+            <div className="mt-2 grid grid-cols-2 gap-3 text-center text-xs text-muted-foreground">
+                <div><span className="block text-base font-semibold text-foreground">{viewCount}</span>Lượt truy cập</div>
+                <div><span className="block text-base font-semibold text-foreground">{downloadCount}</span>Lượt tải file</div>
+            </div>
+        </div>
     )
 }
 

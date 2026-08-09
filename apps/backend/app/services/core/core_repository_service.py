@@ -3,6 +3,7 @@ from uuid import UUID
 
 from app.core.access_levels import is_access_level_allowed
 from app.core.exceptions import BadRequestException, NotFoundException
+from fastapi import BackgroundTasks
 from app.models.auth.user import User
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +17,7 @@ from app.schemas.core_repository import (
 )
 from app.models.enum import AccessLevel, FileStatus
 from app.services.logs.audit_service import audit_service
+from app.services.search.elasticsearch_index_service import index_research_document
 
 
 class CoreRepositoryService:
@@ -133,6 +135,7 @@ class CoreRepositoryService:
         *,
         research_id: UUID,
         access_level: AccessLevel,
+        background_tasks: BackgroundTasks,
         current_user: User,
     ) -> CoreResearchObjectListOut:
         core_obj = await CoreRepository(db).get_core_record(research_id, with_relations=True)
@@ -188,6 +191,11 @@ class CoreRepositoryService:
             message="Updated access level for an approved research",
         )
         await db.flush()
+        await db.commit()
+        background_tasks.add_task(
+            index_research_document,
+            core_obj.research_id,
+        )
         return CoreResearchObjectListOut.model_validate(core_obj)
 
     async def list_metadata_versions(self, db: AsyncSession, *, research_id: UUID) -> list[CoreMetadataVersionOut]:

@@ -470,6 +470,15 @@ export const referenceService = {
         return response.data;
     },
 
+    async updateStagingFileAccessLevel(stagingId: string, fileId: string, accessLevel: AccessLevel) {
+        const response = await axiosInstance.put<StagingFile>(
+            API_ENDPOINT.DATA_ENTRY.UPDATE_FILE_ACCESS_LEVEL(stagingId, fileId),
+            { access_level: accessLevel }
+        );
+
+        return response.data;
+    },
+
     // Roles
     async getRoles() {
         const response = await axiosInstance.get<Role[]>(API_ENDPOINT.ROLE.GET);

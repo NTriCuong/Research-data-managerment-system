@@ -52,7 +52,7 @@ export default function AppSidebar({ items, currentUser }: AppSidebarProps) {
   return (
     <Sidebar>
       <SidebarHeader className="items-center px-4 py-5">
-        <Link href="/dashboard" className="flex w-full items-center justify-center">
+        <Link href="/" className="flex w-full items-center justify-center">
           <Image
             src="/logo-stu.svg"
             alt="STU"

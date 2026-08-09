@@ -1,0 +1,55 @@
+name: rdms-dev
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+
+  elasticsearch:
+    ports:
+      - "127.0.0.1:${ELASTIC_PORT:-9200}:9200"
+
+  backend:
+    environment:
+      APP_ENV: development
+      DEBUG: "true"
+      BACKEND_WORKERS: "1"
+      ELASTIC_HOST: https://elasticsearch:9200
+    command:
+      [
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload",
+      ]
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    volumes: !override
+      - elasticsearch_certs:/run/secrets/elasticsearch:ro
+      - backend_backups:/app/backups
+      - ./apps/backend/app:/app/app
+      - ./apps/backend/alembic:/app/alembic
+    depends_on:
+      elasticsearch-init:
+        condition: service_completed_successfully
+    networks:
+      - edge
+      - data
+      - elastic
+
+  frontend:
+    build:
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:${BACKEND_PORT:-8000}
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
+
+  nginx:
+    ports: !override
+      - "127.0.0.1:${HTTP_PORT:-8080}:80"
+
+volumes:
+  elasticsearch_certs:

@@ -43,8 +43,17 @@ class Settings(BaseSettings):
     SMTP_USERNAME: str 
     SMTP_PASSWORD: str 
     SMTP_FROM_EMAIL: str 
-    SMTP_FROM_NAME: str = "Khoa khoa học - công nghệ STU"
-    SMTP_USE_TLS: bool 
+    SMTP_FROM_NAME: str = "Phòng Quản Lý Khoa Học & Sau Đại Học - STU"
+    SMTP_USE_TLS: bool
+    FIREBASE_CREDENTIALS_PATH: Path = Path("firebase-service-account.json")
+
+    ELASTIC_HOST: str
+    ELASTIC_USERNAME: str
+    ELASTIC_PASSWORD: str
+    ELASTIC_VERIFY_CERTS: bool = True
+    ELASTIC_CA_CERT: Path | None = None
+    ELASTIC_INDEX: str = "rdms_research_objects"
+    ELASTIC_REQUEST_TIMEOUT_SECONDS: int = 10
 
     @field_validator("DEBUG", mode="before")
     @classmethod

@@ -1,0 +1,201 @@
+name: rdms
+
+x-backend-environment: &backend-environment
+  APP_NAME: ${APP_NAME:-Research Data Management System}
+  APP_ENV: ${APP_ENV:-production}
+  DEBUG: ${DEBUG:-false}
+  API_V1_PREFIX: ${API_V1_PREFIX:-/api/v1}
+  CORS_ORIGINS: '${CORS_ORIGINS:-["http://localhost"]}'
+  PASSWORD_MIN_LENGTH: ${PASSWORD_MIN_LENGTH:-8}
+  SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+  OTP_SALT: ${OTP_SALT:?Set OTP_SALT in .env}
+  ALGORITHM: ${ALGORITHM:-HS256}
+  ACCESS_TOKEN_EXPIRE: ${ACCESS_TOKEN_EXPIRE:-30}
+  REFRESH_TOKEN_EXPIRE: ${REFRESH_TOKEN_EXPIRE:-7}
+  MAX_LOGIN_ATTEMPTS: ${MAX_LOGIN_ATTEMPTS:-5}
+  LOCK_DURATION: ${LOCK_DURATION:-15}
+  FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+  DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+  BACKUP_DIRECTORY: ${BACKUP_DIRECTORY:-/app/backups}
+  PG_DUMP_PATH: ${PG_DUMP_PATH:-pg_dump}
+  CLOUDFLARE_R2_ACCOUNT_ID: ${CLOUDFLARE_R2_ACCOUNT_ID:-}
+  CLOUDFLARE_R2_ACCESS_KEY_ID: ${CLOUDFLARE_R2_ACCESS_KEY_ID:-}
+  CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${CLOUDFLARE_R2_SECRET_ACCESS_KEY:-}
+  CLOUDFLARE_R2_BUCKET_NAME: ${CLOUDFLARE_R2_BUCKET_NAME:-}
+  CLOUDFLARE_R2_PUBLIC_BASE_URL: ${CLOUDFLARE_R2_PUBLIC_BASE_URL:-}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USERNAME: ${SMTP_USERNAME:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+  SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Phòng Quản lý khoa học & Sau đại học - STU}
+  SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+  FIREBASE_CREDENTIALS_PATH: ${FIREBASE_CREDENTIALS_PATH:-/run/secrets/firebase/service-account.json}
+  ELASTIC_HOST: ${ELASTIC_HOST:?Set ELASTIC_HOST in .env}
+  ELASTIC_USERNAME: ${ELASTIC_USERNAME:-elastic}
+  ELASTIC_PASSWORD: ${RDMS_ELASTIC_PASSWORD:?Set RDMS_ELASTIC_PASSWORD in .env}
+  ELASTIC_VERIFY_CERTS: "true"
+  ELASTIC_CA_CERT: /run/secrets/elasticsearch/ca/ca.crt
+  ELASTIC_INDEX: ${ELASTIC_INDEX:-rdms_research_objects}
+  ELASTIC_REQUEST_TIMEOUT_SECONDS: ${ELASTIC_REQUEST_TIMEOUT_SECONDS:-10}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rdms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-rdms}
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - data
+
+  migrate:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    environment: *backend-environment
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - data
+
+  seed:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    profiles: ["tools"]
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-rdms}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      PGDATABASE: ${POSTGRES_DB:-rdms}
+    command:
+      [
+        "psql",
+        "--set",
+        "ON_ERROR_STOP=1",
+        "--file",
+        "/app/db-init/seed-init.sql",
+      ]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+    networks:
+      - data
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *backend-environment
+      BACKEND_WORKERS: ${BACKEND_WORKERS:-2}
+    expose:
+      - "8000"
+    extra_hosts:
+      - "${ELASTIC_CERT_HOSTNAME:-es01}:${ELASTIC_SERVER_IP:-127.0.0.1}"
+    volumes:
+      - type: bind
+        source: ${ELASTIC_CA_CERT_HOST_PATH:-./deploy/elasticsearch/certs/ca.crt}
+        target: /run/secrets/elasticsearch/ca/ca.crt
+        read_only: true
+        bind:
+          create_host_path: false
+      - backend_backups:/app/backups
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - edge
+      - data
+
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/}
+        NEXT_PUBLIC_PUBLIC_HOME_BANNER_URL: ${NEXT_PUBLIC_PUBLIC_HOME_BANNER_URL:-}
+        NEXT_PUBLIC_FIREBASE_VAPID_KEY: ${NEXT_PUBLIC_FIREBASE_VAPID_KEY:-}
+        NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY:-}
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:-}
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-}
+        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:-}
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:-}
+        NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID:-}
+        NEXT_PUBLIC_MEASUREMENT_ID: ${NEXT_PUBLIC_MEASUREMENT_ID:-}
+        NEXT_PUBLIC_COVER_RESEARCH_URL: ${NEXT_PUBLIC_COVER_RESEARCH_URL:-}
+    restart: unless-stopped
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+    expose:
+      - "3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - edge
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/nginx-health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - edge
+
+volumes:
+  postgres_data:
+  backend_backups:
+
+networks:
+  edge:
+    driver: bridge
+  data:
+    driver: bridge
+    internal: true

@@ -10,7 +10,7 @@ from app.core.exceptions import NotFoundException
 from app.models.enum import AuthorRole
 from app.repositories.export_repository import ExportRepository
 
-TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "templates_excel"
+TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "utils/templates_excel"
 AUTHOR_PROFILE_TEMPLATE = TEMPLATES_DIR / "sheet_author_profile.xlsx"
 RESEARCHES_TEMPLATE = TEMPLATES_DIR / "sheet_researches.xlsx"
 

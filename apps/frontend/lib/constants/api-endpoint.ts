@@ -16,6 +16,8 @@ export const API_ENDPOINT = {
         CREATE_REVISION: '/api/v1/staging-metadata/revisions',
         FILES: (stagingId: string) => `/api/v1/staging-metadata/${stagingId}/files`,
         DELETE_FILE: (stagingId: string, fileId: string) => `/api/v1/staging-metadata/${stagingId}/files/${fileId}`,
+        UPDATE_FILE_ACCESS_LEVEL: (stagingId: string, fileId: string) =>
+            `/api/v1/staging-metadata/${stagingId}/files/${fileId}/access-level`,
     },
     REVIEWER: {
         GET_RESEARCH_DATA: '/api/v1/staging-review/pending',
@@ -88,6 +90,7 @@ export const API_ENDPOINT = {
     PUBLIC: {
         RESEARCH_LOOKUPS: 'api/v1/public/research-lookups',
         RESEARCHES: 'api/v1/public/researches',
+        RESEARCH_SUGGESTIONS: 'api/v1/public/researches/suggestions',
         RESEARCH_DETAIL: (researchId: string) => `api/v1/public/researches/${researchId}`,
         DOWNLOAD_FILE: (researchId: string, fileId: string) => `api/v1/public/researches/${researchId}/files/${fileId}/download`,
     },

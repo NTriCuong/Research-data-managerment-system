@@ -49,7 +49,7 @@ class FileService:
         self._validate_file_type(file_extension=file_extension, mime_type=mime_type)
 
         stored_filename = f"{uuid4().hex}{file_extension}"
-        storage_key = f"staging/{staging_id}/{stored_filename}"
+        storage_key = f"file_attachment/{staging_id}/{stored_filename}"
 
         try:
             access_level_enum = AccessLevel(access_level)

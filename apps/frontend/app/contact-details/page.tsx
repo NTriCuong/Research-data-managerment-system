@@ -21,7 +21,8 @@ export default function ContactPage() {
             eyebrow="Hỗ trợ"
             title="Liên hệ"
             description="Liên hệ Phòng Khoa học Công nghệ khi bạn cần hỗ trợ về tài khoản, dữ liệu nghiên cứu hoặc quy trình sử dụng hệ thống."
-            icon={Mail}
+            imageSrc="/undraw_contact-us_s4jn.svg"
+            imageAlt="Minh họa liên hệ và hỗ trợ"
         >
             <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
                 <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1" aria-label="Thông tin liên hệ">

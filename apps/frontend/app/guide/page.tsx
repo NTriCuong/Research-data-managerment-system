@@ -23,7 +23,8 @@ export default function GuidePage() {
             eyebrow="Bắt đầu nhanh"
             title="Hướng dẫn sử dụng"
             description="Tra cứu và khai thác dữ liệu nghiên cứu trên hệ thống qua bốn bước đơn giản."
-            icon={BookOpen}
+            imageSrc="/undraw_guidelines_p5r7.svg"
+            imageAlt="Minh họa hướng dẫn sử dụng hệ thống"
         >
             <section className="grid gap-5 md:grid-cols-2">
                 {steps.map(({ icon: Icon, title, text }, index) => (

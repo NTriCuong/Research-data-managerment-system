@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import require_roles
@@ -59,6 +59,7 @@ async def get_core_record(
 async def update_core_research_access_level(
     research_id: UUID,
     payload: CoreResearchAccessLevelUpdate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(require_roles(*ALLOWED_FILE_PERMISSION_MANAGER_ROLES)),
     db: AsyncSession = Depends(get_db),
 ) -> CoreResearchObjectListOut:
@@ -66,6 +67,7 @@ async def update_core_research_access_level(
         db,
         research_id=research_id,
         access_level=payload.access_level,
+        background_tasks=background_tasks,
         current_user=current_user,
     )
 

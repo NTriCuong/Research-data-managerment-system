@@ -8,6 +8,7 @@ from app.api.v1.endpoints import staging_metadata as metadata_endpoint
 from app.core.config import settings
 from app.core.exceptions import BadRequestException
 from app.database.session import get_db
+from app.models.enum import AccessLevel, FileStatus, WorkflowStatus
 from app.schemas.staging_metadata import CreateRevisionRequest
 from app.services.auth import deps as auth_deps
 from app.services.staging import staging_metadata_service as staging_service_module
@@ -285,6 +286,37 @@ def test_delete_staging_file_does_not_commit_in_endpoint(client, sample_user, mo
     assert db.commit_count == 0
 
 
+def test_data_entry_can_update_staging_file_access_level(client, sample_user, monkeypatch):
+    _override_user_with_role(client, sample_user, "DATA_ENTRY")
+    db = _FakeDbSession()
+    client.app.dependency_overrides[get_db] = _fake_db_provider(db)
+    staging_id = uuid4()
+    file_id = uuid4()
+    captured = {}
+
+    async def _fake_update(*args, **kwargs):
+        captured.update(kwargs)
+        payload = _file_payload(staging_id, sample_user)
+        payload["file_id"] = file_id
+        payload["access_level"] = kwargs["access_level"]
+        return payload
+
+    monkeypatch.setattr(metadata_endpoint.staging_service, "update_staging_file_access_level", _fake_update)
+
+    response = client.put(
+        f"{settings.API_V1_PREFIX}/staging-metadata/{staging_id}/files/{file_id}/access-level",
+        json={"access_level": "private"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["access_level"] == "private"
+    assert captured["staging_id"] == staging_id
+    assert captured["file_id"] == file_id
+    assert captured["access_level"].value == "private"
+    assert captured["current_user"] is sample_user
+    assert db.commit_count == 0
+
+
 def test_reviewer_cannot_upload_staging_file(client, sample_user):
     _override_user_with_role(client, sample_user, "REVIEWER")
     client.app.dependency_overrides[get_db] = _fake_db_provider()
@@ -297,6 +329,91 @@ def test_reviewer_cannot_upload_staging_file(client, sample_user):
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Bạn không có đủ quyền để thực hiện thao tác này"
+
+
+@pytest.mark.asyncio
+async def test_data_entry_updates_file_access_level_in_staging(sample_user, monkeypatch):
+    staging_id = uuid4()
+    file_id = uuid4()
+    staging_obj = SimpleNamespace(
+        staging_id=staging_id,
+        deleted_at=None,
+        created_by=sample_user.user_id,
+        workflow_status=WorkflowStatus.draft,
+        access_level=AccessLevel.public,
+    )
+    file_obj = SimpleNamespace(
+        **{
+            **_file_payload(staging_id, sample_user),
+            "file_id": file_id,
+            "file_status": FileStatus.active,
+            "access_level": AccessLevel.public,
+        }
+    )
+
+    class _Repository:
+        def __init__(self, _db):
+            pass
+
+        async def get_by_id(self, _staging_id, *, with_relations=False):
+            return staging_obj
+
+        async def get_file_attachment(self, *, staging_id, file_id):
+            return file_obj
+
+    class _Db:
+        async def flush(self):
+            return None
+
+    audit_values = {}
+
+    async def _write_audit(*_args, **kwargs):
+        audit_values.update(kwargs)
+
+    monkeypatch.setattr(staging_service_module, "StagingRepository", _Repository)
+    monkeypatch.setattr(staging_service_module.audit_service, "write_log", _write_audit)
+
+    result = await staging_service_module.staging_service.update_staging_file_access_level(
+        _Db(),
+        staging_id=staging_id,
+        file_id=file_id,
+        access_level=AccessLevel.private,
+        current_user=sample_user,
+    )
+
+    assert result.access_level == AccessLevel.private
+    assert file_obj.access_level == AccessLevel.private
+    assert audit_values["old_value"] == {"access_level": "public"}
+    assert audit_values["new_value"] == {"access_level": "private"}
+
+
+@pytest.mark.asyncio
+async def test_data_entry_cannot_make_file_more_visible_than_research(sample_user, monkeypatch):
+    staging_obj = SimpleNamespace(
+        staging_id=uuid4(),
+        deleted_at=None,
+        created_by=sample_user.user_id,
+        workflow_status=WorkflowStatus.draft,
+        access_level=AccessLevel.internal,
+    )
+
+    class _Repository:
+        def __init__(self, _db):
+            pass
+
+        async def get_by_id(self, _staging_id, *, with_relations=False):
+            return staging_obj
+
+    monkeypatch.setattr(staging_service_module, "StagingRepository", _Repository)
+
+    with pytest.raises(BadRequestException, match="không được cao hơn"):
+        await staging_service_module.staging_service.create_staging_file_metadata(
+            object(),
+            staging_id=staging_obj.staging_id,
+            file=object(),
+            access_level=AccessLevel.public,
+            current_user=sample_user,
+        )
 
 
 @pytest.mark.asyncio

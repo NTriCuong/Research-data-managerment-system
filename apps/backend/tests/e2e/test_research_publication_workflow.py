@@ -175,11 +175,7 @@ async def test_full_publication_and_approved_revision_workflow(workflow_context,
 
     approve_response = await client.post(
         f"{prefix}/core-approve/{staging_id}/approve",
-        json={
-            "note": "Approved for publication",
-            "access_level": "public",
-            "file_access_levels": [{"file_id": file_id, "access_level": "public"}],
-        },
+        json={"note": "Approved for publication"},
     )
     assert approve_response.status_code == 200, approve_response.text
 
@@ -252,7 +248,7 @@ async def test_full_publication_and_approved_revision_workflow(workflow_context,
         (f"{prefix}/staging-review/{revision_id}/forward", {"note": "Review revision"}),
         (
             f"{prefix}/core-approve/{revision_id}/approve",
-            {"note": "Approve revision", "access_level": "public"},
+            {"note": "Approve revision"},
         ),
     ]:
         response = await client.post(path, json=payload)

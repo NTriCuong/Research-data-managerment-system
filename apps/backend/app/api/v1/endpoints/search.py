@@ -17,7 +17,7 @@ ALLOWED_STAGING_SEARCH_ROLES = ("SUPER_ADMIN", "MANAGER", "DATA_ENTRY", "REVIEWE
 
 
 @router.get("/core", response_model=CoreSearchResponseOut)
-async def search_core_postgres(
+async def search_core(
     q: str = Query(min_length=1, max_length=300),
     output_type_id: list[UUID] | None = Query(default=None),
     department_id: list[UUID] | None = Query(default=None),
@@ -28,7 +28,7 @@ async def search_core_postgres(
     current_user: User | None = Depends(get_optional_current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> CoreSearchResponseOut:
-    return await search_service.search_core_postgres(
+    return await search_service.search_core(
         db,
         query=q.strip(),
         output_type_ids=output_type_id,

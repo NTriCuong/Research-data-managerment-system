@@ -13,6 +13,7 @@ from app.schemas.auth import MessageResponse
 from app.schemas.files import IncomingFile
 from app.schemas.staging_metadata import (
     CreateRevisionRequest,
+    StagingFileAccessLevelUpdate,
     StagingFileOut,
     StagingResearchObjectCreate,
     StagingResearchObjectDetailOut,
@@ -235,3 +236,20 @@ async def delete_staging_file_metadata(
         current_user=current_user,
 )
     return result
+
+
+@router.put("/{staging_id}/files/{file_id}/access-level", response_model=StagingFileOut)
+async def update_staging_file_access_level(
+    staging_id: UUID,
+    file_id: UUID,
+    payload: StagingFileAccessLevelUpdate,
+    current_user: User = Depends(require_roles(*ALLOWED_EDITOR_ROLES)),
+    db: AsyncSession = Depends(get_db),
+) -> StagingFileOut:
+    return await staging_service.update_staging_file_access_level(
+        db,
+        staging_id=staging_id,
+        file_id=file_id,
+        access_level=payload.access_level,
+        current_user=current_user,
+    )

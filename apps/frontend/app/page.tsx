@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 
@@ -33,7 +34,7 @@ export default function HomePage() {
 
     return (
         <PublicShell>
-            <section
+            {/* <section
                 className="border-b border-border bg-muted/25 bg-cover bg-center"
                 style={
                     bannerUrl
@@ -43,15 +44,33 @@ export default function HomePage() {
                         : undefined
                 }
             >
-                <div className="mx-auto flex w-full max-w-7xl justify-center px-4 py-70 sm:px-6 lg:px-8">
+                <div className="mx-auto flex w-full max-w-7xl justify-center px-4 py-84 sm:px-6 lg:px-8">
                 </div>
-            </section>
+            </section> */}
             <section className="border-b-2 border-border bg-muted/25">
-                <div className="flex w-full justify-center px-4 py-20 sm:px-6 lg:px-8">
-                    <div className="w-full max-w-3xl text-center">  
-                        <div className="mx-auto mt-6 rounded-lg border-4 border-blue-400 bg-background/95 p-4 shadow-sm backdrop-blur">
+                <div className="mx-auto grid w-full max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-2 lg:gap-16 lg:px-8 lg:py-20">
+                    <div className="min-w-0">
+                        <div className="mb-7 max-w-xl">
+                            <h2 className="text-2xl font-bold text-foreground sm:text-3xl">
+                                Tìm kiếm dữ liệu nghiên cứu
+                            </h2>
+                            <p className="mt-3 text-base leading-7 text-muted-foreground">
+                                Khám phá các công trình, đề tài và bộ dữ liệu nghiên cứu của Trường Đại học Công nghệ Sài Gòn.
+                            </p>
+                        </div>
+                        <div className="w-full rounded-lg border border-border bg-background p-4 shadow-sm">
                             <PublicSearchForm />
                         </div>
+                    </div>
+                    <div className="flex min-h-64 items-center justify-center sm:min-h-80 lg:min-h-96">
+                        <Image
+                            src="/undraw_search-resultsis.svg"
+                            alt="Minh họa kết quả tìm kiếm dữ liệu nghiên cứu"
+                            width={800}
+                            height={655}
+                            className="h-auto w-full max-w-lg"
+                            priority
+                        />
                     </div>
                 </div>
             </section>
@@ -99,7 +118,7 @@ export default function HomePage() {
             </section>
             <section className="border-b-2 border-border bg-blue-300">
                 <div className="flex w-full justify-center px-4 py-7 sm:px-6 lg:px-8">
-                    <h2 className="text-2xl font-semibold text-foreground">Dữ liệu mới nhất</h2>
+                    <h2 className="text-2xl font-semibold text-foreground">Tài liệu mới nhất</h2>
                 </div>
             </section>
             <section className="mx-auto w-full px-4 py-8 sm:px-6 lg:px-8">

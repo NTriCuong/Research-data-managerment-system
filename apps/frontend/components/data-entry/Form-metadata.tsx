@@ -21,6 +21,7 @@ import {
     AttachmentMedia,
     AttachmentTitle,
 } from "@/components/ui/attachment";
+import { isAccessLevelAllowed } from "@/lib/constants/workflow";
 
 const AUTHOR_ROLES = [
     { value: "creator", label: "Người tạo (tác giả chính)" },
@@ -137,7 +138,11 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
     const [stagingId, setStagingId] = useState<string | null>(editStagingId ?? null);
     const [files, setFiles] = useState<StagingFile[]>(initialDetail?.files ?? []);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [selectedFileAccessLevel, setSelectedFileAccessLevel] = useState<AccessLevel>(
+        initialDetail?.access_level ?? "internal"
+    );
     const [uploadingFile, setUploadingFile] = useState(false);
+    const [updatingFileId, setUpdatingFileId] = useState<string | null>(null);
 
     const [formData, setFormData] = useState<MetadataFormState>({
         title: initialDetail?.title ?? "",
@@ -379,7 +384,15 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
 
         setUploadingFile(true);
         try {
-            const uploaded = await referenceService.uploadStagingFile(stagingId, selectedFile, formData.access_level);
+            if (!isAccessLevelAllowed(selectedFileAccessLevel, formData.access_level)) {
+                toast.error("Quyền truy cập tệp không được cao hơn quyền truy cập bài nghiên cứu");
+                return;
+            }
+            const uploaded = await referenceService.uploadStagingFile(
+                stagingId,
+                selectedFile,
+                selectedFileAccessLevel
+            );
             setFiles(prev => [...prev, uploaded]);
             setSelectedFile(null);
             toast.success("Tải tệp lên thành công");
@@ -399,6 +412,29 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
             toast.success("Xoá tệp thành công");
         } catch (error) {
             toast.error(parseAxiosError(error).message);
+        }
+    };
+
+    const handleFileAccessLevelChange = async (fileId: string, accessLevel: AccessLevel) => {
+        if (!stagingId || !formData.access_level) return;
+        if (!isAccessLevelAllowed(accessLevel, formData.access_level)) {
+            toast.error("Quyền truy cập tệp không được cao hơn quyền truy cập bài nghiên cứu");
+            return;
+        }
+
+        setUpdatingFileId(fileId);
+        try {
+            const updated = await referenceService.updateStagingFileAccessLevel(
+                stagingId,
+                fileId,
+                accessLevel
+            );
+            setFiles((current) => current.map((file) => (file.file_id === fileId ? updated : file)));
+            toast.success("Đã cập nhật quyền truy cập tệp");
+        } catch (error) {
+            toast.error(parseAxiosError(error).message);
+        } finally {
+            setUpdatingFileId(null);
         }
     };
     const handleSaveDraft = async () => {
@@ -608,12 +644,19 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                             <select
                                 className="w-full rounded-lg border px-3 py-2"
                                 value={formData.access_level}
-                                onChange={(e) =>
+                                onChange={(e) => {
+                                    const nextAccessLevel = e.target.value as AccessLevel | "";
                                     setFormData((prev) => ({
                                         ...prev,
-                                        access_level: e.target.value as AccessLevel | "",
-                                    }))
-                                }
+                                        access_level: nextAccessLevel,
+                                    }));
+                                    if (
+                                        nextAccessLevel
+                                        && !isAccessLevelAllowed(selectedFileAccessLevel, nextAccessLevel)
+                                    ) {
+                                        setSelectedFileAccessLevel(nextAccessLevel);
+                                    }
+                                }}
                             >
                                 <option value="">Chọn mức truy cập</option>
                                 {ACCESS_LEVEL_OPTIONS.map((item) => (
@@ -1138,6 +1181,27 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                 </FormSectionCard>
 
                 <FormSectionCard icon={Paperclip} title="Tệp đính kèm (Attachments)">
+                    <div className="mb-4 max-w-xs">
+                        <label htmlFor="new-file-access-level" className="mb-2 block text-sm font-medium text-gray-700">
+                            Quyền truy cập tệp mới
+                        </label>
+                        <select
+                            id="new-file-access-level"
+                            value={selectedFileAccessLevel}
+                            disabled={!formData.access_level}
+                            onChange={(event) => setSelectedFileAccessLevel(event.target.value as AccessLevel)}
+                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm disabled:bg-gray-100"
+                        >
+                            {ACCESS_LEVEL_OPTIONS
+                                .filter((option) =>
+                                    formData.access_level
+                                    && isAccessLevelAllowed(option.value, formData.access_level)
+                                )
+                                .map((option) => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                        </select>
+                    </div>
                     <div className={!stagingId ? "pointer-events-none opacity-50" : ""} aria-disabled={!stagingId}>
                         <Attachment state={stagingId ? (uploadingFile ? "uploading" : "idle") : "idle"} className="w-full">
                             <AttachmentMedia>
@@ -1197,7 +1261,32 @@ export default function FormMetadata({ stagingId: editStagingId, initialDetail }
                                             {(file.file_size_bytes / 1024 / 1024).toFixed(2)} MB
                                         </AttachmentDescription>
                                     </AttachmentContent>
-                                    <AttachmentActions>
+                                    <AttachmentActions className="gap-2">
+                                        <select
+                                            value={file.access_level}
+                                            disabled={updatingFileId === file.file_id || !formData.access_level}
+                                            onChange={(event) =>
+                                                handleFileAccessLevelChange(file.file_id, event.target.value as AccessLevel)
+                                            }
+                                            aria-label={`Quyền truy cập của ${file.original_filename}`}
+                                            className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs disabled:bg-gray-100"
+                                        >
+                                            {formData.access_level
+                                                && !isAccessLevelAllowed(file.access_level, formData.access_level) && (
+                                                    <option value={file.access_level} disabled>
+                                                        {ACCESS_LEVEL_OPTIONS.find((option) => option.value === file.access_level)?.label}
+                                                        {' - cần giảm quyền'}
+                                                    </option>
+                                                )}
+                                            {ACCESS_LEVEL_OPTIONS
+                                                .filter((option) =>
+                                                    formData.access_level
+                                                    && isAccessLevelAllowed(option.value, formData.access_level)
+                                                )
+                                                .map((option) => (
+                                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
+                                        </select>
                                         <AttachmentAction type="button" onClick={() => handleDeleteFile(file.file_id)} aria-label="Xóa tệp">
                                             <X size={14} />
                                         </AttachmentAction>
