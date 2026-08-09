@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from sqlalchemy import Float, String, cast, exists, func, or_, select
@@ -20,6 +21,13 @@ from app.schemas.search import (
     StagingSearchResponseOut,
     StagingSearchResultOut,
 )
+from app.services.search.elasticsearch_search_service import (
+    ElasticsearchSearchError,
+    elasticsearch_search_service,
+)
+
+
+logger = logging.getLogger(__name__)
 
 
 class SearchService:
@@ -171,6 +179,127 @@ class SearchService:
             domain_text,
         )
         return func.to_tsvector("simple", func.unaccent(func.coalesce(document, "")))
+
+    @staticmethod
+    async def _elastic_access_filter(db: AsyncSession, current_user: User | None) -> dict | None:
+        if current_user is None or current_user.role is None:
+            return {"term": {"access_level": AccessLevel.public.value}}
+
+        role_code = current_user.role.role_code
+        if role_code in {"SUPER_ADMIN", "MANAGER"}:
+            return None
+        if role_code == "DATA_ENTRY":
+            result = await db.execute(
+                select(StgResearchObject.staging_id, StgResearchObject.source_core_research_id).where(
+                    StgResearchObject.created_by == current_user.user_id
+                )
+            )
+            rows = result.all()
+            source_staging_ids = [str(row[0]) for row in rows]
+            source_core_ids = [str(row[1]) for row in rows if row[1] is not None]
+            should = [{"term": {"access_level": AccessLevel.public.value}}]
+            if source_staging_ids:
+                should.append({"terms": {"source_staging_id": source_staging_ids}})
+            if source_core_ids:
+                should.append({"terms": {"research_id": source_core_ids}})
+            return {"bool": {"should": should, "minimum_should_match": 1}}
+        if role_code in {"REVIEWER", "APPROVER"}:
+            pending_status = (
+                WorkflowStatus.pending_review if role_code == "REVIEWER" else WorkflowStatus.pending_approval
+            )
+            source_core_ids = (
+                await db.execute(
+                    select(StgResearchObject.source_core_research_id)
+                    .where(StgResearchObject.workflow_status == pending_status)
+                    .where(StgResearchObject.source_core_research_id.is_not(None))
+                )
+            ).scalars().all()
+            should: list[dict] = [
+                {
+                    "terms": {
+                        "access_level": [AccessLevel.public.value, AccessLevel.internal.value],
+                    }
+                }
+            ]
+            if source_core_ids:
+                should.append({"terms": {"research_id": [str(value) for value in source_core_ids]}})
+            return {"bool": {"should": should, "minimum_should_match": 1}}
+        return {"term": {"access_level": AccessLevel.public.value}}
+
+    async def search_core_elasticsearch(
+        self,
+        db: AsyncSession,
+        *,
+        query: str,
+        output_type_ids: list[UUID] | None = None,
+        department_ids: list[UUID] | None = None,
+        domain_ids: list[UUID] | None = None,
+        keyword_ids: list[UUID] | None = None,
+        limit: int,
+        offset: int,
+        current_user: User | None = None,
+    ) -> CoreSearchResponseOut:
+        normalized_query = query.strip()
+        if not normalized_query:
+            return CoreSearchResponseOut(items=[], total=0, limit=limit, offset=offset)
+
+        access_filter = await self._elastic_access_filter(db, current_user)
+        page = await elasticsearch_search_service.search_researches(
+            query=normalized_query,
+            access_filter=access_filter,
+            output_type_ids=output_type_ids,
+            department_ids=department_ids,
+            domain_ids=domain_ids,
+            keyword_ids=keyword_ids,
+            limit=limit,
+            offset=offset,
+        )
+        if not page.hits:
+            return CoreSearchResponseOut(items=[], total=page.total, limit=limit, offset=offset)
+
+        hit_ids = [hit.research_id for hit in page.hits]
+        authoritative_filters = [
+            CoreResearchObject.research_id.in_(hit_ids),
+            CoreResearchObject.deleted_at.is_(None),
+            CoreResearchObject.is_current.is_(True),
+            self._access_filter(current_user),
+            *self._core_category_filters(
+                output_type_ids=output_type_ids,
+                department_ids=department_ids,
+                domain_ids=domain_ids,
+                keyword_ids=keyword_ids,
+            ),
+        ]
+        core_objects = (
+            await db.execute(select(CoreResearchObject).where(*authoritative_filters))
+        ).scalars().all()
+        objects_by_id = {item.research_id: item for item in core_objects}
+        scores_by_id = {hit.research_id: hit.score for hit in page.hits}
+        rows = [
+            CoreSearchResultOut(
+                research_id=objects_by_id[research_id].research_id,
+                title=objects_by_id[research_id].title,
+                year=objects_by_id[research_id].year,
+                access_level=objects_by_id[research_id].access_level,
+                version_no=objects_by_id[research_id].version_no,
+                approved_at=objects_by_id[research_id].approved_at,
+                rank=scores_by_id[research_id],
+            )
+            for research_id in hit_ids
+            if research_id in objects_by_id
+        ]
+        return CoreSearchResponseOut(items=rows, total=page.total, limit=limit, offset=offset)
+
+    async def search_core(
+        self,
+        db: AsyncSession,
+        **kwargs,
+    ) -> CoreSearchResponseOut:
+        try:
+            return await self.search_core_elasticsearch(db, **kwargs)
+        except ElasticsearchSearchError:
+            logger.warning("Elasticsearch core search failed; using PostgreSQL FTS fallback", exc_info=True)
+            return await self.search_core_postgres(db, **kwargs)
 
     async def search_core_postgres(
         self,

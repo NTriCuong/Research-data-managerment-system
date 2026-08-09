@@ -16,11 +16,14 @@ export interface PublicResearchItem {
     version_no: number;
     approved_at: string;
     metadata_quality_score: string | number | null;
+    view_count: number;
+    download_count: number;
 }
 
 export interface PublicLookup {
     id: string;
     name: string;
+    count?: number | null;
 }
 
 export interface PublicAuthor {
@@ -64,22 +67,43 @@ export interface PublicResearchSearchResponse {
     offset: number;
 }
 
+export interface PublicResearchSuggestion {
+    research_id: string;
+    title: string;
+    year: number | null;
+}
+
 export interface PublicResearchListParams {
     q?: string;
-    output_type_id?: string;
-    department_id?: string;
-    domain_id?: string;
-    keyword_id?: string;
-    year?: string;
+    output_type_ids?: string[];
+    department_ids?: string[];
+    domain_ids?: string[];
+    keyword_ids?: string[];
+    author_ids?: string[];
+    year_from?: string;
+    year_to?: string;
+    has_files?: boolean;
+    sort?: PublicResearchSort;
     limit?: number;
     offset?: number;
 }
+
+export type PublicResearchSort =
+    | "relevance"
+    | "newest"
+    | "oldest"
+    | "most_viewed"
+    | "most_downloaded"
+    | "title_asc";
 
 export interface PublicResearchLookups {
     output_types: PublicLookup[];
     departments: PublicLookup[];
     domains: PublicLookup[];
     keywords: PublicLookup[];
+    authors: PublicLookup[];
+    year_min: number | null;
+    year_max: number | null;
 }
 
 export const publicSearchService = {
@@ -92,9 +116,32 @@ export const publicSearchService = {
     },
 
     async listPublicResearches(params: PublicResearchListParams = {}) {
+        const queryParams = new URLSearchParams();
+        if (params.q) queryParams.set("q", params.q);
+        for (const value of params.output_type_ids ?? []) queryParams.append("output_type_ids", value);
+        for (const value of params.department_ids ?? []) queryParams.append("department_ids", value);
+        for (const value of params.domain_ids ?? []) queryParams.append("domain_ids", value);
+        for (const value of params.keyword_ids ?? []) queryParams.append("keyword_ids", value);
+        for (const value of params.author_ids ?? []) queryParams.append("author_ids", value);
+        if (params.year_from) queryParams.set("year_from", params.year_from);
+        if (params.year_to) queryParams.set("year_to", params.year_to);
+        if (params.has_files) queryParams.set("has_files", "true");
+        if (params.sort) queryParams.set("sort", params.sort);
+        if (params.limit !== undefined) queryParams.set("limit", String(params.limit));
+        if (params.offset !== undefined) queryParams.set("offset", String(params.offset));
+
         const response = await axiosInstance.get<PublicResearchSearchResponse>(
             API_ENDPOINT.PUBLIC.RESEARCHES,
-            { params }
+            { params: queryParams }
+        );
+
+        return response.data;
+    },
+
+    async suggestPublicResearches(q: string, limit = 8, signal?: AbortSignal) {
+        const response = await axiosInstance.get<PublicResearchSuggestion[]>(
+            API_ENDPOINT.PUBLIC.RESEARCH_SUGGESTIONS,
+            { params: { q, limit }, signal }
         );
 
         return response.data;

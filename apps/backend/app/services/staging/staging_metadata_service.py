@@ -1,6 +1,8 @@
+import logging
 from datetime import datetime, timezone
 from uuid import UUID
 
+from app.core.access_levels import is_access_level_allowed
 from app.core.exceptions import AppException, BadRequestException, ForbiddenException, NotFoundException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -42,6 +44,9 @@ from app.services.notification.notification_service import notification_service,
 from fastapi.encoders import jsonable_encoder
 from pydantic import AnyUrl
 from app.core.config import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class StagingService:
@@ -160,6 +165,20 @@ class StagingService:
             missing.append("authors.full_name")
         if missing:
             raise BadRequestException(f"Thiếu metadata bắt buộc trước khi gửi: {', '.join(missing)}")
+        invalid_files = [
+            file_obj.original_filename
+            for file_obj in staging_obj.file_attachments
+            if file_obj.file_status != FileStatus.deleted
+            and not is_access_level_allowed(
+                file_obj.access_level,
+                staging_obj.access_level,
+            )
+        ]
+        if invalid_files:
+            raise BadRequestException(
+                "Quyền truy cập tệp không được cao hơn quyền truy cập bài nghiên cứu: "
+                + ", ".join(invalid_files)
+            )
 
 
  #notification submit cho review
@@ -449,6 +468,25 @@ class StagingService:
         if obj is None or obj.deleted_at is not None:
             raise NotFoundException("Không tìm thấy bản ghi tạm")
         self._assert_editable(obj, current_user)
+        target_access_level = (
+            payload.access_level
+            if payload.access_level is not None
+            else obj.access_level
+        )
+        invalid_files = [
+            file_obj.original_filename
+            for file_obj in obj.file_attachments
+            if file_obj.file_status != FileStatus.deleted
+            and not is_access_level_allowed(
+                file_obj.access_level,
+                target_access_level,
+            )
+        ]
+        if invalid_files:
+            raise BadRequestException(
+                "Hãy giảm quyền truy cập của tệp trước khi đổi quyền bài nghiên cứu: "
+                + ", ".join(invalid_files)
+            )
         now = datetime.now(timezone.utc)
         
         payload_data = payload.model_dump(exclude_unset=True)
@@ -774,6 +812,10 @@ class StagingService:
         if obj is None or obj.deleted_at is not None:
             raise NotFoundException("Không tìm thấy bản ghi tạm")
         self._assert_editable(obj, current_user)
+        if not is_access_level_allowed(access_level, obj.access_level):
+            raise BadRequestException(
+                "Quyền truy cập của tệp không được cao hơn quyền truy cập của bài nghiên cứu"
+            )
         obj.updated_at = datetime.now(timezone.utc)
 
         uploaded = await file_service.prepare_file_upload(
@@ -816,6 +858,52 @@ class StagingService:
         obj = await repo.get_by_id(staging_id, with_relations=True) or obj
         self._recalculate_metadata_quality(obj)
         await db.refresh(file_obj)
+        return StagingFileOut.model_validate(file_obj)
+
+    async def update_staging_file_access_level(
+        self,
+        db: AsyncSession,
+        *,
+        staging_id: UUID,
+        file_id: UUID,
+        access_level: AccessLevel,
+        current_user: User,
+    ) -> StagingFileOut:
+        repo = StagingRepository(db)
+        obj = await repo.get_by_id(staging_id, with_relations=True)
+        if obj is None or obj.deleted_at is not None:
+            raise NotFoundException("Không tìm thấy bản ghi tạm")
+        self._assert_editable(obj, current_user)
+        if not is_access_level_allowed(access_level, obj.access_level):
+            raise BadRequestException(
+                "Quyền truy cập của tệp không được cao hơn quyền truy cập của bài nghiên cứu"
+            )
+
+        file_obj = await repo.get_file_attachment(
+            staging_id=staging_id,
+            file_id=file_id,
+        )
+        if file_obj is None or file_obj.file_status == FileStatus.deleted:
+            raise NotFoundException("Không tìm thấy tệp của bản ghi tạm")
+
+        previous_access_level = file_obj.access_level
+        if previous_access_level == access_level:
+            return StagingFileOut.model_validate(file_obj)
+
+        file_obj.access_level = access_level
+        obj.updated_at = datetime.now(timezone.utc)
+        await audit_service.write_log(
+            db,
+            actor_user_id=current_user.user_id,
+            action_code="UPDATE_EVIDENCE_FILE_ACCESS_LEVEL",
+            target_schema="staging",
+            target_table="file_attachments",
+            target_id=file_obj.file_id,
+            old_value={"access_level": previous_access_level.value},
+            new_value={"access_level": access_level.value},
+            message="Updated staging evidence file access level",
+        )
+        await db.flush()
         return StagingFileOut.model_validate(file_obj)
 
     async def list_staging_files(

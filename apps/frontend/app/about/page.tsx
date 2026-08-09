@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Archive, Building2, Database, Eye, GraduationCap, Target } from "lucide-react"
+import { Archive, Database, Eye, GraduationCap, Target } from "lucide-react"
 
 import { PublicContentPage } from "@/components/public/PublicContentPage"
 
@@ -14,7 +14,8 @@ export default function AboutPage() {
             eyebrow="Về hệ thống"
             title="Cổng dữ liệu nghiên cứu STU"
             description="Không gian tập trung để quản lý, bảo tồn, tra cứu và chia sẻ các kết quả nghiên cứu của Trường Đại học Công nghệ Sài Gòn."
-            icon={Building2}
+            imageSrc="/undraw_online-page_qiv4.svg"
+            imageAlt="Minh họa cổng dữ liệu nghiên cứu trực tuyến"
         >
             <section className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
                 <div className="rounded-2xl border border-gray-200 bg-white p-7 shadow-sm">
@@ -32,7 +33,7 @@ export default function AboutPage() {
             </section>
             <section className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
                 {[
-                    { icon: Database, title: "Tập trung", text: "Quản lý dữ liệu và sản phẩm nghiên cứu tại một nơi." },
+                    { icon: Database, title: "Tập trung", text: "Quản lý dữ liệu và sản phẩm nghiên cứu tập trung." },
                     { icon: Eye, title: "Minh bạch", text: "Theo dõi nguồn gốc, tác giả và quyền truy cập rõ ràng." },
                     { icon: Archive, title: "Bảo tồn", text: "Lưu giữ tri thức khoa học có hệ thống và lâu dài." },
                     { icon: GraduationCap, title: "Lan tỏa", text: "Hỗ trợ học tập, giảng dạy và hợp tác nghiên cứu." },

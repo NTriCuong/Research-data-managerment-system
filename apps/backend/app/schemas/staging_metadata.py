@@ -145,6 +145,10 @@ class StagingFileCreate(BaseModel):
     checksum_sha256: str | None = Field(default=None, min_length=64, max_length=64)
 
 
+class StagingFileAccessLevelUpdate(BaseModel):
+    access_level: AccessLevel
+
+
 class StagingFileOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

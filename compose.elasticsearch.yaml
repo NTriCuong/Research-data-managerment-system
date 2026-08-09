@@ -1,0 +1,114 @@
+name: rdms-elastic
+
+services:
+  elasticsearch-setup:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-8.17.0}
+    user: "0"
+    environment:
+      ELASTIC_CERT_DNS: ${ELASTIC_CERT_DNS:-elasticsearch}
+      ELASTIC_CERT_IP: ${ELASTIC_CERT_IP:?Set ELASTIC_CERT_IP in .env.elasticsearch}
+    volumes:
+      - elasticsearch_certs:/usr/share/elasticsearch/config/certs
+      - ./deploy/elasticsearch/init/generate-certs.sh:/opt/rdms/generate-certs.sh:ro
+    command: ["bash", "/opt/rdms/generate-certs.sh"]
+    restart: "no"
+    networks:
+      - elastic
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-8.17.0}
+    restart: unless-stopped
+    depends_on:
+      elasticsearch-setup:
+        condition: service_completed_successfully
+    environment:
+      node.name: elasticsearch
+      cluster.name: ${ELASTIC_CLUSTER_NAME:-rdms-cluster}
+      discovery.type: single-node
+      bootstrap.memory_lock: "true"
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?Set ELASTIC_PASSWORD in .env.elasticsearch}
+      xpack.license.self_generated.type: basic
+      xpack.security.enabled: "true"
+      xpack.security.http.ssl.enabled: "true"
+      xpack.security.http.ssl.key: certs/elasticsearch/elasticsearch.key
+      xpack.security.http.ssl.certificate: certs/elasticsearch/elasticsearch.crt
+      xpack.security.http.ssl.certificate_authorities: certs/ca/ca.crt
+      xpack.security.transport.ssl.enabled: "true"
+      xpack.security.transport.ssl.key: certs/elasticsearch/elasticsearch.key
+      xpack.security.transport.ssl.certificate: certs/elasticsearch/elasticsearch.crt
+      xpack.security.transport.ssl.certificate_authorities: certs/ca/ca.crt
+      xpack.security.transport.ssl.verification_mode: certificate
+    ports:
+      - "${ELASTIC_BIND_IP:?Set ELASTIC_BIND_IP in .env.elasticsearch}:${ELASTIC_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch_certs:/usr/share/elasticsearch/config/certs:ro
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --silent --fail --cacert config/certs/ca/ca.crt --user elastic:$$ELASTIC_PASSWORD https://localhost:9200/_cluster/health >/dev/null",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+    networks:
+      - elastic
+
+  elasticsearch-init:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-8.17.0}
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      ELASTIC_URL: https://elasticsearch:9200
+      ELASTIC_USERNAME: elastic
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?Set ELASTIC_PASSWORD in .env.elasticsearch}
+      KIBANA_PASSWORD: ${KIBANA_PASSWORD:?Set KIBANA_PASSWORD in .env.elasticsearch}
+      RDMS_ELASTIC_PASSWORD: ${RDMS_ELASTIC_PASSWORD:?Set RDMS_ELASTIC_PASSWORD in .env.elasticsearch}
+      ELASTIC_INDEX: ${ELASTIC_INDEX:-rdms_research_objects_v1}
+      ELASTIC_ALIAS: ${ELASTIC_ALIAS:-rdms_research_objects}
+      ELASTIC_CA_CERT: /usr/share/elasticsearch/config/certs/ca/ca.crt
+    volumes:
+      - elasticsearch_certs:/usr/share/elasticsearch/config/certs:ro
+      - ./deploy/elasticsearch/indices:/opt/rdms/indices:ro
+      - ./deploy/elasticsearch/init/init-index.sh:/opt/rdms/init-index.sh:ro
+    command: ["bash", "/opt/rdms/init-index.sh"]
+    restart: "no"
+    networks:
+      - elastic
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${ELASTIC_VERSION:-8.17.0}
+    profiles: ["ops"]
+    restart: unless-stopped
+    environment:
+      SERVERNAME: kibana
+      ELASTICSEARCH_HOSTS: '["https://elasticsearch:9200"]'
+      ELASTICSEARCH_USERNAME: kibana_system
+      ELASTICSEARCH_PASSWORD: ${KIBANA_PASSWORD:?Set KIBANA_PASSWORD in .env.elasticsearch}
+      ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES: config/certs/ca/ca.crt
+    ports:
+      - "${KIBANA_BIND_IP:-127.0.0.1}:${KIBANA_PORT:-5601}:5601"
+    volumes:
+      - elasticsearch_certs:/usr/share/kibana/config/certs:ro
+      - kibana_data:/usr/share/kibana/data
+    depends_on:
+      elasticsearch-init:
+        condition: service_completed_successfully
+    networks:
+      - elastic
+
+volumes:
+  elasticsearch_certs:
+  elasticsearch_data:
+  kibana_data:
+
+networks:
+  elastic:
+    driver: bridge

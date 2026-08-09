@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Ban, CheckCircle2, Copyright, Scale, ShieldCheck } from "lucide-react"
+import { Ban, CheckCircle2, Copyright, ShieldCheck } from "lucide-react"
 
 import { PublicContentPage } from "@/components/public/PublicContentPage"
 
@@ -14,7 +14,8 @@ export default function RegulationsPage() {
             eyebrow="Chính sách sử dụng"
             title="Quy định"
             description="Các nguyên tắc áp dụng khi truy cập, khai thác và sử dụng tài nguyên trên Cổng dữ liệu nghiên cứu STU."
-            icon={Scale}
+            imageSrc="/undraw_judge_hyqv.svg"
+            imageAlt="Minh họa quy định và chính sách sử dụng"
         >
             <div className="grid gap-6 lg:grid-cols-3">
                 <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm lg:col-span-2">

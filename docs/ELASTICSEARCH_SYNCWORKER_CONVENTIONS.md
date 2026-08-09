@@ -27,11 +27,7 @@ PostgreSQL vẫn là source of truth.
 ```text
 PostgreSQL
   ↓
-Outbox Event
-  ↓
-RabbitMQ/Kafka
-  ↓
-Search Sync Worker
+FastAPI BackgroundTasks
   ↓
 Elasticsearch/OpenSearch
 ```
@@ -184,7 +180,7 @@ P95 search response time <= 2 giây với 5,000 metadata records
 
 ---
 
-## 14.5 RabbitMQ/Kafka Sync Worker Rules
+## 14.5 FastAPI Background Task Rules
 
 Search index không được update trực tiếp trong request chính nếu có thể tránh.
 
@@ -205,20 +201,20 @@ Tốt:
 ```text
 API approve
   ↓
-save PostgreSQL + insert outbox event trong cùng transaction
+commit PostgreSQL transaction
   ↓
 response client
   ↓
-worker consume event
+FastAPI background task đọc lại bản ghi đã commit
   ↓
 sync Elasticsearch
 ```
 
 ---
 
-## 14.6 Outbox Pattern Rules
+## 14.6 Index Registration Rules
 
-Mọi thay đổi ảnh hưởng search index phải sinh outbox event.
+Mọi thay đổi ảnh hưởng search index phải đăng ký background task sau khi commit thành công.
 
 Áp dụng cho:
 
@@ -235,42 +231,17 @@ file metadata changed nếu search file metadata
 soft delete
 ```
 
-Bảng gợi ý:
+Task chỉ nhận ID, không nhận ORM object hoặc DB session của request:
 
-```sql
-CREATE TABLE log.outbox_events (
-    event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    aggregate_type VARCHAR(100) NOT NULL,
-    aggregate_id UUID NOT NULL,
-    event_type VARCHAR(100) NOT NULL,
-    payload JSONB NOT NULL,
-    status VARCHAR(30) NOT NULL DEFAULT 'pending',
-    retry_count INT NOT NULL DEFAULT 0,
-    error_message TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    processed_at TIMESTAMPTZ
-);
-```
-
-Ví dụ event:
-
-```json
-{
-  "event_type": "research_object.approved",
-  "aggregate_type": "research_object",
-  "aggregate_id": "uuid",
-  "payload": {
-    "research_id": "uuid",
-    "action": "index"
-  }
-}
+```python
+background_tasks.add_task(index_research_document, research_id)
 ```
 
 ---
 
 ## 14.7 Transaction Boundary Rules
 
-Outbox event phải được ghi cùng transaction với thay đổi dữ liệu chính.
+Không gọi Elasticsearch khi transaction PostgreSQL còn mở.
 
 Ví dụ khi approve:
 
@@ -285,30 +256,30 @@ insert workflow_history
   ↓
 insert audit_log
   ↓
-insert outbox_event
 transaction commit
+  ↓
+register index background task
 ```
 
 Không được:
 
 ```text
-commit core trước
-rồi mới insert outbox event
+start background task trước khi commit
 ```
 
-vì nếu lỗi giữa chừng, Elasticsearch sẽ không được sync.
+vì task có thể không đọc thấy dữ liệu hoặc index dữ liệu sẽ bị rollback.
 
 ---
 
-## 14.8 Worker Processing Rules
+## 14.8 Background Task Processing Rules
 
-Worker phải xử lý event theo nguyên tắc:
+Task phải xử lý theo nguyên tắc:
 
 ```text
 idempotent
-retryable
 observable
-dead-letter supported
+đọc dữ liệu bằng session mới
+không làm request thất bại khi Elasticsearch lỗi
 ```
 
 ### Idempotent
@@ -335,55 +306,15 @@ POST /_doc
 
 ---
 
-### Retry
+### Failure handling
 
-Nếu Elasticsearch lỗi tạm thời:
+`BackgroundTasks` là best-effort và không có durable retry. Lỗi phải được log kèm `research_id`; PostgreSQL vẫn là source of truth và index có thể được dựng lại.
 
-```text
-retry với backoff
-```
-
-Ví dụ:
-
-```text
-retry_count < 5
-```
-
-Sau đó đưa vào:
-
-```text
-dead letter queue
-```
-
-hoặc set:
-
-```text
-status = failed
-```
+Task luôn đọc trạng thái mới nhất từ PostgreSQL và dùng `research_id` làm `_id`, nhờ đó lần chạy sau ghi đè document cũ thay vì tạo duplicate.
 
 ---
 
-### Ordering
-
-Nếu dùng Kafka:
-
-```text
-partition key = research_id
-```
-
-để giữ thứ tự event theo từng research object.
-
-Nếu dùng RabbitMQ:
-
-```text
-cần xử lý version hoặc updated_at
-```
-
-để tránh event cũ ghi đè event mới.
-
----
-
-## 14.9 RabbitMQ vs Kafka Usage Convention
+## 14.9 Future Queue Extension
 
 ### RabbitMQ phù hợp khi:
 
@@ -425,11 +356,11 @@ semantic embedding generation
 audit event streaming
 ```
 
-Khuyến nghị cho đồ án:
+Lựa chọn hiện tại cho đồ án:
 
 ```text
-MVP: RabbitMQ
-Research extension: Kafka
+MVP: FastAPI BackgroundTasks
+Khi cần retry bền vững hoặc tải lớn: cân nhắc queue/outbox ở phiên bản sau
 ```
 
 Nếu bài báo cần nhấn mạnh architecture event-driven và replayable pipeline, Kafka có giá trị nghiên cứu cao hơn.
@@ -515,9 +446,9 @@ Pipeline đề xuất:
 ```text
 PostgreSQL
   ↓
-Outbox Event
+committed record
   ↓
-Embedding Worker
+Background task hoặc embedding pipeline mở rộng
   ↓
 Vector Store
   ↓
@@ -712,6 +643,6 @@ Trong hệ thống RDMS:
 PostgreSQL = source of truth
 PostgreSQL FTS = baseline search
 Elasticsearch = optimized keyword search engine
-RabbitMQ/Kafka = asynchronous sync pipeline
+FastAPI BackgroundTasks = asynchronous sync pipeline hiện tại
 Semantic Search = research extension
 ```

@@ -12,11 +12,18 @@ class PublicLookupOut(BaseModel):
     name: str
 
 
+class PublicFacetLookupOut(PublicLookupOut):
+    count: int
+
+
 class PublicResearchLookupsOut(BaseModel):
-    output_types: list[PublicLookupOut]
-    departments: list[PublicLookupOut]
-    domains: list[PublicLookupOut]
-    keywords: list[PublicLookupOut]
+    output_types: list[PublicFacetLookupOut]
+    departments: list[PublicFacetLookupOut]
+    domains: list[PublicFacetLookupOut]
+    keywords: list[PublicFacetLookupOut]
+    authors: list[PublicFacetLookupOut]
+    year_min: int | None
+    year_max: int | None
 
 
 class PublicAuthorOut(BaseModel):
@@ -61,6 +68,12 @@ class PublicResearchListOut(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class PublicResearchSuggestionOut(BaseModel):
+    research_id: UUID
+    title: str
+    year: int | None
 
 
 class PublicResearchDetailOut(PublicResearchListItemOut):

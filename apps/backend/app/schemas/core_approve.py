@@ -12,15 +12,10 @@ class RejectApprovalRequest(BaseModel):
     reason: str = Field(min_length=1, max_length=1000)
 
 
-class FileAccessLevelAssignment(BaseModel):
-    file_id: UUID
-    access_level: AccessLevel
-
-
 class ApproveRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     note: str | None = Field(default=None, max_length=1000)
-    access_level: AccessLevel | None = None
-    file_access_levels: list[FileAccessLevelAssignment] = Field(default_factory=list)
 
 
 class PendingApprovalOut(BaseModel):

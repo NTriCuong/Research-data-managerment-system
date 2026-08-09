@@ -16,7 +16,7 @@ from app.models.core.core_research_object import CoreResearchObject
 from app.models.core.core_research_object_author import CoreResearchObjectAuthor
 from app.models.core.core_research_object_domain import CoreResearchObjectDomain
 from app.models.core.core_research_object_keyword import CoreResearchObjectKeyword
-from app.models.enum import AccessLevel, NotificationType, WorkflowStatus
+from app.models.enum import AccessLevel, FileStatus, NotificationType, WorkflowStatus
 from app.repositories.core_approve_repository import CoreApproveRepository
 from app.schemas.auth import MessageResponse
 from app.schemas.core_approve import ApproveRequest, PendingApprovalOut
@@ -24,6 +24,7 @@ from app.services.logs.audit_service import audit_service
 from app.services.logs.workflow_service import workflow_service
 from app.core.config import settings
 from app.services.notification.notification_service import notification_service, push_to_users
+from app.services.search.elasticsearch_index_service import index_research_document
 
 
 class CoreApproveService:
@@ -141,10 +142,6 @@ class CoreApproveService:
         current_user: User,
     ) -> MessageResponse:
         try:
-            file_access_levels = {
-                item.file_id: item.access_level
-                for item in payload.file_access_levels
-            }
             repo = CoreApproveRepository(db)
 
             staging_obj = await repo.get_staging_by_id(
@@ -164,30 +161,11 @@ class CoreApproveService:
             access_level = staging_obj.access_level
 
 
-            unknown_file_ids = (
-                set(file_access_levels)
-                - {
-                    file_obj.file_id
-                    for file_obj in staging_obj.file_attachments
-                }
-            )
-
-            if unknown_file_ids:
-                raise BadRequestException(
-                    "Một hoặc nhiều file_access_levels "
-                    "tham chiếu đến tệp không thuộc bản ghi tạm này"
-                )
-
-
             for file_obj in staging_obj.file_attachments:
-
-                target_file_access_level = file_access_levels.get(
-                    file_obj.file_id,
-                    file_obj.access_level or access_level,
-                )
-
+                if file_obj.file_status == FileStatus.deleted:
+                    continue
                 if not is_access_level_allowed(
-                    target_file_access_level,
+                    file_obj.access_level,
                     access_level,
                 ):
                     raise BadRequestException(
@@ -324,12 +302,10 @@ class CoreApproveService:
                         checksum_sha256=f.checksum_sha256,
                         uploaded_by=f.uploaded_by,
                         uploaded_at=f.uploaded_at,
-                        access_level=file_access_levels.get(
-                            f.file_id,
-                            f.access_level or access_level,
-                        ),
+                        access_level=f.access_level,
                     )
                     for f in staging_obj.file_attachments
+                    if f.file_status != FileStatus.deleted
                 ]
             )
 
@@ -400,6 +376,12 @@ class CoreApproveService:
 
 
             await db.commit()
+
+
+            background_tasks.add_task(
+                index_research_document,
+                core_obj.research_id,
+            )
 
 
 

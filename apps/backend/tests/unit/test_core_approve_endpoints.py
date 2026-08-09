@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from fastapi import BackgroundTasks
 from sqlalchemy.dialects import postgresql
 
 from app.api.v1.endpoints import core_approve as approve_endpoint
@@ -11,7 +12,7 @@ from app.core.exceptions import BadRequestException
 from app.database.session import get_db
 from app.models.core.core_metadata_version import CoreMetadataVersion
 from app.models.core.core_research_object import CoreResearchObject
-from app.models.enum import AccessLevel, AuthorRole, WorkflowStatus
+from app.models.enum import AccessLevel, AuthorRole, FileStatus, WorkflowStatus
 from app.schemas.core_approve import ApproveRequest
 from app.services.auth import deps as auth_deps
 from app.services.core import core_approve_service as approve_service_module
@@ -47,6 +48,7 @@ class _ServiceFakeDbSession:
     def __init__(self):
         self.added = []
         self.executed = []
+        self.committed = False
 
     def add(self, item):
         self.added.append(item)
@@ -57,10 +59,26 @@ class _ServiceFakeDbSession:
                 item.research_id = uuid4()
         return None
 
+    async def commit(self):
+        self.committed = True
+        return None
+
+    async def rollback(self):
+        return None
+
     async def execute(self, statement, params=None):
         self.executed.append((statement, params))
         return _FakeSearchResult()
 
+
+class _CommitAwareBackgroundTasks(BackgroundTasks):
+    def __init__(self, db):
+        super().__init__()
+        self.db = db
+
+    def add_task(self, func, *args, **kwargs):
+        assert self.db.committed is True
+        return super().add_task(func, *args, **kwargs)
 
 class _FakeCoreApproveRepository:
     staging_obj = None
@@ -167,7 +185,6 @@ def no_log_side_effects(monkeypatch):
     monkeypatch.setattr(approve_service_module.workflow_service, "write_history", _noop)
     monkeypatch.setattr(approve_service_module.audit_service, "write_log", _noop)
     monkeypatch.setattr(approve_service_module.notification_service, "notify_user", _noop)
-    monkeypatch.setattr(approve_service_module, "push_to_users", _noop)
 
 
 def _fake_db_provider():
@@ -237,24 +254,23 @@ def test_approver_can_approve_record(client, sample_user, monkeypatch):
 
     response = client.post(
         f"{settings.API_V1_PREFIX}/core-approve/{staging_id}/approve",
-        json={
-            "note": "Approved for publication",
-            "access_level": "private",
-            "file_access_levels": [{"file_id": str(staging_id), "access_level": "internal"}],
-        },
+        json={"note": "Approved for publication"},
     )
     assert response.status_code == 200
     assert response.json()["message"] == "Phê duyệt và xuất bản bản ghi vào core thành công"
-    assert captured["payload"].access_level.value == "private"
-    assert captured["payload"].file_access_levels[0].file_id == staging_id
-    assert captured["payload"].file_access_levels[0].access_level.value == "internal"
+    assert captured["payload"].note == "Approved for publication"
 
 
-def test_approve_request_allows_access_level_to_be_omitted():
-    payload = ApproveRequest(note="Use the staging access level")
+def test_approver_cannot_override_research_or_file_access(client, sample_user):
+    _override_user_with_role(client, sample_user, "APPROVER")
+    client.app.dependency_overrides[get_db] = _fake_db_provider()
 
-    assert payload.access_level is None
-    assert payload.file_access_levels == []
+    response = client.post(
+        f"{settings.API_V1_PREFIX}/core-approve/{uuid4()}/approve",
+        json={"access_level": "public", "file_access_levels": []},
+    )
+
+    assert response.status_code == 422
 
 
 @pytest.mark.anyio
@@ -264,11 +280,13 @@ async def test_approve_new_record_creates_initial_metadata_version(sample_user, 
     _FakeCoreApproveRepository.core_obj = None
     monkeypatch.setattr(approve_service_module, "CoreApproveRepository", _FakeCoreApproveRepository)
     db = _ServiceFakeDbSession()
+    background_tasks = _CommitAwareBackgroundTasks(db)
 
     await core_approve_service.approve_record(
         db,
         staging_id=staging_obj.staging_id,
-        payload=ApproveRequest(note="Approve initial version", access_level=AccessLevel.public),
+        payload=ApproveRequest(note="Approve initial version"),
+        background_tasks=background_tasks,
         current_user=sample_user,
     )
 
@@ -278,6 +296,15 @@ async def test_approve_new_record_creates_initial_metadata_version(sample_user, 
     assert versions[0].metadata_snapshot["title"] == "First published title"
     assert versions[0].metadata_snapshot["version_no"] == 1
     assert versions[0].change_reason == "Approve initial version"
+    core_objects = [item for item in db.added if isinstance(item, CoreResearchObject)]
+    assert len(core_objects) == 1
+    index_tasks = [
+        task
+        for task in background_tasks.tasks
+        if task.func is approve_service_module.index_research_document
+    ]
+    assert len(index_tasks) == 1
+    assert index_tasks[0].args == (core_objects[0].research_id,)
 
 
 @pytest.mark.anyio
@@ -292,11 +319,13 @@ async def test_approve_revision_creates_metadata_version_for_new_snapshot(sample
     _FakeCoreApproveRepository.core_obj = core_obj
     monkeypatch.setattr(approve_service_module, "CoreApproveRepository", _FakeCoreApproveRepository)
     db = _ServiceFakeDbSession()
+    background_tasks = BackgroundTasks()
 
     await core_approve_service.approve_record(
         db,
         staging_id=staging_obj.staging_id,
-        payload=ApproveRequest(note="Approve revision", access_level=AccessLevel.public),
+        payload=ApproveRequest(note="Approve revision"),
+        background_tasks=background_tasks,
         current_user=sample_user,
     )
 
@@ -319,6 +348,7 @@ async def test_approve_rejects_file_access_above_research_access(sample_user, mo
                 file_id=file_id,
                 original_filename="public-evidence.pdf",
                 access_level=AccessLevel.public,
+                file_status=FileStatus.active,
             )
         ],
     )
@@ -333,15 +363,8 @@ async def test_approve_rejects_file_access_above_research_access(sample_user, mo
         await core_approve_service.approve_record(
             _ServiceFakeDbSession(),
             staging_id=staging_obj.staging_id,
-            payload=ApproveRequest(
-                access_level=AccessLevel.internal,
-                file_access_levels=[
-                    {
-                        "file_id": file_id,
-                        "access_level": AccessLevel.public,
-                    }
-                ],
-            ),
+            payload=ApproveRequest(),
+            background_tasks=BackgroundTasks(),
             current_user=sample_user,
         )
 
@@ -364,7 +387,7 @@ def test_approver_can_reject_record(client, sample_user, monkeypatch):
     assert response.json()["message"] == "Từ chối bản ghi thành công"
 
 
-def test_postgres_search_accessible_for_reviewer(client, sample_user, monkeypatch):
+def test_core_search_accessible_for_reviewer(client, sample_user, monkeypatch):
     _override_user_with_role(client, sample_user, "REVIEWER")
     client.app.dependency_overrides[get_db] = _fake_db_provider()
     research_id = uuid4()
@@ -387,7 +410,7 @@ def test_postgres_search_accessible_for_reviewer(client, sample_user, monkeypatc
             "offset": 0,
         }
 
-    monkeypatch.setattr(search_endpoint.search_service, "search_core_postgres", _fake_search)
+    monkeypatch.setattr(search_endpoint.search_service, "search_core", _fake_search)
 
     response = client.get(f"{settings.API_V1_PREFIX}/search/core?q=benchmark")
     assert response.status_code == 200
@@ -396,7 +419,7 @@ def test_postgres_search_accessible_for_reviewer(client, sample_user, monkeypatc
     assert body["items"][0]["research_id"] == str(research_id)
 
 
-def test_postgres_search_strips_query_and_passes_pagination(client, sample_user, monkeypatch):
+def test_core_search_strips_query_and_passes_pagination(client, sample_user, monkeypatch):
     _override_user_with_role(client, sample_user, "DATA_ENTRY")
     client.app.dependency_overrides[get_db] = _fake_db_provider()
     captured = {}
@@ -405,7 +428,7 @@ def test_postgres_search_strips_query_and_passes_pagination(client, sample_user,
         captured.update(kwargs)
         return {"items": [], "total": 0, "limit": kwargs["limit"], "offset": kwargs["offset"]}
 
-    monkeypatch.setattr(search_endpoint.search_service, "search_core_postgres", _fake_search)
+    monkeypatch.setattr(search_endpoint.search_service, "search_core", _fake_search)
 
     response = client.get(
         f"{settings.API_V1_PREFIX}/search/core",
@@ -425,7 +448,7 @@ def test_unauthenticated_user_can_search_core_records(client, monkeypatch):
     async def _fake_search(*_args, **_kwargs):
         return {"items": [], "total": 0, "limit": 20, "offset": 0}
 
-    monkeypatch.setattr(search_endpoint.search_service, "search_core_postgres", _fake_search)
+    monkeypatch.setattr(search_endpoint.search_service, "search_core", _fake_search)
 
     response = client.get(f"{settings.API_V1_PREFIX}/search/core?q=benchmark")
 

@@ -19,15 +19,8 @@ export interface PendingApproval {
     updated_at: string | null
 }
 
-export interface FileAccessLevelAssignment {
-    file_id: string
-    access_level: "private" | "internal" | "public"
-}
-
 export interface ApproveRequest {
     note?: string
-    access_level?: "private" | "internal" | "public"
-    file_access_levels?: FileAccessLevelAssignment[]
 }
 
 export const approverService = {

@@ -3,8 +3,10 @@ from pathlib import Path
 
 
 MAPPING_PATH = (
-    Path(__file__).resolve().parents[2]
+    Path(__file__).resolve().parents[4]
+    / "deploy"
     / "elasticsearch"
+    / "indices"
     / "rdms_research_objects_v1.json"
 )
 
@@ -29,6 +31,31 @@ def test_vietnamese_analyzer_is_accent_insensitive():
     assert analyzer["tokenizer"] == "standard"
     assert analyzer["filter"] == ["lowercase", "rdms_ascii_folding"]
     assert analysis["filter"]["rdms_ascii_folding"]["type"] == "asciifolding"
+
+
+def test_english_analyzer_stems_and_removes_stop_words():
+    analysis = load_mapping()["settings"]["analysis"]
+    analyzer = analysis["analyzer"]["rdms_english"]
+
+    assert analyzer["tokenizer"] == "standard"
+    assert analyzer["filter"] == [
+        "rdms_english_possessive_stemmer",
+        "lowercase",
+        "rdms_english_stop",
+        "rdms_english_stemmer",
+    ]
+    assert analysis["filter"]["rdms_english_stop"]["stopwords"] == "_english_"
+
+
+def test_english_research_fields_use_english_analyzer():
+    properties = load_mapping()["mappings"]["properties"]
+
+    assert properties["title"]["analyzer"] == "rdms_english"
+    assert properties["description"]["analyzer"] == "rdms_english"
+    assert properties["abstract"]["analyzer"] == "rdms_english"
+    assert properties["keywords"]["properties"]["text"]["analyzer"] == "rdms_english"
+    assert properties["domains"]["properties"]["name"]["analyzer"] == "rdms_english"
+    assert properties["search_text"]["analyzer"] == "rdms_english"
 
 
 def test_autocomplete_uses_ngrams_only_at_index_time():

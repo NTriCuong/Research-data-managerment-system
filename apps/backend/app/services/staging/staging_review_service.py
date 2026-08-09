@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -18,6 +19,9 @@ from app.services.logs.audit_service import audit_service
 from app.services.logs.workflow_service import workflow_service
 from app.core.config import settings
 from app.services.notification.notification_service import notification_service, push_to_users, push_to_roles
+
+
+logger = logging.getLogger(__name__)
 
 
 class StagingReviewService:
@@ -298,6 +302,6 @@ class StagingReviewService:
             
             except Exception:
                 await db.rollback()
-                raise
+                logger.exception("Failed to notify approvers")
 
 staging_review_service = StagingReviewService()

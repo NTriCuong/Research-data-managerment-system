@@ -9456,31 +9456,6 @@ BEGIN
     END LOOP;
 END $$;
 
-INSERT INTO log.outbox_events(
-    event_type,
-    aggregate_type,
-    aggregate_id,
-    payload
-)
-SELECT
-    'research.upsert',
-    'research',
-    c.research_id,
-    jsonb_build_object('research_id', c.research_id::text)
-FROM core.research_objects c
-JOIN staging.research_objects s
-    ON s.staging_id = c.source_staging_id
-WHERE s.identifier LIKE 'RDMS-SEED-CORE-%'
-  AND c.deleted_at IS NULL
-  AND c.is_current IS TRUE
-  AND NOT EXISTS (
-      SELECT 1
-      FROM log.outbox_events e
-      WHERE e.event_type = 'research.upsert'
-        AND e.aggregate_type = 'research'
-        AND e.aggregate_id = c.research_id
-  );
-
 COMMIT;
 
 -- =============================================================

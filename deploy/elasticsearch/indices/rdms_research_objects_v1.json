@@ -1,0 +1,422 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0,
+    "refresh_interval": "1s",
+    "max_ngram_diff": 18,
+    "analysis": {
+      "filter": {
+        "rdms_ascii_folding": {
+          "type": "asciifolding",
+          "preserve_original": false
+        },
+        "rdms_edge_ngram_2_20": {
+          "type": "edge_ngram",
+          "min_gram": 2,
+          "max_gram": 20
+        },
+        "rdms_english_possessive_stemmer": {
+          "type": "stemmer",
+          "language": "possessive_english"
+        },
+        "rdms_english_stemmer": {
+          "type": "stemmer",
+          "language": "english"
+        },
+        "rdms_english_stop": {
+          "type": "stop",
+          "stopwords": "_english_"
+        }
+      },
+      "normalizer": {
+        "rdms_keyword_normalizer": {
+          "type": "custom",
+          "filter": [
+            "lowercase",
+            "asciifolding"
+          ]
+        }
+      },
+      "analyzer": {
+        "rdms_vietnamese": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "rdms_ascii_folding"
+          ]
+        },
+        "rdms_vietnamese_accent": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase"
+          ]
+        },
+        "rdms_english": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "rdms_english_possessive_stemmer",
+            "lowercase",
+            "rdms_english_stop",
+            "rdms_english_stemmer"
+          ]
+        },
+        "rdms_autocomplete_index": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "rdms_ascii_folding",
+            "rdms_edge_ngram_2_20"
+          ]
+        },
+        "rdms_autocomplete_search": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "rdms_ascii_folding"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "_meta": {
+      "schema": "core.research_objects",
+      "schema_version": 1,
+      "document_id": "research_id",
+      "description": "Approved, current RDMS research metadata"
+    },
+    "properties": {
+      "schema_version": {
+        "type": "short"
+      },
+      "research_id": {
+        "type": "keyword"
+      },
+      "source_staging_id": {
+        "type": "keyword"
+      },
+      "title": {
+        "type": "text",
+        "analyzer": "rdms_english",
+        "search_analyzer": "rdms_english",
+        "copy_to": "search_text",
+        "fields": {
+          "accent": {
+            "type": "text",
+            "analyzer": "rdms_vietnamese_accent"
+          },
+          "exact": {
+            "type": "keyword",
+            "normalizer": "rdms_keyword_normalizer",
+            "ignore_above": 512
+          },
+          "autocomplete": {
+            "type": "text",
+            "analyzer": "rdms_autocomplete_index",
+            "search_analyzer": "rdms_autocomplete_search"
+          }
+        }
+      },
+      "description": {
+        "type": "text",
+        "analyzer": "rdms_english",
+        "search_analyzer": "rdms_english",
+        "copy_to": "search_text",
+        "fields": {
+          "accent": {
+            "type": "text",
+            "analyzer": "rdms_vietnamese_accent"
+          }
+        }
+      },
+      "abstract": {
+        "type": "text",
+        "analyzer": "rdms_english",
+        "search_analyzer": "rdms_english",
+        "copy_to": "search_text",
+        "fields": {
+          "accent": {
+            "type": "text",
+            "analyzer": "rdms_vietnamese_accent"
+          }
+        }
+      },
+      "output_type": {
+        "type": "object",
+        "dynamic": "strict",
+        "properties": {
+          "id": {
+            "type": "keyword"
+          },
+          "code": {
+            "type": "keyword",
+            "normalizer": "rdms_keyword_normalizer"
+          },
+          "name": {
+            "type": "text",
+            "analyzer": "rdms_vietnamese",
+            "copy_to": "search_text",
+            "fields": {
+              "exact": {
+                "type": "keyword",
+                "normalizer": "rdms_keyword_normalizer",
+                "ignore_above": 256
+              }
+            }
+          }
+        }
+      },
+      "department": {
+        "type": "object",
+        "dynamic": "strict",
+        "properties": {
+          "id": {
+            "type": "keyword"
+          },
+          "code": {
+            "type": "keyword",
+            "normalizer": "rdms_keyword_normalizer"
+          },
+          "name": {
+            "type": "text",
+            "analyzer": "rdms_vietnamese",
+            "copy_to": "search_text",
+            "fields": {
+              "exact": {
+                "type": "keyword",
+                "normalizer": "rdms_keyword_normalizer",
+                "ignore_above": 256
+              }
+            }
+          }
+        }
+      },
+      "year": {
+        "type": "short"
+      },
+      "start_date": {
+        "type": "date",
+        "format": "strict_date||strict_date_optional_time||epoch_millis"
+      },
+      "end_date": {
+        "type": "date",
+        "format": "strict_date||strict_date_optional_time||epoch_millis"
+      },
+      "date_issued": {
+        "type": "date",
+        "format": "strict_date||strict_date_optional_time||epoch_millis"
+      },
+      "publisher": {
+        "type": "text",
+        "analyzer": "rdms_vietnamese",
+        "copy_to": "search_text",
+        "fields": {
+          "exact": {
+            "type": "keyword",
+            "normalizer": "rdms_keyword_normalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "language": {
+        "type": "keyword",
+        "normalizer": "rdms_keyword_normalizer"
+      },
+      "identifier": {
+        "type": "keyword",
+        "normalizer": "rdms_keyword_normalizer",
+        "copy_to": "search_text",
+        "fields": {
+          "autocomplete": {
+            "type": "text",
+            "analyzer": "rdms_autocomplete_index",
+            "search_analyzer": "rdms_autocomplete_search"
+          }
+        }
+      },
+      "external_url": {
+        "type": "keyword",
+        "index": false,
+        "doc_values": false
+      },
+      "source": {
+        "type": "text",
+        "analyzer": "rdms_vietnamese"
+      },
+      "relation": {
+        "type": "text",
+        "analyzer": "rdms_vietnamese"
+      },
+      "coverage": {
+        "type": "text",
+        "analyzer": "rdms_vietnamese"
+      },
+      "rights": {
+        "type": "text",
+        "analyzer": "rdms_vietnamese"
+      },
+      "access_level": {
+        "type": "keyword"
+      },
+      "authors": {
+        "type": "object",
+        "dynamic": "strict",
+        "properties": {
+          "researcher_id": {
+            "type": "keyword"
+          },
+          "full_name": {
+            "type": "text",
+            "analyzer": "rdms_vietnamese",
+            "copy_to": "search_text",
+            "fields": {
+              "accent": {
+                "type": "text",
+                "analyzer": "rdms_vietnamese_accent"
+              },
+              "exact": {
+                "type": "keyword",
+                "normalizer": "rdms_keyword_normalizer",
+                "ignore_above": 256
+              },
+              "autocomplete": {
+                "type": "text",
+                "analyzer": "rdms_autocomplete_index",
+                "search_analyzer": "rdms_autocomplete_search"
+              }
+            }
+          },
+          "email": {
+            "type": "keyword",
+            "normalizer": "rdms_keyword_normalizer"
+          },
+          "affiliation": {
+            "type": "text",
+            "analyzer": "rdms_vietnamese",
+            "copy_to": "search_text",
+            "fields": {
+              "exact": {
+                "type": "keyword",
+                "normalizer": "rdms_keyword_normalizer",
+                "ignore_above": 256
+              }
+            }
+          },
+          "author_order": {
+            "type": "short"
+          },
+          "author_role": {
+            "type": "keyword"
+          }
+        }
+      },
+      "keywords": {
+        "type": "object",
+        "dynamic": "strict",
+        "properties": {
+          "id": {
+            "type": "keyword"
+          },
+          "text": {
+            "type": "text",
+            "analyzer": "rdms_english",
+            "copy_to": "search_text",
+            "fields": {
+              "accent": {
+                "type": "text",
+                "analyzer": "rdms_vietnamese_accent"
+              },
+              "exact": {
+                "type": "keyword",
+                "normalizer": "rdms_keyword_normalizer",
+                "ignore_above": 256
+              }
+            }
+          },
+          "normalized_text": {
+            "type": "keyword",
+            "normalizer": "rdms_keyword_normalizer",
+            "ignore_above": 256
+          }
+        }
+      },
+      "domains": {
+        "type": "object",
+        "dynamic": "strict",
+        "properties": {
+          "id": {
+            "type": "keyword"
+          },
+          "code": {
+            "type": "keyword",
+            "normalizer": "rdms_keyword_normalizer"
+          },
+          "name": {
+            "type": "text",
+            "analyzer": "rdms_english",
+            "copy_to": "search_text",
+            "fields": {
+              "accent": {
+                "type": "text",
+                "analyzer": "rdms_vietnamese_accent"
+              },
+              "exact": {
+                "type": "keyword",
+                "normalizer": "rdms_keyword_normalizer",
+                "ignore_above": 256
+              }
+            }
+          }
+        }
+      },
+      "metadata_quality_score": {
+        "type": "scaled_float",
+        "scaling_factor": 100
+      },
+      "view_count": {
+        "type": "long"
+      },
+      "download_count": {
+        "type": "long"
+      },
+      "version_no": {
+        "type": "integer"
+      },
+      "is_current": {
+        "type": "boolean"
+      },
+      "approved_by": {
+        "type": "keyword",
+        "index": false,
+        "doc_values": false
+      },
+      "approved_at": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      },
+      "created_at": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      },
+      "updated_at": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      },
+      "deleted_at": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      },
+      "search_text": {
+        "type": "text",
+        "analyzer": "rdms_english",
+        "search_analyzer": "rdms_english"
+      }
+    }
+  }
+}

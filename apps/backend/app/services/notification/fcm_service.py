@@ -2,6 +2,8 @@ import logging
 import firebase_admin
 from firebase_admin import credentials, messaging
 
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -9,12 +11,12 @@ def _ensure_firebase_initialized() -> bool:
     if firebase_admin._apps:
         return True
     try:
-        cred = credentials.Certificate("firebase-service-account.json")
+        cred = credentials.Certificate(str(settings.FIREBASE_CREDENTIALS_PATH))
         firebase_admin.initialize_app(cred)
         logger.info("Firebase initialized successfully")
         return True
     except FileNotFoundError:
-        logger.warning("firebase-service-account.json not found — FCM push disabled")
+        logger.warning("Firebase credentials not found at %s; FCM push disabled", settings.FIREBASE_CREDENTIALS_PATH)
         return False
     except Exception as e:
         logger.error("Firebase init failed: %s", e)

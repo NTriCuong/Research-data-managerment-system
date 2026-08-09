@@ -44,7 +44,6 @@ api_router.include_router(public_research.router, prefix="/public", tags=["Publi
 api_router.include_router(logs.router, prefix="/logs", tags=["Logs"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 api_router.include_router(backup.router, prefix="/backup", tags=["Backup"])
-
 api_router.include_router(
     notification.router,
     prefix="/notifications",
