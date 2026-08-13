@@ -270,7 +270,7 @@ Windows PowerShell:
 
 ```powershell
 Invoke-RestMethod http://localhost:8000/health
-Invoke-RestMethod http://localhost:8000/test-elastic
+Invoke-RestMethod http://localhost:8000/health-elastic
 Invoke-WebRequest http://localhost:8080/nginx-health -UseBasicParsing
 Invoke-RestMethod "http://localhost:8000/api/v1/public/researches?page=1&page_size=10"
 ```

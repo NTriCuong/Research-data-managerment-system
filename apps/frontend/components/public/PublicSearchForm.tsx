@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { FileText, LoaderCircle, Search } from "lucide-react"
+import { LoaderCircle, Search } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useId, useState } from "react"
 
@@ -87,6 +87,7 @@ export function PublicSearchForm({ initialQuery = "" }: { initialQuery?: string 
     const selectSuggestion = (suggestion: PublicResearchSuggestion) => {
         setQuery(suggestion.title)
         setOpen(false)
+        setActiveIndex(-1)
         router.push(`/researches/${suggestion.research_id}`)
     }
 
@@ -180,7 +181,10 @@ export function PublicSearchForm({ initialQuery = "" }: { initialQuery?: string 
                                 role="option"
                                 aria-selected={activeIndex === index}
                                 onMouseEnter={() => setActiveIndex(index)}
-                                onClick={() => selectSuggestion(suggestion)}
+                                onPointerDown={(event) => {
+                                    event.preventDefault()
+                                    selectSuggestion(suggestion)
+                                }}
                                 className={`flex w-full cursor-pointer items-start gap-3 px-3 py-2.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none ${
                                     activeIndex === index ? "bg-accent" : ""
                                 }`}

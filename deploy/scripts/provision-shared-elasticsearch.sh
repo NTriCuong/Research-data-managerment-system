@@ -44,7 +44,7 @@ curl_es \
     --request PUT \
     --header "Content-Type: application/json" \
     --data "{\"password\":\"$RDMS_ELASTIC_PASSWORD\",\"roles\":[\"rdms_backend_role\"]}" \
-    "$ELASTIC_ADMIN_URL/_security/user/rdms_backend" >/dev/null
+    "$ELASTIC_ADMIN_URL/_security/user/$ELASTIC_USERNAME" >/dev/null
 
 if curl_es "$ELASTIC_ADMIN_URL/$ELASTIC_INDEX" >/dev/null 2>&1; then
     if ! curl_es "$ELASTIC_ADMIN_URL/$ELASTIC_INDEX/_settings" | grep -q 'rdms_english'; then

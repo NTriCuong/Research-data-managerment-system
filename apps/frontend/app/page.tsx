@@ -34,7 +34,7 @@ export default function HomePage() {
 
     return (
         <PublicShell>
-            {/* <section
+            <section
                 className="border-b border-border bg-muted/25 bg-cover bg-center"
                 style={
                     bannerUrl
@@ -46,7 +46,7 @@ export default function HomePage() {
             >
                 <div className="mx-auto flex w-full max-w-7xl justify-center px-4 py-84 sm:px-6 lg:px-8">
                 </div>
-            </section> */}
+            </section>
             <section className="border-b-2 border-border bg-muted/25">
                 <div className="mx-auto grid w-full max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-2 lg:gap-16 lg:px-8 lg:py-20">
                     <div className="min-w-0">
