@@ -117,5 +117,10 @@ export const API_ENDPOINT = {
         EXPORT_RESEARCHES_BY_DEPARTMENT_YEAR: (departmentId: string, year: number) =>
             `api/v1/reports/export/researches-by-department/${departmentId}/year/${year}`,
         EXPORT_RESEARCHES_BY_RESEARCHER: (researcherId: string) => `api/v1/reports/export/researches-by-researcher/${researcherId}`,
+        ADD_RESEARCH_VIEW: (researchId: string) => `api/v1/reports/research-views/${researchId}`,
+        RESEARCH_VIEWS_TOP_MONTH: 'api/v1/reports/research-views/top/month',
+        RESEARCH_VIEWS_TOP_YEAR: 'api/v1/reports/research-views/top/year',
+        RESEARCH_VIEWS_TOP_DOMAIN: (domainId: string) => `api/v1/reports/research-views/top/domain/${domainId}`,
+        RESEARCH_VIEWS_YEARLY: (year: number) => `api/v1/reports/research-views/yearly/${year}`,
     },
 }

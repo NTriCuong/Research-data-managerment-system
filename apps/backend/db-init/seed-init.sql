@@ -9456,6 +9456,51 @@ BEGIN
     END LOOP;
 END $$;
 
+-- 14. Seed 2000 view-log rows (random, June-July 2026) for the first 20 approved
+--     researches of Khoa CNTT and the first 20 of Khoa Xay dung (KTCT).
+--     Distribution across the 40 researches is random, not evenly split.
+DO $$
+DECLARE
+    v_research_ids UUID[];
+    v_total_views CONSTANT INT := 2000;
+    i INT;
+BEGIN
+    SELECT ARRAY(
+        (
+            SELECT r.research_id
+            FROM core.research_objects r
+            JOIN reference.departments d ON d.department_id = r.department_id
+            WHERE d.department_code = 'CNTT' AND r.deleted_at IS NULL
+            ORDER BY r.approved_at ASC, r.research_id ASC
+            LIMIT 20
+        )
+        UNION ALL
+        (
+            SELECT r.research_id
+            FROM core.research_objects r
+            JOIN reference.departments d ON d.department_id = r.department_id
+            WHERE d.department_code = 'KTCT' AND r.deleted_at IS NULL
+            ORDER BY r.approved_at ASC, r.research_id ASC
+            LIMIT 20
+        )
+    ) INTO v_research_ids;
+
+    IF v_research_ids IS NULL OR array_length(v_research_ids, 1) = 0 THEN
+        RAISE EXCEPTION 'No researches found for CNTT / KTCT to seed views for';
+    END IF;
+
+    FOR i IN 1..v_total_views LOOP
+        INSERT INTO log.research_object_view (research_id, viewed_at)
+        VALUES (
+            v_research_ids[1 + floor(random() * array_length(v_research_ids, 1))::INT],
+            (
+                (DATE '2026-06-01' + floor(random() * 61)::INT)::TIMESTAMP
+                + floor(random() * 86400)::INT * INTERVAL '1 second'
+            ) AT TIME ZONE 'Asia/Ho_Chi_Minh'
+        );
+    END LOOP;
+END $$;
+
 COMMIT;
 
 -- =============================================================

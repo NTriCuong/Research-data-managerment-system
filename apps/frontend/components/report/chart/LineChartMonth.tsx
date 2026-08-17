@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronDown, TrendingUp } from "lucide-react"
+import { ChevronDown } from "lucide-react"
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts"
 
 import {
@@ -17,28 +17,14 @@ import {
     ChartTooltipContent,
     type ChartConfig,
 } from "@/components/ui/chart"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { reportService } from "@/services/reports/report.service"
 
 export const description = "A line chart"
 
-const chartData = [
-    { month: "1", desktop: 186 },
-    { month: "2", desktop: 305 },
-    { month: "3", desktop: 237 },
-    { month: "4", desktop: 73 },
-    { month: "5", desktop: 209 },
-    { month: "6", desktop: 414 },
-    { month: "7", desktop: 314 },
-    { month: "8", desktop: 514 },
-    { month: "9", desktop: 214 },
-    { month: "10", desktop: 114 },
-    { month: "11", desktop: 114 },
-    { month: "12", desktop: 214 },
-]
-
 const chartConfig = {
-    desktop: {
-        label: "Desktop",
+    views: {
+        label: "Lượt xem",
         color: "#3b82f6",
     },
 } satisfies ChartConfig
@@ -49,9 +35,37 @@ const years = Array.from(
     (_, i) => currentYear - i // 2026, 2025, ..., 2000
 );
 
+function buildFullYearData(items: { month: number; count: number }[]) {
+    const countByMonth = new Map(items.map((item) => [item.month, item.count]))
+    return Array.from({ length: 12 }, (_, i) => ({
+        month: String(i + 1),
+        views: countByMonth.get(i + 1) ?? 0,
+    }))
+}
 
 export function LineChartMonth() {
     const [selectedYear, setSelectedYear] = useState(currentYear);
+    const [chartData, setChartData] = useState(() => buildFullYearData([]));
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        let ignore = false
+        setLoading(true)
+        reportService
+            .getResearchViewsYearly(selectedYear)
+            .then((data) => {
+                if (!ignore) setChartData(buildFullYearData(data))
+            })
+            .catch(() => {
+                if (!ignore) setChartData(buildFullYearData([]))
+            })
+            .finally(() => {
+                if (!ignore) setLoading(false)
+            })
+        return () => {
+            ignore = true
+        }
+    }, [selectedYear])
 
     return (
         <div>
@@ -59,7 +73,7 @@ export function LineChartMonth() {
                 <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
                     <div>
                         <CardTitle>Tổng lượt xem theo tháng</CardTitle>
-                        <CardDescription>6 tháng gần nhất</CardDescription>
+                        <CardDescription>{loading ? "Đang tải..." : `Năm ${selectedYear}`}</CardDescription>
                     </div>
                     <div className="relative shrink-0">
                         <select
@@ -92,16 +106,16 @@ export function LineChartMonth() {
                                 tickLine={false}
                                 axisLine={false}
                                 tickMargin={8}
-                                tickFormatter={(value) => value.slice(0, 3)}
+                                tickFormatter={(value) => `Th${value}`}
                             />
                             <ChartTooltip
                                 cursor={false}
-                                content={<ChartTooltipContent hideLabel />}
+                                content={<ChartTooltipContent hideLabel labelFormatter={(value) => `Tháng ${value}`} />}
                             />
                             <Line
-                                dataKey="desktop"
+                                dataKey="views"
                                 type="natural"
-                                stroke="var(--color-desktop)"
+                                stroke="var(--color-views)"
                                 strokeWidth={2}
                                 dot={false}
                             />
@@ -109,11 +123,8 @@ export function LineChartMonth() {
                     </ChartContainer>
                 </CardContent>
                 <CardFooter className="flex-col items-start gap-2 text-sm">
-                    <div className="flex gap-2 leading-none font-medium">
-                        Trending up by 5.2% this month <TrendingUp className="h-4 w-4" />
-                    </div>
                     <div className="leading-none text-muted-foreground">
-                        Showing total visitors for the last 6 months
+                        Tổng {chartData.reduce((sum, item) => sum + item.views, 0).toLocaleString("vi-VN")} lượt xem trong năm {selectedYear}
                     </div>
                 </CardFooter>
             </Card>

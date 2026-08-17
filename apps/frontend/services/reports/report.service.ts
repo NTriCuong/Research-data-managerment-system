@@ -65,6 +65,17 @@ export interface TopDepartmentItem {
     count: number
 }
 
+export interface TopResearchViewItem {
+    research_id: string
+    title: string
+    views: number
+}
+
+export interface TotalViewsByYearItem {
+    month: number
+    count: number
+}
+
 export const reportService = {
     async getTotalCoreRepositories(): Promise<TotalCoreRepositories> {
         const res = await axiosInstance.get<TotalCoreRepositories>(API_ENDPOINT.REPORTS.TOTAL_CORE_REPOSITORIES)
@@ -88,6 +99,28 @@ export const reportService = {
     },
     async getTopDepartments(limit = 10): Promise<TopDepartmentItem[]> {
         const res = await axiosInstance.get<TopDepartmentItem[]>(API_ENDPOINT.REPORTS.TOP_DEPARTMENTS, { params: { limit } })
+        return res.data
+    },
+    async getResearchViewsYearly(year: number): Promise<TotalViewsByYearItem[]> {
+        const res = await axiosInstance.get<TotalViewsByYearItem[]>(API_ENDPOINT.REPORTS.RESEARCH_VIEWS_YEARLY(year))
+        return res.data
+    },
+    async getTopResearchViewsByMonth(year: number, month: number, limit = 10): Promise<TopResearchViewItem[]> {
+        const res = await axiosInstance.get<TopResearchViewItem[]>(API_ENDPOINT.REPORTS.RESEARCH_VIEWS_TOP_MONTH, {
+            params: { year, month, limit },
+        })
+        return res.data
+    },
+    async getTopResearchViewsByYear(year: number, limit = 10): Promise<TopResearchViewItem[]> {
+        const res = await axiosInstance.get<TopResearchViewItem[]>(API_ENDPOINT.REPORTS.RESEARCH_VIEWS_TOP_YEAR, {
+            params: { year, limit },
+        })
+        return res.data
+    },
+    async getTopResearchViewsByDomain(domainId: string, year: number, limit = 10): Promise<TopResearchViewItem[]> {
+        const res = await axiosInstance.get<TopResearchViewItem[]>(API_ENDPOINT.REPORTS.RESEARCH_VIEWS_TOP_DOMAIN(domainId), {
+            params: { year, limit },
+        })
         return res.data
     },
 

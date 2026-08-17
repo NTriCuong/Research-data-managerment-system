@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Trophy } from "lucide-react"
 import { Bar, BarChart, LabelList, XAxis, YAxis } from "recharts"
 
@@ -25,40 +25,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import { reportService, type TopResearchViewItem } from "@/services/reports/report.service"
 
 export const description = "Top nghiên cứu được xem nhiều nhất trong năm"
-
-interface TopResearchYearItem {
-    research_id: string
-    title: string
-    views: number
-}
-
-// mock data - thay bằng data thật từ API sau (GET /reports/research-views/top/year?year=&limit=)
-const mockData: Record<number, TopResearchYearItem[]> = {
-    2026: [
-        { research_id: "1", title: "Ứng dụng AI trong chẩn đoán hình ảnh y khoa", views: 45123 },
-        { research_id: "2", title: "Phân tích dữ liệu lớn trong quản trị doanh nghiệp", views: 39347 },
-        { research_id: "3", title: "Mô hình dự báo biến đổi khí hậu khu vực ĐBSCL", views: 34122 },
-        { research_id: "4", title: "Xử lý ngôn ngữ tự nhiên tiếng Việt", views: 26441 },
-        { research_id: "5", title: "Tối ưu hóa năng lượng tái tạo", views: 25238 },
-        { research_id: "6", title: "Công nghệ sinh học trong xử lý nước thải", views: 17982 },
-        { research_id: "7", title: "Nghiên cứu vật liệu composite tiên tiến", views: 15671 },
-        { research_id: "8", title: "An toàn thông tin trong hệ thống IoT", views: 12412 },
-        { research_id: "9", title: "Blockchain trong chuỗi cung ứng nông sản", views: 9312 },
-        { research_id: "10", title: "Robot tự hành trong nông nghiệp thông minh", views: 6098 },
-    ],
-    2025: [
-        { research_id: "11", title: "Nghiên cứu giống lúa chịu mặn ĐBSCL", views: 31220 },
-        { research_id: "12", title: "Ứng dụng IoT trong nông nghiệp thông minh", views: 27890 },
-        { research_id: "13", title: "Phân tích ngữ nghĩa văn bản pháp luật", views: 22140 },
-        { research_id: "14", title: "Mô hình học sâu trong dự báo dịch bệnh", views: 18760 },
-        { research_id: "15", title: "Vật liệu nano trong xử lý môi trường", views: 15980 },
-        { research_id: "16", title: "Kinh tế tuần hoàn trong ngành dệt may", views: 12030 },
-        { research_id: "17", title: "Hệ thống điện mặt trời áp mái", views: 9540 },
-        { research_id: "18", title: "Bảo tồn đa dạng sinh học rừng ngập mặn", views: 7210 },
-    ],
-}
 
 const chartConfig = {
     views: {
@@ -79,18 +48,37 @@ function truncateTitle(title: string, max = 28) {
 }
 
 interface BarChartTopResearchByYearProps {
-    data?: Record<number, TopResearchYearItem[]>
     limit?: number
 }
 
 export default function BarChartTopResearchByYear({
-    data = mockData,
     limit = 10,
 }: BarChartTopResearchByYearProps) {
     const [year, setYear] = useState(CURRENT_YEAR)
+    const [data, setData] = useState<TopResearchViewItem[]>([])
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        let ignore = false
+        setLoading(true)
+        reportService
+            .getTopResearchViewsByYear(year, limit)
+            .then((result) => {
+                if (!ignore) setData(result)
+            })
+            .catch(() => {
+                if (!ignore) setData([])
+            })
+            .finally(() => {
+                if (!ignore) setLoading(false)
+            })
+        return () => {
+            ignore = true
+        }
+    }, [year, limit])
 
     const chartData = useMemo(() => {
-        return [...(data[year] ?? [])]
+        return [...data]
             .sort((a, b) => b.views - a.views)
             .slice(0, limit)
             .map((item, index) => ({
@@ -98,7 +86,7 @@ export default function BarChartTopResearchByYear({
                 rank: index + 1,
                 shortTitle: truncateTitle(item.title),
             }))
-    }, [data, year, limit])
+    }, [data, limit])
 
     return (
         <Card>
@@ -123,7 +111,9 @@ export default function BarChartTopResearchByYear({
                 </CardAction>
             </CardHeader>
             <CardContent>
-                {chartData.length === 0 ? (
+                {loading ? (
+                    <p className="py-10 text-center text-sm text-muted-foreground">Đang tải...</p>
+                ) : chartData.length === 0 ? (
                     <p className="py-10 text-center text-sm text-muted-foreground">
                         Chưa có dữ liệu lượt xem trong năm {year}
                     </p>
