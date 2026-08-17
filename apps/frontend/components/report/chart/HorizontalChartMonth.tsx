@@ -1,7 +1,6 @@
 "use client"
 
-import { useState } from "react"
-import { TrendingUp } from "lucide-react"
+import { useEffect, useState } from "react"
 import { Bar, BarChart, XAxis, YAxis } from "recharts"
 
 import {
@@ -25,67 +24,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import { reportService, type TopResearchViewItem } from "@/services/reports/report.service"
 
 export const description = "Top nghiên cứu được xem nhiều nhất trong tháng"
-
-interface ResearchViews {
-    research_id: string
-    title: string
-    views: number
-}
-
-const mockData: ResearchViews[] = [
-    {
-        research_id: "7979affb-c3ce-455a-955f-c7358b385715",
-        title: "Research data ",
-        views: 5,
-    },
-    {
-        research_id: "7979affb-c3ce-455a-955f-c7358b385715",
-        title: "Research data ",
-        views: 6,
-    },
-    {
-        research_id: "7979affb-c3ce-455a-955f-c7358b385715",
-        title: "Research data ",
-        views: 7,
-    },
-    {
-        research_id: "7979affb-c3ce-455a-955f-c7358b385715",
-        title: "Research data",
-        views: 8,
-    },
-    {
-        research_id: "7979affb-c3ce-455a-955f-c7358b385715",
-        title: "Research data ",
-        views: 10,
-    },
-    {
-        research_id: "7979affb-c3ce-455a-955f-c7358b385715",
-        title: "Research data",
-        views: 15,
-    },
-    {
-        research_id: "7979affb-c3ce-455a-955f-c7358b385715",
-        title: "Research data",
-        views: 16,
-    },
-    {
-        research_id: "7979affb-c3ce-455a-955f-c7358b385715",
-        title: "Research data",
-        views: 17,
-    },
-    {
-        research_id: "7979affb-c3ce-455a-955f-c7358b385715",
-        title: "Research data",
-        views: 18,
-    },
-    {
-        research_id: "7979affb-c3ce-455a-955f-c7358b385715",
-        title: "Research data",
-        views: 20,
-    },
-]
 
 const chartConfig = {
     views: {
@@ -112,8 +53,27 @@ const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => i + 1)
 export function BarHorizontalChartMonth() {
     const [year, setYear] = useState(CURRENT_YEAR)
     const [month, setMonth] = useState(CURRENT_MONTH)
+    const [top10, setTop10] = useState<TopResearchViewItem[]>([])
+    const [loading, setLoading] = useState(true)
 
-    const top10 = [...mockData].sort((a, b) => b.views - a.views).slice(0, 10)
+    useEffect(() => {
+        let ignore = false
+        setLoading(true)
+        reportService
+            .getTopResearchViewsByMonth(year, month, 10)
+            .then((data) => {
+                if (!ignore) setTop10(data)
+            })
+            .catch(() => {
+                if (!ignore) setTop10([])
+            })
+            .finally(() => {
+                if (!ignore) setLoading(false)
+            })
+        return () => {
+            ignore = true
+        }
+    }, [year, month])
 
     return (
         <Card>
@@ -153,31 +113,39 @@ export function BarHorizontalChartMonth() {
                 </CardAction>
             </CardHeader>
             <CardContent>
-                <ChartContainer
-                    config={chartConfig}
-                    className="w-full"
-                    style={{ height: Math.max(top10.length * 44, 120) }}
-                >
-                    <BarChart
-                        accessibilityLayer
-                        data={top10}
-                        layout="vertical"
-                        margin={{ left: 12, right: 12 }}
+                {loading ? (
+                    <p className="py-10 text-center text-sm text-muted-foreground">Đang tải...</p>
+                ) : top10.length === 0 ? (
+                    <p className="py-10 text-center text-sm text-muted-foreground">
+                        Chưa có dữ liệu lượt xem trong tháng {month}/{year}
+                    </p>
+                ) : (
+                    <ChartContainer
+                        config={chartConfig}
+                        className="w-full"
+                        style={{ height: Math.max(top10.length * 44, 120) }}
                     >
-                        <XAxis type="number" dataKey="views" hide />
-                        <YAxis
-                            dataKey="title"
-                            type="category"
-                            tickLine={false}
-                            tickMargin={10}
-                            axisLine={false}
-                            width={170}
-                            tickFormatter={(value) => truncateTitle(value)}
-                        />
-                        <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                        <Bar dataKey="views" fill="var(--color-views)" radius={5} barSize={20} />
-                    </BarChart>
-                </ChartContainer>
+                        <BarChart
+                            accessibilityLayer
+                            data={top10}
+                            layout="vertical"
+                            margin={{ left: 12, right: 12 }}
+                        >
+                            <XAxis type="number" dataKey="views" hide />
+                            <YAxis
+                                dataKey="title"
+                                type="category"
+                                tickLine={false}
+                                tickMargin={10}
+                                axisLine={false}
+                                width={170}
+                                tickFormatter={(value) => truncateTitle(value)}
+                            />
+                            <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                            <Bar dataKey="views" fill="var(--color-views)" radius={5} barSize={20} />
+                        </BarChart>
+                    </ChartContainer>
+                )}
             </CardContent>
             <CardFooter className="flex-col items-start gap-2 text-sm">
                 <div className="leading-none text-muted-foreground">

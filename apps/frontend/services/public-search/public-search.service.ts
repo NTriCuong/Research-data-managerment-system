@@ -60,6 +60,12 @@ export interface PublicResearchDetail extends PublicResearchItem {
     file_attachments: PublicFile[];
 }
 
+export interface ResearchViewResponse {
+    view_id: string;
+    research_id: string;
+    viewed_at: string;
+}
+
 export interface PublicResearchSearchResponse {
     items: PublicResearchItem[];
     total: number;
@@ -150,6 +156,14 @@ export const publicSearchService = {
     async getPublicResearchDetail(researchId: string) {
         const response = await axiosInstance.get<PublicResearchDetail>(
             API_ENDPOINT.PUBLIC.RESEARCH_DETAIL(researchId)
+        );
+
+        return response.data;
+    },
+
+    async addResearchView(researchId: string) {
+        const response = await axiosInstance.post<ResearchViewResponse>(
+            API_ENDPOINT.REPORTS.ADD_RESEARCH_VIEW(researchId)
         );
 
         return response.data;

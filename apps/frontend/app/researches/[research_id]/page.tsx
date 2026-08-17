@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import { ArrowLeft, BarChart3, Download, ExternalLink, FileText, Lock, Users } from "lucide-react"
@@ -47,6 +47,7 @@ export default function PublicResearchDetailPage() {
     const [detail, setDetail] = useState<PublicResearchDetail | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState("")
+    const viewedResearchId = useRef<string | null>(null)
 
     useEffect(() => {
         publicSearchService
@@ -54,6 +55,12 @@ export default function PublicResearchDetailPage() {
             .then(setDetail)
             .catch(() => setError("Không tìm thấy bài nghiên cứu public."))
             .finally(() => setLoading(false))
+    }, [params.research_id])
+
+    useEffect(() => {
+        if (viewedResearchId.current === params.research_id) return
+        viewedResearchId.current = params.research_id
+        publicSearchService.addResearchView(params.research_id).catch(() => {})
     }, [params.research_id])
 
     return (
